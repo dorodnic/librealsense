@@ -33,26 +33,20 @@ namespace rs2
         template<class S>
         void start(S on_frame)
         {
-            rs2_error* e = nullptr;
-            rs2_start_processing(_block.get(), new frame_callback<S>(on_frame), &e);
-            error::handle(e);
+            rs2_start_processing(_block.get(), new frame_callback<S>(on_frame), handle_error());
         }
 
         void invoke(frame f) const
         {
             rs2_frame* ptr = nullptr;
             std::swap(f.frame_ref, ptr);
-
-            rs2_error* e = nullptr;
-            rs2_process_frame(_block.get(), ptr, &e);
-            error::handle(e);
+            rs2_process_frame(_block.get(), ptr, handle_error());
         }
 
         void operator()(frame f) const
         {
             invoke(std::move(f));
         }
-
 
         processing_block(std::shared_ptr<rs2_processing_block> block)
          : _block(block)
@@ -62,12 +56,9 @@ namespace rs2
         template<class S>
         processing_block(S processing_function)
         {
-           rs2_error* e = nullptr;
             _block =  std::shared_ptr<rs2_processing_block>(
-                        rs2_create_processing_block(new frame_processor_callback<S>(processing_function),&e),
+                        rs2_create_processing_block(new frame_processor_callback<S>(processing_function), handle_error()),
                         rs2_delete_processing_block);
-
-            error::handle(e);
         }
 
     private:
@@ -79,13 +70,10 @@ namespace rs2
     public:
         syncer_processing_block()
         {
-            rs2_error* e = nullptr;
             _processing_block = std::make_shared<processing_block>(
                     std::shared_ptr<rs2_processing_block>(
-                                        rs2_create_sync_processing_block(&e),
+                                        rs2_create_sync_processing_block(handle_error()),
                                         rs2_delete_processing_block));
-            error::handle(e);
-
         }
         template<class S>
         void start(S on_frame)
@@ -111,11 +99,9 @@ namespace rs2
         */
         explicit frame_queue(unsigned int capacity)
         {
-            rs2_error* e = nullptr;
             _queue = std::shared_ptr<rs2_frame_queue>(
-                    rs2_create_frame_queue(capacity, &e),
+                    rs2_create_frame_queue(capacity, handle_error()),
                     rs2_delete_frame_queue);
-            error::handle(e);
         }
 
         frame_queue() : frame_queue(1) {}
@@ -136,9 +122,7 @@ namespace rs2
         */
         frame wait_for_frame(unsigned int timeout_ms = 5000) const
         {
-            rs2_error* e = nullptr;
-            auto frame_ref = rs2_wait_for_frame(_queue.get(), timeout_ms, &e);
-            error::handle(e);
+            auto frame_ref = rs2_wait_for_frame(_queue.get(), timeout_ms, handle_error());
             return{ frame_ref };
         }
 
@@ -149,10 +133,8 @@ namespace rs2
         */
         bool poll_for_frame(frame* f) const
         {
-            rs2_error* e = nullptr;
             rs2_frame* frame_ref = nullptr;
-            auto res = rs2_poll_for_frame(_queue.get(), &frame_ref, &e);
-            error::handle(e);
+            auto res = rs2_poll_for_frame(_queue.get(), &frame_ref, handle_error());
             if (res) *f = { frame_ref };
             return res > 0;
         }
@@ -169,17 +151,12 @@ namespace rs2
     class pointcloud
     {
     public:
-        pointcloud() :  _queue(1)
+        pointcloud() : _queue(1)
         {
-            rs2_error* e = nullptr;
-
             _block = std::make_shared<processing_block>(
                                 std::shared_ptr<rs2_processing_block>(
-                                                    rs2_create_pointcloud(&e),
+                                                    rs2_create_pointcloud(handle_error()),
                                                     rs2_delete_processing_block));
-
-            error::handle(e);
-
             _block->start(_queue);
         }
 
@@ -248,12 +225,10 @@ namespace rs2
     public:
         align(rs2_stream align_to) :_queue(1)
         {
-            rs2_error* e = nullptr;
             _block = std::make_shared<processing_block>(
             std::shared_ptr<rs2_processing_block>(
-                rs2_create_align(align_to, &e),
+                rs2_create_align(align_to, handle_error()),
                 rs2_delete_processing_block));
-            error::handle(e);
 
             _block->start(_queue);
         }
@@ -283,13 +258,10 @@ namespace rs2
         colorizer():
             _queue(1)
         {
-            rs2_error* e = nullptr;
             _block = std::make_shared<processing_block>(
                         std::shared_ptr<rs2_processing_block>(
-                            rs2_create_colorizer(&e),
+                            rs2_create_colorizer(handle_error()),
                             rs2_delete_processing_block));
-            error::handle(e);
-
             _block->start(_queue);
         }
 

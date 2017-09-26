@@ -23,9 +23,7 @@ namespace rs2
 
         stream_profile clone(rs2_stream type, int index, rs2_format format) const
         {
-            rs2_error* e = nullptr;
-            auto ref = rs2_clone_stream_profile(_profile, type, index, format, &e);
-            error::handle(e);
+            auto ref = rs2_clone_stream_profile(_profile, type, index, format, handle_error());
             stream_profile res(ref);
             res._clone = std::shared_ptr<rs2_stream_profile>(ref, [](rs2_stream_profile* r) { rs2_delete_stream_profile(r); });
 
@@ -63,10 +61,8 @@ namespace rs2
 
         rs2_extrinsics get_extrinsics_to(const stream_profile& to) const
         {
-            rs2_error* e = nullptr;
             rs2_extrinsics res;
-            rs2_get_extrinsics(get(), to.get(), &res, &e);
-            error::handle(e);
+            rs2_get_extrinsics(get(), to.get(), &res, handle_error());
             return res;
         }
 
@@ -77,15 +73,9 @@ namespace rs2
 
         explicit stream_profile(const rs2_stream_profile* profile) : _profile(profile)
         {
-            rs2_error* e = nullptr;
-            rs2_get_stream_profile_data(_profile, &_type, &_format, &_index, &_uid, &_framerate, &e);
-            error::handle(e);
-
-            _default = !!(rs2_is_stream_profile_default(_profile, &e));
-            error::handle(e);
-
-            _size = rs2_get_stream_profile_size(_profile, &e);
-            error::handle(e);
+            rs2_get_stream_profile_data(_profile, &_type, &_format, &_index, &_uid, &_framerate, handle_error());
+            _default = !!(rs2_is_stream_profile_default(_profile, handle_error()));
+            _size = rs2_get_stream_profile_size(_profile, handle_error());
         }
 
         const rs2_stream_profile* _profile;
@@ -107,17 +97,14 @@ namespace rs2
         explicit video_stream_profile(const stream_profile& sp)
             : stream_profile(sp)
         {
-            rs2_error* e = nullptr;
-            if ((rs2_stream_profile_is(sp.get(), RS2_EXTENSION_VIDEO_PROFILE, &e) == 0 && !e))
+            if ((rs2_stream_profile_is(sp.get(), RS2_EXTENSION_VIDEO_PROFILE, handle_error()) == 0))
             {
                 _profile = nullptr;
             }
-            error::handle(e);
 
             if (_profile)
             {
-                rs2_get_video_stream_resolution(_profile, &_width, &_height, &e);
-                error::handle(e);
+                rs2_get_video_stream_resolution(_profile, &_width, &_height, handle_error());
             }
         }
 
@@ -133,10 +120,8 @@ namespace rs2
 
         rs2_intrinsics get_intrinsics() const
         {
-            rs2_error* e = nullptr;
             rs2_intrinsics intr;
-            rs2_get_video_stream_intrinsics(_profile, &intr, &e);
-            error::handle(e);
+            rs2_get_video_stream_intrinsics(_profile, &intr, handle_error());
             return intr;
         }
 
@@ -150,15 +135,10 @@ namespace rs2
     public:
         notification(rs2_notification* notification)
         {
-            rs2_error* e = nullptr;
-            _description = rs2_get_notification_description(notification, &e);
-            error::handle(e);
-            _timestamp = rs2_get_notification_timestamp(notification, &e);
-            error::handle(e);
-            _severity = rs2_get_notification_severity(notification, &e);
-            error::handle(e);
-            _category = rs2_get_notification_category(notification, &e);
-            error::handle(e);
+            _description = rs2_get_notification_description(notification, handle_error());
+            _timestamp = rs2_get_notification_timestamp(notification, handle_error());
+            _severity = rs2_get_notification_severity(notification, handle_error());
+            _category = rs2_get_notification_category(notification, handle_error());
         }
 
         notification()
@@ -234,11 +214,9 @@ namespace rs2
         */
         void open(const stream_profile& profile) const
         {
-            rs2_error* e = nullptr;
             rs2_open(_sensor.get(),
                 profile.get(),
-                &e);
-            error::handle(e);
+                handle_error());
         }
 
         /**
@@ -248,10 +226,7 @@ namespace rs2
         */
         bool supports(rs2_camera_info info) const
         {
-            rs2_error* e = nullptr;
-            auto is_supported = rs2_supports_sensor_info(_sensor.get(), info, &e);
-            error::handle(e);
-            return is_supported > 0;
+            return rs2_supports_sensor_info(_sensor.get(), info, handle_error()) > 0;
         }
 
         /**
@@ -261,10 +236,7 @@ namespace rs2
         */
         const char* get_info(rs2_camera_info info) const
         {
-            rs2_error* e = nullptr;
-            auto result = rs2_get_sensor_info(_sensor.get(), info, &e);
-            error::handle(e);
-            return result;
+            return rs2_get_sensor_info(_sensor.get(), info, handle_error());
         }
 
         /**
@@ -274,8 +246,6 @@ namespace rs2
         */
         void open(const std::vector<stream_profile>& profiles) const
         {
-            rs2_error* e = nullptr;
-
             std::vector<const rs2_stream_profile*> profs;
             profs.reserve(profiles.size());
             for (auto& p : profiles)
@@ -286,8 +256,7 @@ namespace rs2
             rs2_open_multiple(_sensor.get(),
                 profs.data(),
                 static_cast<int>(profiles.size()),
-                &e);
-            error::handle(e);
+                handle_error());
         }
 
         /**
@@ -296,9 +265,7 @@ namespace rs2
         */
         void close() const
         {
-            rs2_error* e = nullptr;
-            rs2_close(_sensor.get(), &e);
-            error::handle(e);
+            rs2_close(_sensor.get(), handle_error());
         }
 
         /**
@@ -308,9 +275,7 @@ namespace rs2
         template<class T>
         void start(T callback) const
         {
-            rs2_error* e = nullptr;
-            rs2_start_cpp(_sensor.get(), new frame_callback<T>(std::move(callback)), &e);
-            error::handle(e);
+            rs2_start_cpp(_sensor.get(), new frame_callback<T>(std::move(callback)), handle_error());
         }
 
         /**
@@ -318,9 +283,7 @@ namespace rs2
         */
         void stop() const
         {
-            rs2_error* e = nullptr;
-            rs2_stop(_sensor.get(), &e);
-            error::handle(e);
+            rs2_stop(_sensor.get(), handle_error());
         }
 
         /**
@@ -330,10 +293,7 @@ namespace rs2
         */
         bool is_option_read_only(rs2_option option)
         {
-            rs2_error* e = nullptr;
-            auto res = rs2_is_option_read_only(_sensor.get(), option, &e);
-            error::handle(e);
-            return res > 0;
+            return rs2_is_option_read_only(_sensor.get(), option, handle_error()) > 0;
         }
 
         /**
@@ -343,10 +303,8 @@ namespace rs2
         template<class T>
         void set_notifications_callback(T callback) const
         {
-            rs2_error* e = nullptr;
             rs2_set_notifications_callback_cpp(_sensor.get(),
-                new notifications_callback<T>(std::move(callback)), &e);
-            error::handle(e);
+                new notifications_callback<T>(std::move(callback)), handle_error());
         }
 
         /**
@@ -356,10 +314,7 @@ namespace rs2
         */
         float get_option(rs2_option option) const
         {
-            rs2_error* e = nullptr;
-            auto res = rs2_get_option(_sensor.get(), option, &e);
-            error::handle(e);
-            return res;
+            return rs2_get_option(_sensor.get(), option, handle_error());
         }
 
         /**
@@ -369,10 +324,8 @@ namespace rs2
         option_range get_option_range(rs2_option option) const
         {
             option_range result;
-            rs2_error* e = nullptr;
             rs2_get_option_range(_sensor.get(), option,
-                &result.min, &result.max, &result.step, &result.def, &e);
-            error::handle(e);
+                &result.min, &result.max, &result.step, &result.def, handle_error());
             return result;
         }
 
@@ -383,9 +336,7 @@ namespace rs2
         */
         void set_option(rs2_option option, float value) const
         {
-            rs2_error* e = nullptr;
-            rs2_set_option(_sensor.get(), option, value, &e);
-            error::handle(e);
+            rs2_set_option(_sensor.get(), option, value, handle_error());
         }
 
         /**
@@ -395,10 +346,7 @@ namespace rs2
         */
         bool supports(rs2_option option) const
         {
-            rs2_error* e = nullptr;
-            auto res = rs2_supports_option(_sensor.get(), option, &e);
-            error::handle(e);
-            return res > 0;
+            return rs2_supports_option(_sensor.get(), option, handle_error()) > 0;
         }
 
         /**
@@ -408,10 +356,7 @@ namespace rs2
         */
         const char* get_option_description(rs2_option option) const
         {
-            rs2_error* e = nullptr;
-            auto res = rs2_get_option_description(_sensor.get(), option, &e);
-            error::handle(e);
-            return res;
+            return rs2_get_option_description(_sensor.get(), option, handle_error());
         }
 
         /**
@@ -422,10 +367,7 @@ namespace rs2
         */
         const char* get_option_value_description(rs2_option option, float val) const
         {
-            rs2_error* e = nullptr;
-            auto res = rs2_get_option_value_description(_sensor.get(), option, val, &e);
-            error::handle(e);
-            return res;
+            return rs2_get_option_value_description(_sensor.get(), option, val, handle_error());
         }
 
         /**
@@ -435,23 +377,15 @@ namespace rs2
         std::vector<stream_profile> get_stream_profiles() const
         {
             std::vector<stream_profile> results;
-
-            rs2_error* e = nullptr;
             std::shared_ptr<rs2_stream_profile_list> list(
-                rs2_get_stream_profiles(_sensor.get(), &e),
+                rs2_get_stream_profiles(_sensor.get(), handle_error()),
                 rs2_delete_stream_profiles_list);
-            error::handle(e);
-
-            auto size = rs2_get_stream_profiles_count(list.get(), &e);
-            error::handle(e);
-
+            auto size = rs2_get_stream_profiles_count(list.get(), handle_error());
             for (auto i = 0; i < size; i++)
             {
-                stream_profile profile(rs2_get_stream_profile(list.get(), i, &e));
-                error::handle(e);
+                stream_profile profile(rs2_get_stream_profile(list.get(), i, handle_error()));
                 results.push_back(profile);
             }
-
             return results;
         }
 
@@ -459,11 +393,10 @@ namespace rs2
          * returns scale and bias of a motion stream
          * \param stream    Motion stream type (Gyro / Accel / ...)
          */
-        rs2_motion_device_intrinsic get_motion_intrinsics(rs2_stream stream) {
-            rs2_error *e = nullptr;
+        rs2_motion_device_intrinsic get_motion_intrinsics(rs2_stream stream) 
+        {
             rs2_motion_device_intrinsic intrin;
-            rs2_get_motion_intrinsics(_sensor.get(), stream, &intrin, &e);
-            error::handle(e);
+            rs2_get_motion_intrinsics(_sensor.get(), stream, &intrin, handle_error());
             return intrin;
         }
 
@@ -535,27 +468,21 @@ namespace rs2
         roi_sensor(sensor s)
             : sensor(s.get())
         {
-            rs2_error* e = nullptr;
-            if(rs2_is_sensor_extendable_to(_sensor.get(), RS2_EXTENSION_ROI, &e) == 0 && !e)
+            if(rs2_is_sensor_extendable_to(_sensor.get(), RS2_EXTENSION_ROI, handle_error()) == 0)
             {
                 _sensor = nullptr;
             }
-            error::handle(e);
         }
 
         void set_region_of_interest(const region_of_interest& roi)
         {
-            rs2_error* e = nullptr;
-            rs2_set_region_of_interest(_sensor.get(), roi.min_x, roi.min_y, roi.max_x, roi.max_y, &e);
-            error::handle(e);
+            rs2_set_region_of_interest(_sensor.get(), roi.min_x, roi.min_y, roi.max_x, roi.max_y, handle_error());
         }
 
         region_of_interest get_region_of_interest() const
         {
             region_of_interest roi {};
-            rs2_error* e = nullptr;
-            rs2_get_region_of_interest(_sensor.get(), &roi.min_x, &roi.min_y, &roi.max_x, &roi.max_y, &e);
-            error::handle(e);
+            rs2_get_region_of_interest(_sensor.get(), &roi.min_x, &roi.min_y, &roi.max_x, &roi.max_y, handle_error());
             return roi;
         }
 
@@ -568,12 +495,10 @@ namespace rs2
         depth_sensor(sensor s)
             : sensor(s.get())
         {
-            rs2_error* e = nullptr;
-            if (rs2_is_sensor_extendable_to(_sensor.get(), RS2_EXTENSION_DEPTH_SENSOR, &e) == 0 && !e)
+            if (rs2_is_sensor_extendable_to(_sensor.get(), RS2_EXTENSION_DEPTH_SENSOR, handle_error()) == 0)
             {
                 _sensor = nullptr;
             }
-            error::handle(e);
         }
 
         /** Retrieves mapping between the units of the depth image and meters
@@ -581,10 +506,7 @@ namespace rs2
         */
         float get_depth_scale() const
         {
-            rs2_error* e = nullptr;
-            auto res = rs2_get_depth_scale(_sensor.get(), &e);
-            error::handle(e);
-            return res;
+            return rs2_get_depth_scale(_sensor.get(), handle_error());
         }
 
         operator bool() const { return _sensor.get() != nullptr; }

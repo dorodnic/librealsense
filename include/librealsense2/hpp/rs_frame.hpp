@@ -49,10 +49,7 @@ namespace rs2
         */
         double get_timestamp() const
         {
-            rs2_error* e = nullptr;
-            auto r = rs2_get_frame_timestamp(frame_ref, &e);
-            error::handle(e);
-            return r;
+            return rs2_get_frame_timestamp(frame_ref, handle_error());
         }
 
         /** retrieve the timestamp domain
@@ -60,10 +57,7 @@ namespace rs2
         */
         rs2_timestamp_domain get_frame_timestamp_domain() const
         {
-            rs2_error* e = nullptr;
-            auto r = rs2_get_frame_timestamp_domain(frame_ref, &e);
-            error::handle(e);
-            return r;
+            return rs2_get_frame_timestamp_domain(frame_ref, handle_error());
         }
 
         /** retrieve the current value of a single frame_metadata
@@ -72,10 +66,7 @@ namespace rs2
         */
         rs2_metadata_type get_frame_metadata(rs2_frame_metadata_value frame_metadata) const
         {
-            rs2_error* e = nullptr;
-            auto r = rs2_get_frame_metadata(frame_ref, frame_metadata, &e);
-            error::handle(e);
-            return r;
+            return rs2_get_frame_metadata(frame_ref, frame_metadata, handle_error());
         }
 
         /** determine if the device allows a specific metadata to be queried
@@ -84,10 +75,7 @@ namespace rs2
         */
         bool supports_frame_metadata(rs2_frame_metadata_value frame_metadata) const
         {
-            rs2_error* e = nullptr;
-            auto r = rs2_supports_frame_metadata(frame_ref, frame_metadata, &e);
-            error::handle(e);
-            return r != 0;
+            return rs2_supports_frame_metadata(frame_ref, frame_metadata, handle_error());
         }
 
         /**
@@ -96,10 +84,7 @@ namespace rs2
         */
         unsigned long long get_frame_number() const
         {
-            rs2_error* e = nullptr;
-            auto r = rs2_get_frame_number(frame_ref, &e);
-            error::handle(e);
-            return r;
+            return rs2_get_frame_number(frame_ref, handle_error());
         }
 
         /**
@@ -108,18 +93,12 @@ namespace rs2
         */
         const void* get_data() const
         {
-            rs2_error* e = nullptr;
-            auto r = rs2_get_frame_data(frame_ref, &e);
-            error::handle(e);
-            return r;
+            return rs2_get_frame_data(frame_ref, handle_error());
         }
 
         stream_profile get_profile() const
         {
-            rs2_error* e = nullptr;
-            auto s = rs2_get_frame_stream_profile(frame_ref, &e);
-            error::handle(e);
-            return stream_profile(s);
+            return stream_profile(rs2_get_frame_stream_profile(frame_ref, handle_error()));
         }
 
         template<class T>
@@ -146,9 +125,7 @@ namespace rs2
         */
         void add_ref() const
         {
-            rs2_error* e = nullptr;
-            rs2_frame_add_ref(frame_ref, &e);
-            error::handle(e);
+            rs2_frame_add_ref(frame_ref, handle_error());
         }
 
         void reset()
@@ -176,12 +153,10 @@ namespace rs2
         video_frame(const frame& f)
             : frame(f)
         {
-            rs2_error* e = nullptr;
-            if(!f || (rs2_is_frame_extendable_to(f.get(), RS2_EXTENSION_VIDEO_FRAME, &e) == 0 && !e))
+            if(!f || (rs2_is_frame_extendable_to(f.get(), RS2_EXTENSION_VIDEO_FRAME, handle_error()) == 0))
             {
                 reset();
             }
-            error::handle(e);
         }
 
         /**
@@ -190,10 +165,7 @@ namespace rs2
         */
         int get_width() const
         {
-            rs2_error* e = nullptr;
-            auto r = rs2_get_frame_width(get(), &e);
-            error::handle(e);
-            return r;
+            return rs2_get_frame_width(get(), handle_error());
         }
 
         /**
@@ -202,10 +174,7 @@ namespace rs2
         */
         int get_height() const
         {
-            rs2_error* e = nullptr;
-            auto r = rs2_get_frame_height(get(), &e);
-            error::handle(e);
-            return r;
+            return rs2_get_frame_height(get(), handle_error());
         }
 
         /**
@@ -214,10 +183,7 @@ namespace rs2
         */
         int get_stride_in_bytes() const
         {
-            rs2_error* e = nullptr;
-            auto r = rs2_get_frame_stride_in_bytes(get(), &e);
-            error::handle(e);
-            return r;
+            return rs2_get_frame_stride_in_bytes(get(), handle_error());
         }
 
         /**
@@ -226,10 +192,7 @@ namespace rs2
         */
         int get_bits_per_pixel() const
         {
-            rs2_error* e = nullptr;
-            auto r = rs2_get_frame_bits_per_pixel(get(), &e);
-            error::handle(e);
-            return r;
+            return rs2_get_frame_bits_per_pixel(get(), handle_error());
         }
 
         int get_bytes_per_pixel() const { return get_bits_per_pixel() / 8; }
@@ -252,35 +215,25 @@ namespace rs2
         points(const frame& f)
                 : frame(f), _size(0)
         {
-            rs2_error* e = nullptr;
-            if(!f || (rs2_is_frame_extendable_to(f.get(), RS2_EXTENSION_POINTS, &e) == 0 && !e))
+            if(!f || (rs2_is_frame_extendable_to(f.get(), RS2_EXTENSION_POINTS, handle_error()) == 0))
             {
                 reset();
             }
-            error::handle(e);
 
             if (get())
             {
-                rs2_error* e = nullptr;
-                _size = rs2_get_frame_points_count(get(), &e);
-                error::handle(e);
+                _size = rs2_get_frame_points_count(get(), handle_error());
             }
         }
 
         const vertex* get_vertices() const
         {
-            rs2_error* e = nullptr;
-            auto res = rs2_get_frame_vertices(get(), &e);
-            error::handle(e);
-            return (const vertex*)res;
+            return (const vertex*)rs2_get_frame_vertices(get(), handle_error());
         }
 
         const texture_coordinate* get_texture_coordinates() const
         {
-            rs2_error* e = nullptr;
-            auto res = rs2_get_frame_texture_coordinates(get(), &e);
-            error::handle(e);
-            return (const texture_coordinate*)res;
+            return (const texture_coordinate*)rs2_get_frame_texture_coordinates(get(), handle_error());
         }
 
         size_t size() const
@@ -298,20 +251,15 @@ namespace rs2
         depth_frame(const frame& f)
             : video_frame(f)
         {
-            rs2_error* e = nullptr;
-            if (!f || (rs2_is_frame_extendable_to(f.get(), RS2_EXTENSION_DEPTH_FRAME, &e) == 0 && !e))
+            if (!f || (rs2_is_frame_extendable_to(f.get(), RS2_EXTENSION_DEPTH_FRAME, handle_error()) == 0))
             {
                 reset();
             }
-            error::handle(e);
         }
 
         float get_distance(int x, int y) const
         {
-            rs2_error * e = nullptr;
-            auto r = rs2_depth_frame_get_distance(get(), x, y, &e);
-            error::handle(e);
-            return r;
+            return rs2_depth_frame_get_distance(get(), x, y, handle_error());
         }
     };
     class frameset : public frame
@@ -321,18 +269,14 @@ namespace rs2
         frameset(const frame& f)
             : frame(f), _size(0)
         {
-            rs2_error* e = nullptr;
-            if(!f || (rs2_is_frame_extendable_to(f.get(), RS2_EXTENSION_COMPOSITE_FRAME, &e) == 0 && !e))
+            if(!f || (rs2_is_frame_extendable_to(f.get(), RS2_EXTENSION_COMPOSITE_FRAME, handle_error()) == 0))
             {
                 reset();
             }
-            error::handle(e);
 
             if (get())
             {
-                rs2_error* e = nullptr;
-                _size = rs2_embedded_frames_count(get(), &e);
-                error::handle(e);
+                _size = rs2_embedded_frames_count(get(), handle_error());
             }
         }
 
@@ -381,24 +325,19 @@ namespace rs2
         template<class T>
         void foreach(T action) const
         {
-            rs2_error* e = nullptr;
             auto count = size();
             for (size_t i = 0; i < count; i++)
             {
-                auto fref = rs2_extract_frame(get(), (int)i, &e);
-                error::handle(e);
-
+                auto fref = rs2_extract_frame(get(), (int)i, handle_error());
                 action(frame(fref));
             }
         }
 
         frame operator[](size_t index) const
         {
-            rs2_error* e = nullptr;
             if(index < size())
             {
-                 auto fref = rs2_extract_frame(get(), (int)index, &e);
-                 error::handle(e);
+                 auto fref = rs2_extract_frame(get(), (int)index, handle_error());
                  return frame(fref);
             }
 
@@ -437,31 +376,22 @@ namespace rs2
                                    int new_stride = 0,
                                    rs2_extension frame_type = RS2_EXTENSION_VIDEO_FRAME) const
         {
-            rs2_error* e = nullptr;
-            auto result = rs2_allocate_synthetic_video_frame(_source, profile.get(),
-                original.get(), new_bpp, new_width, new_height, new_stride, frame_type, &e);
-            error::handle(e);
-            return result;
+            return rs2_allocate_synthetic_video_frame(_source, profile.get(),
+                original.get(), new_bpp, new_width, new_height, new_stride, frame_type, handle_error());
         }
 
         frame allocate_composite_frame(std::vector<frame> frames) const
         {
-            rs2_error* e = nullptr;
-
             std::vector<rs2_frame*> refs(frames.size(), nullptr);
             for (size_t i = 0; i < frames.size(); i++)
                 std::swap(refs[i], frames[i].frame_ref);
 
-            auto result = rs2_allocate_composite_frame(_source, refs.data(), (int)refs.size(), &e);
-            error::handle(e);
-            return result;
+            return rs2_allocate_composite_frame(_source, refs.data(), (int)refs.size(), handle_error());
         }
 
         void frame_ready(frame result) const
         {
-            rs2_error* e = nullptr;
-            rs2_synthetic_frame_ready(_source, result.get(), &e);
-            error::handle(e);
+            rs2_synthetic_frame_ready(_source, result.get(), handle_error());
             result.frame_ref = nullptr;
         }
 
@@ -472,12 +402,6 @@ namespace rs2
 
         frame_source(rs2_source* source) : _source(source) {}
         frame_source(const frame_source&) = delete;
-
     };
-
-   
-
-   
-
 }
 #endif // LIBREALSENSE_RS2_FRAME_HPP

@@ -8,23 +8,18 @@
 #include "rs_frame.hpp"
 #include "rs_context.hpp"
 
-
 namespace rs2
 {
     class pipeline
     {
     public:
-
         pipeline(context ctx = context())
             : _ctx(ctx)
         {
-            rs2_error* e = nullptr;
             _pipeline = std::shared_ptr<rs2_pipeline>(
-                rs2_create_pipeline(ctx._context.get(), &e),
+                rs2_create_pipeline(ctx._context.get(), handle_error()),
                 rs2_delete_pipeline);
-            error::handle(e);
         }
-
 
         /**
         * Retrieved the device used by the pipeline
@@ -35,13 +30,9 @@ namespace rs2
         */
         device get_device() const
         {
-            rs2_error* e = nullptr;
             std::shared_ptr<rs2_device> dev(
-                rs2_pipeline_get_device(_ctx._context.get(), _pipeline.get(), &e),
+                rs2_pipeline_get_device(_ctx._context.get(), _pipeline.get(), handle_error()),
                 rs2_delete_device);
-
-            error::handle(e);
-
             return device(dev);
         }
 
@@ -50,16 +41,12 @@ namespace rs2
         */
         void start() const
         {
-            rs2_error* e = nullptr;
-            rs2_start_pipeline(_pipeline.get(), &e);
-            error::handle(e);
+            rs2_start_pipeline(_pipeline.get(), handle_error());
         }
 
         void open()const
         {
-            rs2_error* e = nullptr;
-            rs2_open_pipeline(_pipeline.get(), &e);
-            error::handle(e);
+            rs2_open_pipeline(_pipeline.get(), handle_error());
         }
 
         /**
@@ -67,9 +54,7 @@ namespace rs2
         */
         void stop() const
         {
-            rs2_error* e = nullptr;
-            rs2_stop_pipeline(_pipeline.get(), &e);
-            error::handle(e);
+            rs2_stop_pipeline(_pipeline.get(), handle_error());
         }
 
         /**
@@ -83,9 +68,7 @@ namespace rs2
         */
         void enable_stream(rs2_stream stream, int index, int width, int height, rs2_format format, int framerate) const
         {
-            rs2_error* e = nullptr;
-            rs2_enable_pipeline_stream(_pipeline.get(), stream, index, width, height, format, framerate, &e);
-            error::handle(e);
+            rs2_enable_pipeline_stream(_pipeline.get(), stream, index, width, height, format, framerate, handle_error());
         }
         /**
         * committing a configuration to the pipeline
@@ -96,11 +79,9 @@ namespace rs2
         * \param[in] format    stream format
         * \param[in] framerate    stream framerate
         */
-        void enable_device(std::string serial) const
+        void enable_device(const std::string& serial) const
         {
-            rs2_error* e = nullptr;
-            rs2_enable_pipeline_device(_pipeline.get(), serial.c_str(), &e);
-            error::handle(e);
+            rs2_enable_pipeline_device(_pipeline.get(), serial.c_str(), handle_error());
         }
         /**
         *  remove a configuration from the pipeline
@@ -108,9 +89,7 @@ namespace rs2
         */
         void disable_stream(rs2_stream stream) const
         {
-            rs2_error* e = nullptr;
-            rs2_disable_stream_pipeline(_pipeline.get(), stream, &e);
-            error::handle(e);
+            rs2_disable_stream_pipeline(_pipeline.get(), stream, handle_error());
         }
 
         /**
@@ -119,9 +98,7 @@ namespace rs2
         */
         void disable_all() const
         {
-            rs2_error* e = nullptr;
-            rs2_disable_all_streams_pipeline(_pipeline.get(), &e);
-            error::handle(e);
+            rs2_disable_all_streams_pipeline(_pipeline.get(), handle_error());
         }
 
         /**
@@ -131,14 +108,9 @@ namespace rs2
         */
         frameset wait_for_frames(unsigned int timeout_ms = 5000) const
         {
-            rs2_error* e = nullptr;
-            frame f(rs2_pipeline_wait_for_frames(_pipeline.get(), timeout_ms, &e));
-            error::handle(e);
-
+            frame f(rs2_pipeline_wait_for_frames(_pipeline.get(), timeout_ms, handle_error()));
             return frameset(f);
         }
-
-       
 
         /**
         * poll if a new frame is available and dequeue if it is
@@ -147,11 +119,8 @@ namespace rs2
         */
         bool poll_for_frames(frameset* f) const
         {
-            rs2_error* e = nullptr;
             rs2_frame* frame_ref = nullptr;
-            auto res = rs2_pipeline_poll_for_frames(_pipeline.get(), &frame_ref, &e);
-            error::handle(e);
-
+            auto res = rs2_pipeline_poll_for_frames(_pipeline.get(), &frame_ref, handle_error());
             if (res) *f = frameset(frame(frame_ref));
             return res > 0;
         }
@@ -164,19 +133,14 @@ namespace rs2
         {
             std::vector<stream_profile> results;
 
-            rs2_error* e = nullptr;
             std::shared_ptr<rs2_stream_profile_list> list(
-                rs2_pipeline_get_active_streams(_pipeline.get(), &e),
+                rs2_pipeline_get_active_streams(_pipeline.get(), handle_error()),
                 rs2_delete_stream_profiles_list);
-            error::handle(e);
 
-            auto size = rs2_get_stream_profiles_count(list.get(), &e);
-            error::handle(e);
-
+            auto size = rs2_get_stream_profiles_count(list.get(), handle_error());
             for (auto i = 0; i < size; i++)
             {
-                stream_profile profile(rs2_get_stream_profile(list.get(), i, &e));
-                error::handle(e);
+                stream_profile profile(rs2_get_stream_profile(list.get(), i, handle_error()));
                 results.push_back(profile);
             }
 
@@ -190,14 +154,11 @@ namespace rs2
         */
         stream_profile get_active_streams(const rs2_stream stream, const int index = 0) const
         {
-            rs2_error* e = nullptr;
             std::shared_ptr<rs2_stream_profile_list> list(
-                rs2_pipeline_get_active_streams(_pipeline.get(), &e),
+                rs2_pipeline_get_active_streams(_pipeline.get(), handle_error()),
                 rs2_delete_stream_profiles_list);
-            error::handle(e);
 
-            stream_profile profile(rs2_pipeline_get_stream_type_selection(list.get(), stream, index, &e));
-            error::handle(e);
+            stream_profile profile(rs2_pipeline_get_stream_type_selection(list.get(), stream, index, handle_error()));
 
             return profile;
         }
@@ -208,4 +169,4 @@ namespace rs2
         std::shared_ptr<rs2_pipeline> _pipeline;
     };
 }
-#endif // LIBREALSENSE_RS2_PROCESSING_HPP
+#endif // LIBREALSENSE_RS2_PIPELINE_HPP

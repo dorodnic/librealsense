@@ -103,6 +103,19 @@ namespace rs2
         static void handle(rs2_error* e);
     };
 
+    class handle_error
+    {
+        rs2_error * err;
+    public:
+        handle_error() : err() {}
+        ~handle_error() noexcept(false)
+        {
+            error::handle(err);
+        }
+        handle_error&  operator=(const handle_error&) = delete;
+        operator rs2_error ** () { return &err; }
+    };
+
     #define RS2_ERROR_CLASS(name, base) \
     class name : public base\
     {\

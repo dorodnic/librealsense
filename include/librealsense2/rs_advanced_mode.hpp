@@ -15,264 +15,189 @@ namespace rs400
         advanced_mode(rs2::device d)
                 : rs2::device(d.get())
         {
-            rs2_error* e = nullptr;
-            if(rs2_is_device_extendable_to(_dev.get(), RS2_EXTENSION_ADVANCED_MODE, &e) == 0 && !e)
+            if(rs2_is_device_extendable_to(_dev.get(), RS2_EXTENSION_ADVANCED_MODE, rs2::handle_error()) == 0)
             {
                 _dev = nullptr;
             }
-            rs2::error::handle(e);
         }
 
         void toggle_advanced_mode(bool enable)
         {
-            rs2_error* e = nullptr;
-            rs2_toggle_advanced_mode(_dev.get(), enable, &e);
-            rs2::error::handle(e);
+            rs2_toggle_advanced_mode(_dev.get(), enable, rs2::handle_error());
         }
 
         bool is_enabled() const
         {
-            rs2_error* e = nullptr;
-            int enabled=0;
-            rs2_is_enabled(_dev.get(), &enabled, &e);
-            rs2::error::handle(e);
-
+            int enabled = 0;
+            rs2_is_enabled(_dev.get(), &enabled, rs2::handle_error());
             return !!enabled;
         }
 
         void set_depth_control(STDepthControlGroup& group)
         {
-            rs2_error* e = nullptr;
-            rs2_set_depth_control(_dev.get(), &group, &e);
-            rs2::error::handle(e);
+            rs2_set_depth_control(_dev.get(), &group, rs2::handle_error());
         }
 
         STDepthControlGroup get_depth_control(int mode = 0) const
         {
-            rs2_error* e = nullptr;
             STDepthControlGroup group{};
-            rs2_get_depth_control(_dev.get(), &group, mode, &e);
-            rs2::error::handle(e);
-
+            rs2_get_depth_control(_dev.get(), &group, mode, rs2::handle_error());
             return group;
         }
 
         void set_rsm(STRsm& group)
         {
-            rs2_error* e = nullptr;
-            rs2_set_rsm(_dev.get(), &group, &e);
-            rs2::error::handle(e);
+            rs2_set_rsm(_dev.get(), &group, rs2::handle_error());
         }
 
         STRsm get_rsm(int mode = 0) const
         {
-            rs2_error* e = nullptr;
             STRsm group{};
-            rs2_get_rsm(_dev.get(), &group, mode, &e);
-            rs2::error::handle(e);
-
+            rs2_get_rsm(_dev.get(), &group, mode, rs2::handle_error());
             return group;
         }
 
         void set_rau_support_vector_control(STRauSupportVectorControl& group)
         {
-            rs2_error* e = nullptr;
-            rs2_set_rau_support_vector_control(_dev.get(), &group, &e);
-            rs2::error::handle(e);
+            rs2_set_rau_support_vector_control(_dev.get(), &group, rs2::handle_error());
         }
 
         STRauSupportVectorControl get_rau_support_vector_control(int mode = 0) const
         {
-            rs2_error* e = nullptr;
             STRauSupportVectorControl group{};
-            rs2_get_rau_support_vector_control(_dev.get(), &group, mode, &e);
-            rs2::error::handle(e);
-
+            rs2_get_rau_support_vector_control(_dev.get(), &group, mode, rs2::handle_error());
             return group;
         }
 
         void set_color_control(STColorControl& group)
         {
-            rs2_error* e = nullptr;
-            rs2_set_color_control(_dev.get(),  &group, &e);
-            rs2::error::handle(e);
+            rs2_set_color_control(_dev.get(),  &group, rs2::handle_error());
         }
 
         STColorControl get_color_control(int mode = 0) const
         {
-            rs2_error* e = nullptr;
             STColorControl group{};
-            rs2_get_color_control(_dev.get(), &group, mode, &e);
-            rs2::error::handle(e);
-
+            rs2_get_color_control(_dev.get(), &group, mode, rs2::handle_error());
             return group;
         }
 
         void set_rau_thresholds_control(STRauColorThresholdsControl& group)
         {
-            rs2_error* e = nullptr;
-            rs2_set_rau_thresholds_control(_dev.get(), &group, &e);
-            rs2::error::handle(e);
+            rs2_set_rau_thresholds_control(_dev.get(), &group, rs2::handle_error());
         }
 
         STRauColorThresholdsControl get_rau_thresholds_control(int mode = 0) const
         {
-            rs2_error* e = nullptr;
             STRauColorThresholdsControl group{};
-            rs2_get_rau_thresholds_control(_dev.get(), &group, mode, &e);
-            rs2::error::handle(e);
+            rs2_get_rau_thresholds_control(_dev.get(), &group, mode, rs2::handle_error());
 
             return group;
         }
 
         void set_slo_color_thresholds_control(STSloColorThresholdsControl& group)
         {
-            rs2_error* e = nullptr;
-            rs2_set_slo_color_thresholds_control(_dev.get(), &group, &e);
-            rs2::error::handle(e);
+            rs2_set_slo_color_thresholds_control(_dev.get(), &group, rs2::handle_error());
         }
 
         STSloColorThresholdsControl get_slo_color_thresholds_control(int mode = 0) const
         {
-            rs2_error* e = nullptr;
             STSloColorThresholdsControl group{};
-            rs2_get_slo_color_thresholds_control(_dev.get(), &group, mode, &e);
-            rs2::error::handle(e);
-
+            rs2_get_slo_color_thresholds_control(_dev.get(), &group, mode, rs2::handle_error());
             return group;
         }
 
         void set_slo_penalty_control(STSloPenaltyControl& group)
         {
-            rs2_error* e = nullptr;
-            rs2_set_slo_penalty_control(_dev.get(), &group, &e);
-            rs2::error::handle(e);
+            rs2_set_slo_penalty_control(_dev.get(), &group, rs2::handle_error());
         }
 
         STSloPenaltyControl get_slo_penalty_control(int mode = 0) const
         {
-            rs2_error* e = nullptr;
             STSloPenaltyControl group{};
-            rs2_get_slo_penalty_control(_dev.get(), &group, mode, &e);
-            rs2::error::handle(e);
-
+            rs2_get_slo_penalty_control(_dev.get(), &group, mode, rs2::handle_error());
             return group;
         }
 
         void set_hdad(STHdad& group)
         {
-            rs2_error* e = nullptr;
-            rs2_set_hdad(_dev.get(), &group, &e);
-            rs2::error::handle(e);
+            rs2_set_hdad(_dev.get(), &group, rs2::handle_error());
         }
 
         STHdad get_hdad(int mode = 0) const
         {
-            rs2_error* e = nullptr;
             STHdad group{};
-            rs2_get_hdad(_dev.get(), &group, mode, &e);
-            rs2::error::handle(e);
-
+            rs2_get_hdad(_dev.get(), &group, mode, rs2::handle_error());
             return group;
         }
 
         void set_color_correction(STColorCorrection& group)
         {
-            rs2_error* e = nullptr;
-            rs2_set_color_correction(_dev.get(), &group, &e);
-            rs2::error::handle(e);
+            rs2_set_color_correction(_dev.get(), &group, rs2::handle_error());
         }
 
         STColorCorrection get_color_correction(int mode = 0) const
         {
-            rs2_error* e = nullptr;
             STColorCorrection group{};
-            rs2_get_color_correction(_dev.get(), &group, mode, &e);
-            rs2::error::handle(e);
-
+            rs2_get_color_correction(_dev.get(), &group, mode, rs2::handle_error());
             return group;
         }
 
         void set_depth_table(STDepthTableControl& group)
         {
-            rs2_error* e = nullptr;
-            rs2_set_depth_table(_dev.get(), &group, &e);
-            rs2::error::handle(e);
+            rs2_set_depth_table(_dev.get(), &group, rs2::handle_error());
         }
 
         STDepthTableControl get_depth_table(int mode = 0) const
         {
-            rs2_error* e = nullptr;
             STDepthTableControl group{};
-            rs2_get_depth_table(_dev.get(), &group, mode, &e);
-            rs2::error::handle(e);
-
+            rs2_get_depth_table(_dev.get(), &group, mode, rs2::handle_error());
             return group;
         }
 
         void set_ae_control(STAEControl& group)
         {
-            rs2_error* e = nullptr;
-            rs2_set_ae_control(_dev.get(), &group, &e);
-            rs2::error::handle(e);
+            rs2_set_ae_control(_dev.get(), &group, rs2::handle_error());
         }
 
         STAEControl get_ae_control(int mode = 0) const
         {
-            rs2_error* e = nullptr;
             STAEControl group{};
-            rs2_get_ae_control(_dev.get(), &group, mode, &e);
-            rs2::error::handle(e);
-
+            rs2_get_ae_control(_dev.get(), &group, mode, rs2::handle_error());
             return group;
         }
 
         void set_census(STCensusRadius& group)
         {
-            rs2_error* e = nullptr;
-            rs2_set_census(_dev.get(), &group, &e);
-            rs2::error::handle(e);
+            rs2_set_census(_dev.get(), &group, rs2::handle_error());
         }
 
         STCensusRadius get_census(int mode = 0) const
         {
-            rs2_error* e = nullptr;
             STCensusRadius group{};
-            rs2_get_census(_dev.get(), &group, mode, &e);
-            rs2::error::handle(e);
-
+            rs2_get_census(_dev.get(), &group, mode, rs2::handle_error());
             return group;
         }
 
         std::string serialize_json() const
         {
             std::string results;
-
-            rs2_error* e = nullptr;
             std::shared_ptr<rs2_raw_data_buffer> json_data(
-                    rs2_serialize_json(_dev.get(), &e),
+                    rs2_serialize_json(_dev.get(), rs2::handle_error()),
                     rs2_delete_raw_data);
-            rs2::error::handle(e);
 
-            auto size = rs2_get_raw_data_size(json_data.get(), &e);
-            rs2::error::handle(e);
-
-            auto start = rs2_get_raw_data(json_data.get(), &e);
-            rs2::error::handle(e);
+            auto size = rs2_get_raw_data_size(json_data.get(), rs2::handle_error());
+            auto start = rs2_get_raw_data(json_data.get(), rs2::handle_error());
 
             results.insert(results.begin(), start, start + size);
-
             return results;
         }
 
         void load_json(const std::string& json_content)
         {
-            rs2_error* e = nullptr;
             rs2_load_json(_dev.get(),
                           json_content.data(),
                           json_content.size(),
-                          &e);
-            rs2::error::handle(e);
+                          rs2::handle_error());
         }
     };
 }

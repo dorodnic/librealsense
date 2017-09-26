@@ -20,16 +20,12 @@ namespace rs2
 
     inline void log_to_console(rs2_log_severity min_severity)
     {
-        rs2_error* e = nullptr;
-        rs2_log_to_console(min_severity, &e);
-        error::handle(e);
+        rs2_log_to_console(min_severity, handle_error());
     }
 
     inline void log_to_file(rs2_log_severity min_severity, const char * file_path = nullptr)
     {
-        rs2_error* e = nullptr;
-        rs2_log_to_file(min_severity, file_path, &e);
-        error::handle(e);
+        rs2_log_to_file(min_severity, file_path, handle_error());
     }
 }
 

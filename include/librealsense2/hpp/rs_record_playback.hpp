@@ -21,9 +21,7 @@ namespace rs2
         */
         void pause()
         {
-            rs2_error* e = nullptr;
-            rs2_playback_device_pause(_dev.get(), &e);
-            error::handle(e);
+            rs2_playback_device_pause(_dev.get(), handle_error());
         }
 
         /**
@@ -32,9 +30,7 @@ namespace rs2
         */
         void resume()
         {
-            rs2_error* e = nullptr;
-            rs2_playback_device_resume(_dev.get(), &e);
-            error::handle(e);
+            rs2_playback_device_resume(_dev.get(), handle_error());
         }
 
         /**
@@ -52,10 +48,7 @@ namespace rs2
         */
         uint64_t get_position() const
         {
-            rs2_error* e = nullptr;
-            uint64_t pos = rs2_playback_get_position(_dev.get(), &e);
-            error::handle(e);
-            return pos;
+            return rs2_playback_get_position(_dev.get(), handle_error());
         }
 
         /**
@@ -64,10 +57,7 @@ namespace rs2
         */
         std::chrono::nanoseconds get_duration() const
         {
-            rs2_error* e = nullptr;
-            std::chrono::nanoseconds duration(rs2_playback_get_duration(_dev.get(), &e));
-            error::handle(e);
-            return duration;
+            return std::chrono::nanoseconds(rs2_playback_get_duration(_dev.get(), handle_error()));
         }
 
         /**
@@ -76,9 +66,7 @@ namespace rs2
         */
         void seek(std::chrono::nanoseconds time)
         {
-            rs2_error* e = nullptr;
-            rs2_playback_seek(_dev.get(), time.count(), &e);
-            error::handle(e);
+            rs2_playback_seek(_dev.get(), time.count(), handle_error());
         }
 
         /**
@@ -87,10 +75,7 @@ namespace rs2
         */
         bool is_real_time() const
         {
-            rs2_error* e = nullptr;
-            bool real_time = rs2_playback_device_is_real_time(_dev.get(), &e) != 0;
-            error::handle(e);
-            return real_time;
+            return rs2_playback_device_is_real_time(_dev.get(), handle_error()) != 0;
         }
 
         /**
@@ -106,9 +91,7 @@ namespace rs2
         */
         void set_real_time(bool real_time) const
         {
-            rs2_error* e = nullptr;
-            rs2_playback_device_set_real_time(_dev.get(), (real_time ? 1 : 0), &e);
-            error::handle(e);
+            rs2_playback_device_set_real_time(_dev.get(), (real_time ? 1 : 0), handle_error());
         }
 
         /**
@@ -117,9 +100,7 @@ namespace rs2
         */
         void set_playback_speed(float speed) const
         {
-            rs2_error* e = nullptr;
-            rs2_playback_device_set_playback_speed(_dev.get(), speed, &e);
-            error::handle(e);
+            rs2_playback_device_set_playback_speed(_dev.get(), speed, handle_error());
         }
 
         /**
@@ -137,9 +118,7 @@ namespace rs2
         template <typename T>
         void set_status_changed_callback(T callback)
         {
-            rs2_error* e = nullptr;
-            rs2_playback_device_set_status_changed_callback(_dev.get(), new status_changed_callback<T>(std::move(callback)), &e);
-            error::handle(e);
+            rs2_playback_device_set_status_changed_callback(_dev.get(), new status_changed_callback<T>(std::move(callback)), handle_error());
         }
 
         /**
@@ -148,10 +127,7 @@ namespace rs2
         */
         rs2_playback_status current_status() const
         {
-            rs2_error* e = nullptr;
-            rs2_playback_status sts = rs2_playback_device_get_current_status(_dev.get(), &e);
-            error::handle(e);
-            return sts;
+            return rs2_playback_device_get_current_status(_dev.get(), handle_error());
         }
 
         /**
@@ -160,31 +136,23 @@ namespace rs2
         */
         void stop()
         {
-            rs2_error* e = nullptr;
-            rs2_playback_device_stop(_dev.get(), &e);
-            error::handle(e);
+            rs2_playback_device_stop(_dev.get(), handle_error());
         }
     protected:
         friend context;
         explicit playback(std::shared_ptr<rs2_device> dev) : device(dev)
         {
-            rs2_error* e = nullptr;
-            if(rs2_is_device_extendable_to(_dev.get(), RS2_EXTENSION_PLAYBACK, &e) == 0 && !e)
+            if(rs2_is_device_extendable_to(_dev.get(), RS2_EXTENSION_PLAYBACK, handle_error()) == 0)
             {
                 _dev = nullptr;
             }
-            error::handle(e);
 
-            if(_dev)
-            {
-                e = nullptr;
-                m_file = rs2_playback_device_get_file_path(_dev.get(), &e);
-                error::handle(e);
-            }
+            if(_dev) m_file = rs2_playback_device_get_file_path(_dev.get(), handle_error());
         }
     private:
         std::string m_file;
     };
+
     class recorder : public device
     {
     public:
@@ -197,11 +165,9 @@ namespace rs2
         */
         recorder(const std::string& file, rs2::device device)
         {
-            rs2_error* e = nullptr;
             _dev = std::shared_ptr<rs2_device>(
-                rs2_create_record_device(device.get().get(), file.c_str(), &e),
+                rs2_create_record_device(device.get().get(), file.c_str(), handle_error()),
                 rs2_delete_device);
-            rs2::error::handle(e);
         }
 
         /**
@@ -209,9 +175,7 @@ namespace rs2
         */
         void pause()
         {
-            rs2_error* e = nullptr;
-            rs2_record_device_pause(_dev.get(), &e);
-            error::handle(e);
+            rs2_record_device_pause(_dev.get(), handle_error());
         }
 
         /**
@@ -219,19 +183,15 @@ namespace rs2
         */
         void resume()
         {
-            rs2_error* e = nullptr;
-            rs2_record_device_resume(_dev.get(), &e);
-            error::handle(e);
+            rs2_record_device_resume(_dev.get(), handle_error());
         }
     protected:
         explicit recorder(std::shared_ptr<rs2_device> dev) : device(dev)
         {
-            rs2_error* e = nullptr;
-            if (rs2_is_device_extendable_to(_dev.get(), RS2_EXTENSION_RECORD, &e) == 0 && !e)
+            if (rs2_is_device_extendable_to(_dev.get(), RS2_EXTENSION_RECORD, handle_error()) == 0)
             {
                 _dev = nullptr;
             }
-            error::handle(e);
         }
     };
 }

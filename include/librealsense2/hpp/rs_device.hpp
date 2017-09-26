@@ -1,6 +1,13 @@
 // License: Apache 2.0. See LICENSE file in root directory.
 // Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
+/*! \file rs_device.hpp
+    \brief This file contains abstractions for Intel RealSense devices
+    Device in the SDK abstracts a collection of sensors that share common power-management
+    and physical case. From a device you can access the collection of its sensors or
+    perform global operations that might have side-effects across sensors
+*/
+
 #ifndef LIBREALSENSE_RS2_DEVICE_HPP
 #define LIBREALSENSE_RS2_DEVICE_HPP
 
@@ -21,22 +28,18 @@ namespace rs2
         */
         std::vector<sensor> query_sensors() const
         {
-            rs2_error* e = nullptr;
             std::shared_ptr<rs2_sensor_list> list(
-                rs2_query_sensors(_dev.get(), &e),
+                rs2_query_sensors(_dev.get(), handle_error()),
                 rs2_delete_sensor_list);
-            error::handle(e);
 
-            auto size = rs2_get_sensors_count(list.get(), &e);
-            error::handle(e);
+            auto size = rs2_get_sensors_count(list.get(), handle_error());
 
             std::vector<sensor> results;
             for (auto i = 0; i < size; i++)
             {
                 std::shared_ptr<rs2_sensor> dev(
-                    rs2_create_sensor(list.get(), i, &e),
+                    rs2_create_sensor(list.get(), i, handle_error()),
                     rs2_delete_sensor);
-                error::handle(e);
 
                 sensor rs2_dev(dev);
                 results.push_back(rs2_dev);
@@ -62,10 +65,7 @@ namespace rs2
         */
         bool supports(rs2_camera_info info) const
         {
-            rs2_error* e = nullptr;
-            auto is_supported = rs2_supports_device_info(_dev.get(), info, &e);
-            error::handle(e);
-            return is_supported > 0;
+            return rs2_supports_device_info(_dev.get(), info, handle_error()) > 0;
         }
 
         /**
@@ -75,10 +75,7 @@ namespace rs2
         */
         const char* get_info(rs2_camera_info info) const
         {
-            rs2_error* e = nullptr;
-            auto result = rs2_get_device_info(_dev.get(), info, &e);
-            error::handle(e);
-            return result;
+            return rs2_get_device_info(_dev.get(), info, handle_error());
         }
 
         /**
@@ -86,10 +83,7 @@ namespace rs2
         */
         void hardware_reset()
         {
-            rs2_error* e = nullptr;
-
-            rs2_hardware_reset(_dev.get(), &e);
-            error::handle(e);
+            rs2_hardware_reset(_dev.get(), handle_error());
         }
 
         device& operator=(const std::shared_ptr<rs2_device> dev)
@@ -149,31 +143,22 @@ namespace rs2
         debug_protocol(device d)
                 : device(d.get())
         {
-            rs2_error* e = nullptr;
-            if(rs2_is_device_extendable_to(_dev.get(), RS2_EXTENSION_DEBUG, &e) == 0 && !e)
+            if(rs2_is_device_extendable_to(_dev.get(), RS2_EXTENSION_DEBUG, handle_error()) == 0)
             {
                 _dev = nullptr;
             }
-            error::handle(e);
         }
 
         std::vector<uint8_t> send_and_receive_raw_data(const std::vector<uint8_t>& input) const
         {
             std::vector<uint8_t> results;
-
-            rs2_error* e = nullptr;
             std::shared_ptr<const rs2_raw_data_buffer> list(
-                    rs2_send_and_receive_raw_data(_dev.get(), (void*)input.data(), (uint32_t)input.size(), &e),
+                    rs2_send_and_receive_raw_data(_dev.get(), (void*)input.data(), (uint32_t)input.size(), handle_error()),
                     rs2_delete_raw_data);
-            error::handle(e);
 
-            auto size = rs2_get_raw_data_size(list.get(), &e);
-            error::handle(e);
-
-            auto start = rs2_get_raw_data(list.get(), &e);
-
+            auto size = rs2_get_raw_data_size(list.get(), handle_error());
+            auto start = rs2_get_raw_data(list.get(), handle_error());
             results.insert(results.begin(), start, start + size);
-
             return results;
         }
     };
@@ -196,10 +181,7 @@ namespace rs2
 
         bool contains(const device& dev) const
         {
-            rs2_error* e = nullptr;
-            auto res = !!(rs2_device_list_contains(_list.get(), dev.get().get(), &e));
-            error::handle(e);
-            return res;
+            return !!(rs2_device_list_contains(_list.get(), dev.get().get(), handle_error()));
         }
 
         device_list& operator=(std::shared_ptr<rs2_device_list> list)
@@ -210,21 +192,15 @@ namespace rs2
 
         device operator[](uint32_t index) const
         {
-            rs2_error* e = nullptr;
             std::shared_ptr<rs2_device> dev(
-                rs2_create_device(_list.get(), index, &e),
+                rs2_create_device(_list.get(), index, handle_error()),
                 rs2_delete_device);
-            error::handle(e);
-
             return device(dev);
         }
 
         uint32_t size() const
         {
-            rs2_error* e = nullptr;
-            auto size = rs2_get_device_count(_list.get(), &e);
-            error::handle(e);
-            return size;
+            return rs2_get_device_count(_list.get(), handle_error());
         }
 
         device front() const { return std::move((*this)[0]); }
@@ -311,15 +287,8 @@ namespace rs2
         */
         bool was_removed(const rs2::device& dev) const
         {
-            rs2_error* e = nullptr;
-
-            if(!dev)
-                return false;
-
-            auto res =  rs2_device_list_contains(_removed.get_list(), dev.get().get(), &e);
-            error::handle(e);
-
-            return res > 0;
+            if(!dev) return false;
+            return rs2_device_list_contains(_removed.get_list(), dev.get().get(), handle_error()) > 0;
         }
 
         /**
