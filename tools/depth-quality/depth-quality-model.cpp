@@ -88,6 +88,7 @@ namespace rs2
                 if (dev && info.was_removed(dev))
                 {
                     std::unique_lock<std::mutex> lock(_mutex);
+
                     reset(window);
                 }
             });
@@ -781,8 +782,19 @@ namespace rs2
             }
             catch(...){}
 
+            for(auto&& s : _viewer_model.streams)
+            {
+                s.second.dev->streaming = false;
+            }
             _device_in_use = false;
             _first_frame = true;
+
+            _depth_sensor_model.reset();
+            _viewer_model.gc_streams();
+            _viewer_model.ppf.reset();
+            _viewer_model.selected_depth_source_uid = -1;
+            _viewer_model.selected_tex_source_uid = -1;
+
             win.reset();
         }
 
