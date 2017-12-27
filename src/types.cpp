@@ -167,6 +167,7 @@ namespace librealsense
             CASE(RECORD)
             CASE(VIDEO_PROFILE)
             CASE(PLAYBACK)
+            CASE(BYPASS_DEVICE)
         default: assert(!is_valid(value)); return UNKNOWN_VALUE;
         }
         #undef CASE
