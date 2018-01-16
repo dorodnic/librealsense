@@ -212,6 +212,13 @@ int main(int argv, const char** argc) try
 
     ux_window window("Intel RealSense Viewer");
 
+    window.add_automation(rs2::operation::stream_on, 0);
+    window.add_automation(rs2::operation::sleep, 500);
+    window.add_automation(rs2::operation::stream_off, 0);
+    window.add_automation(rs2::operation::stream_on, 1);
+    window.add_automation(rs2::operation::sleep, 500);
+    window.add_automation(rs2::operation::stream_off, 1);
+
     // Create RealSense Context
     context ctx;
     device_changes devices_connection_changes(ctx);

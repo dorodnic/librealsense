@@ -5274,6 +5274,7 @@ namespace rs2
         ImGui::PushStyleColor(ImGuiCol_Text, light_grey);
         ImGui::PushFont(window.get_font());
 
+        int sensor_idx = 0;
         // Draw menu foreach subdevice with its properties
         for (auto&& sub : subdevices)
         {
@@ -5286,7 +5287,7 @@ namespace rs2
 
             if (!show_depth_only)
             {
-                draw_later.push_back([&error_message, windows_width, &window, sub, pos, &viewer, this]()
+                draw_later.push_back([&error_message, windows_width, &window, sub, pos, &viewer, this, sensor_idx]()
                 {
                     bool stop_recording = false;
 
@@ -5306,7 +5307,8 @@ namespace rs2
 
                         if (sub->is_selected_combination_supported())
                         {
-                            if (ImGui::Button(label.c_str(), { 30,30 }))
+                            if (ImGui::Button(label.c_str(), { 30,30 }) || 
+                                window.automate(rs2::operation::stream_on, sensor_idx))
                             {
                                 auto profiles = sub->get_selected_profiles();
                                 try
@@ -5359,7 +5361,8 @@ namespace rs2
                         ImGui_ScopePushStyleColor(ImGuiCol_Text, light_blue);
                         ImGui_ScopePushStyleColor(ImGuiCol_TextSelectedBg, light_blue + 0.1f);
 
-                        if (ImGui::Button(label.c_str(), { 30,30 }))
+                        if (ImGui::Button(label.c_str(), { 30,30 }) ||
+                            window.automate(rs2::operation::stream_off, sensor_idx))
                         {
                             sub->stop(viewer);
 
@@ -5661,6 +5664,8 @@ namespace rs2
             ImGui::PopStyleColor(3);
 
             ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 2);
+
+            sensor_idx++;
         }
 
         for (auto&& sub : subdevices)
