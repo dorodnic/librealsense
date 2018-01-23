@@ -171,7 +171,7 @@ int main(int argc, char * argv[]) try
             filtered_points = pc_filtered.calculate(filtered);
             ul3.unlock();
 
-            // Colorize frames to map to the pointclouds
+            // Colorize frames to map to the pointclouds 
             rs2::frame colored_depth = color_map(depth_frame);
             rs2::frame colored_filtered = color_map(filtered);
 
