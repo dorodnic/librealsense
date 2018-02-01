@@ -240,7 +240,7 @@ namespace rs2
 
             void reset(ux_window& win);
 
-            void snapshot_metrics();
+            void snapshot_metrics(const std::string& filename);
 
             bool draw_instructions(ux_window& win, const rect& viewer_rect, bool& distance, bool& orientation);
 

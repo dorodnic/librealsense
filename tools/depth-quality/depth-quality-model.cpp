@@ -3,6 +3,9 @@
 #include <librealsense2/rs_advanced_mode.hpp>
 #include "model-views.h"
 
+#include "json.hpp"
+using namespace nlohmann;
+
 namespace rs2
 {
     namespace depth_quality
@@ -580,8 +583,21 @@ namespace rs2
                         ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, light_blue);
                         std::string gt_str("Ground Truth");
                         if (_use_ground_truth) gt_str += ":";
-                        if (ImGui::Checkbox(gt_str.c_str(), &_use_ground_truth))
+
+                        json req = {
+                            { "opcode", "ground_truth" }
+                        };
+
+                        if (ImGui::Checkbox(gt_str.c_str(), &_use_ground_truth) ||
+                            win.automate(req))
                         {
+                            auto it = req.find("value");
+                            if (it != req.end()) 
+                            {
+                                _use_ground_truth = true;
+                                _ground_truth = *it;
+                            }
+
                             if (_use_ground_truth) _metrics_model.set_ground_truth(_ground_truth);
                             else _metrics_model.disable_ground_truth();
                         }
@@ -637,9 +653,25 @@ namespace rs2
 
                         ImGui::PushStyleColor(ImGuiCol_Text, light_grey);
                         ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, white);
-                        if (ImGui::Button(u8"\uf0c7 Save Report", { 140, 25 }))
+
+                        json req = {
+                            { "opcode", "snapshot" }
+                        };
+
+                        if (ImGui::Button(u8"\uf0c7 Save Report", { 140, 25 }) ||
+                            win.automate(req))
                         {
-                            snapshot_metrics();
+                            auto it = req.find("filename");
+                            if (it != req.end())
+                            {
+                                snapshot_metrics(*it);
+                            }
+                            else if (auto ret = file_dialog_open(save_file, NULL, NULL, NULL))
+                            {
+                                std::string filename_base(ret);
+
+                                snapshot_metrics(filename_base);
+                            }
                         }
                         if (ImGui::IsItemHovered())
                         {
@@ -811,41 +843,36 @@ namespace rs2
             return improved > window_size * 0.4;
         }
 
-        void tool_model::snapshot_metrics()
+        void tool_model::snapshot_metrics(const std::string& filename_base)
         {
-            if (auto ret = file_dialog_open(save_file, NULL, NULL, NULL))
+            // Save depth/ir images
+            for (auto const &stream : _viewer_model.streams)
             {
-                std::string filename_base(ret);
+                stream.second.snapshot_frame(filename_base.c_str(), _viewer_model);
+            }
 
-                // Save depth/ir images
-                for (auto const &stream : _viewer_model.streams)
+            // Export 3d view in PLY format
+            frame ply_texture;
+            if (_viewer_model.selected_tex_source_uid >= 0)
+            {
+                ply_texture = _viewer_model.streams[_viewer_model.selected_tex_source_uid].texture->get_last_frame();
+                if (ply_texture)
+                    _viewer_model.ppf.update_texture(ply_texture);
+            }
+            export_to_ply(filename_base + "_3d_mesh.ply", _viewer_model.not_model, _viewer_model.ppf.get_points(), ply_texture);
+
+            // Save Metrics
+            _metrics_model.serialize_to_csv(filename_base + "_depth_metrics.csv", capture_description());
+
+            // Save camera configuration - supported when camera is in advanced mode only
+            if (_device_model.get())
+            {
+                if (auto adv = _device_model->dev.as<rs400::advanced_mode>())
                 {
-                    stream.second.snapshot_frame(ret, _viewer_model);
-                }
-
-                // Export 3d view in PLY format
-                frame ply_texture;
-                if (_viewer_model.selected_tex_source_uid >= 0)
-                {
-                    ply_texture = _viewer_model.streams[_viewer_model.selected_tex_source_uid].texture->get_last_frame();
-                    if (ply_texture)
-                        _viewer_model.ppf.update_texture(ply_texture);
-                }
-                export_to_ply(filename_base + "_3d_mesh.ply", _viewer_model.not_model, _viewer_model.ppf.get_points(), ply_texture);
-
-                // Save Metrics
-                _metrics_model.serialize_to_csv(filename_base + "_depth_metrics.csv", capture_description());
-
-                // Save camera configuration - supported when camera is in advanced mode only
-                if (_device_model.get())
-                {
-                    if (auto adv = _device_model->dev.as<rs400::advanced_mode>())
-                    {
-                        std::string filename = filename_base + "_configuration.json";
-                        std::ofstream out(filename);
-                        out << adv.serialize_json();
-                        out.close();
-                    }
+                    std::string filename = filename_base + "_configuration.json";
+                    std::ofstream out(filename);
+                    out << adv.serialize_json();
+                    out.close();
                 }
             }
         }

@@ -9,6 +9,8 @@
 #include <thread>
 #include "rendering.h"
 
+#include "json.hpp"
+
 namespace rs2
 {
     class viewer_ui_traits
@@ -34,33 +36,9 @@ namespace rs2
     class ux_window
     {
     public:
-        void add_automation(operation op, int p)
-        {
-            _automation.emplace_back(op, p);
-        }
+        void add_automation(const std::string& script);
 
-        bool automate(operation op, int p)
-        {
-            if (_automation.size() && 
-                _next_automation < _automation_timer.elapsed_ms())
-            {
-                auto step = _automation[_automation_step];
-                if (step.first == op && p == step.second)
-                {
-                    _automation_step = (_automation_step + 1) % _automation.size();
-
-                    step = _automation[_automation_step];
-                    if (step.first == operation::sleep)
-                    {
-                        _next_automation = _automation_timer.elapsed_ms() + step.second;
-                        _automation_step = (_automation_step + 1) % _automation.size();
-                    }
-
-                    return true;
-                }
-            }
-            return false;
-        }
+        bool automate(nlohmann::json& expected);
 
         std::function<void(std::string)> on_file_drop = [](std::string) {};
         std::function<bool()>            on_load = []() { return false; };
@@ -127,9 +105,10 @@ namespace rs2
         bool                     _fullscreen = false;
         std::string              _title;
 
-        std::vector<std::pair<operation, int>> _automation;
+        std::vector<nlohmann::json> _automation;
         timer                    _automation_timer;
         int                      _next_automation = 0;
         int                      _automation_step = 0;
+        bool                     _should_close = false;
     };
 }

@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <imgui.h>
 #include <librealsense2/rs_advanced_mode.hpp>
 #include "types.h"
 

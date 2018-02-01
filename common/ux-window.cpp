@@ -8,6 +8,9 @@
 // int-rs-splash.hpp contains the PNG image from res/int-rs-splash.png
 #include "res/int-rs-splash.hpp"
 
+#include "json.hpp"
+using namespace nlohmann;
+
 namespace rs2
 {
     void ux_window::open_window()
@@ -45,6 +48,7 @@ namespace rs2
         // Create GUI Windows
         _win = glfwCreateWindow(_width, _height, _title_str.c_str(),
             (_fullscreen ? primary : nullptr), nullptr);
+        if (!_win) throw std::runtime_error("Couldn't create OpenGL window, please make sure graphics drivers are up to date");
         glfwMakeContextCurrent(_win);
         ImGui_ImplGlfw_Init(_win, true);
 
@@ -123,6 +127,7 @@ namespace rs2
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
         auto res = !glfwWindowShouldClose(_win);
+        if (_should_close) res = false;
 
         if (_first_frame)
         {
@@ -251,6 +256,68 @@ namespace rs2
         ImGui_ImplGlfw_Shutdown();
         glfwDestroyWindow(_win);
         glfwTerminate();
+    }
+
+    void ux_window::add_automation(const std::string& script)
+    {
+        json j = json::parse(script);
+
+        auto steps = j["steps"];
+
+        for (auto&& i : steps)
+        {
+            _automation.push_back(i);
+        }
+    }
+
+    bool ux_window::automate(nlohmann::json& expected)
+    {
+        bool res = false;
+
+        if (_automation.size() &&
+            _next_automation < _automation_timer.elapsed_ms())
+        {
+            auto step = _automation[_automation_step];
+
+            auto diff = false;
+
+            for (json::iterator it = expected.begin(); it != expected.end(); ++it)
+            {
+                std::string name = it.key();
+                auto it2 = step.find(name);
+                if (it2 != step.end())
+                {
+                    if (expected[name] != *it2) diff = true;
+                }
+            }
+
+            if (!diff)
+            {
+                _automation_step = (_automation_step + 1) % _automation.size();
+                expected = step;
+                res = true;
+            }
+
+            step = _automation[_automation_step];
+            if (step["opcode"] == "exit")
+            {
+                int code = step["code"];
+                exit(code);
+            }
+            if (step["opcode"] == "close")
+            {
+                _should_close = true;
+            }
+
+            if (step["opcode"] == "sleep")
+            {
+                int ms = step["ms"];
+                _next_automation = _automation_timer.elapsed_ms() + ms;
+                _automation_step = (_automation_step + 1) % _automation.size();
+            }
+        }
+
+        return res;
     }
 
     void ux_window::begin_frame()

@@ -10,6 +10,22 @@ int main(int argc, const char * argv[]) try
     rs2::depth_quality::tool_model model;
     rs2::ux_window window("Depth Quality Tool");
 
+    for (int i = 1; i < argc; i++)
+    {
+        const char* arg = argv[i];
+
+        std::ifstream file(arg);
+        if (!file.good())
+            continue;
+
+        if (rs2::ends_with(to_lower(arg), ".json"))
+        {
+            std::string json_str((std::istreambuf_iterator<char>(file)),
+                std::istreambuf_iterator<char>());
+            window.add_automation(json_str);
+        }
+    }
+
     using namespace rs2::depth_quality;
 
     // ===============================

@@ -21,8 +21,9 @@
 // We use NOC file helper function for cross-platform file dialogs
 #include <noc_file_dialog.h>
 
+#include "json.hpp"
+
 using namespace rs2;
-using namespace rs400;
 
 void add_playback_device(context& ctx, std::vector<device_model>& device_models, std::string& error_message, viewer_model& viewer_model, const std::string& file)
 {
@@ -206,18 +207,11 @@ void refresh_devices(std::mutex& m,
     }
 }
 
-int main(int argv, const char** argc) try
+int main(int argc, const char** argv) try
 {
     rs2::log_to_console(RS2_LOG_SEVERITY_WARN);
 
     ux_window window("Intel RealSense Viewer");
-
-    window.add_automation(rs2::operation::stream_on, 0);
-    window.add_automation(rs2::operation::sleep, 500);
-    window.add_automation(rs2::operation::stream_off, 0);
-    window.add_automation(rs2::operation::stream_on, 1);
-    window.add_automation(rs2::operation::sleep, 500);
-    window.add_automation(rs2::operation::stream_off, 1);
 
     // Create RealSense Context
     context ctx;
@@ -247,16 +241,25 @@ int main(int argv, const char** argc) try
         }
     };
 
-    for (int i = 1; i < argv; i++)
+    for (int i = 1; i < argc; i++)
     {
         try
         {
-            const char* arg = argc[i];
+            const char* arg = argv[i];
+            
             std::ifstream file(arg);
             if (!file.good())
                 continue;
 
-            add_playback_device(ctx, device_models, error_message, viewer_model, arg);
+            if (ends_with(to_lower(arg), ".bag"))
+                add_playback_device(ctx, device_models, error_message, viewer_model, arg);
+
+            if (ends_with(to_lower(arg), ".json"))
+            {
+                std::string json_str((std::istreambuf_iterator<char>(file)),
+                                     std::istreambuf_iterator<char>());
+                window.add_automation(json_str);
+            }
         }
         catch (const rs2::error& e)
         {

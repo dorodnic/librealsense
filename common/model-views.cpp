@@ -6,7 +6,6 @@
 #include <algorithm>
 #include <regex>
 #include <cmath>
-#include <librealsense2/rs_advanced_mode.hpp>
 #include <librealsense2/rsutil.h>
 
 #include "model-views.h"
@@ -26,6 +25,22 @@
 
 #define ARCBALL_CAMERA_IMPLEMENTATION
 #include <arcball_camera.h>
+
+#include "imgui-fonts-karla.hpp"
+#include "imgui-fonts-fontawesome.hpp"
+
+#ifdef _WIN32
+#include <windows.h>
+#include <wchar.h>
+#include <KnownFolders.h>
+#include <shlobj.h>
+#endif
+
+#if defined __linux__ || defined __APPLE__
+#include <unistd.h>
+#include <sys/types.h>
+#include <pwd.h>
+#endif
 
 using namespace rs400;
 using namespace nlohmann;
@@ -4793,7 +4808,7 @@ namespace rs2
 
                     //Find fps
                     int requested_fps = kvp.second.fps;
-                    int fps_id = 0;
+                    std::size_t fps_id = 0;
                     for (; fps_id < sub->shared_fps_values.size(); fps_id++)
                     {
                         if (sub->shared_fps_values[fps_id] == requested_fps)
@@ -5307,8 +5322,13 @@ namespace rs2
 
                         if (sub->is_selected_combination_supported())
                         {
+                            json req = {
+                                { "opcode", "enable_stream" },
+                                { "stream", sensor_idx },
+                            };
+
                             if (ImGui::Button(label.c_str(), { 30,30 }) || 
-                                window.automate(rs2::operation::stream_on, sensor_idx))
+                                window.automate(req))
                             {
                                 auto profiles = sub->get_selected_profiles();
                                 try
@@ -5361,8 +5381,13 @@ namespace rs2
                         ImGui_ScopePushStyleColor(ImGuiCol_Text, light_blue);
                         ImGui_ScopePushStyleColor(ImGuiCol_TextSelectedBg, light_blue + 0.1f);
 
+                        json req = {
+                            { "opcode", "disable_stream" },
+                            { "stream", sensor_idx },
+                        };
+
                         if (ImGui::Button(label.c_str(), { 30,30 }) ||
-                            window.automate(rs2::operation::stream_off, sensor_idx))
+                            window.automate(req))
                         {
                             sub->stop(viewer);
 
@@ -6213,6 +6238,88 @@ namespace rs2
         glEnd();
     }
       
-
+    std::string get_folder_path(special_folder f)
+    {
+        std::string res;
+#ifdef _WIN32
+        if (f == temp_folder)
+        {
+            TCHAR buf[MAX_PATH];
+            if (GetTempPath(MAX_PATH, buf) != 0)
+            {
+                char str[1024];
+                wcstombs(str, buf, 1023);
+                res = str;
+            }
+        }
+        else
+        {
+            GUID folder;
+            switch (f)
+            {
+            case user_desktop: folder = FOLDERID_Desktop;
+                break;
+            case user_documents: folder = FOLDERID_Documents;
+                break;
+            case user_pictures: folder = FOLDERID_Pictures;
+                break;
+            case user_videos: folder = FOLDERID_Videos;
+                break;
+            default:
+                throw std::invalid_argument(
+                    std::string("Value of f (") + std::to_string(f) + std::string(") is not supported"));
+            }
+            PWSTR folder_path = NULL;
+            HRESULT hr = SHGetKnownFolderPath(folder, KF_FLAG_DEFAULT_PATH, NULL, &folder_path);
+            if (SUCCEEDED(hr))
+            {
+                char str[1024];
+                wcstombs(str, folder_path, 1023);
+                CoTaskMemFree(folder_path);
+                res = str;
+                res += "\\";
+            }
+            else
+            {
+                throw std::runtime_error("Failed to get requested special folder");
+            }
+        }
+#endif //_WIN32
+#if defined __linux__ || defined __APPLE__
+        if (f == special_folder::temp_folder)
+        {
+            const char* tmp_dir = getenv("TMPDIR");
+            res = tmp_dir ? tmp_dir : "/tmp/";
+        }
+        else
+        {
+            const char* home_dir = getenv("HOME");
+            if (!home_dir)
+            {
+                struct passwd* pw = getpwuid(getuid());
+                home_dir = (pw && pw->pw_dir) ? pw->pw_dir : "";
+            }
+            if (home_dir)
+            {
+                res = home_dir;
+                switch (f)
+                {
+                case user_desktop: res += "/Desktop/";
+                    break;
+                case user_documents: res += "/Documents/";
+                    break;
+                case user_pictures: res += "/Pictures/";
+                    break;
+                case user_videos: res += "/Videos/";
+                    break;
+                default:
+                    throw std::invalid_argument(
+                        std::string("Value of f (") + std::to_string(f) + std::string(") is not supported"));
+                }
+            }
+        }
+#endif // defined __linux__ || defined __APPLE__
+        return res;
+    }
 
 }
