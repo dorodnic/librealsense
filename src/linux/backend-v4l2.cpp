@@ -753,6 +753,11 @@ namespace librealsense
 
         void v4l_uvc_device::poll()
         {
+            if (_fd >= FD_SETSIZE || _stop_pipe_fd[0] >= FD_SETSIZE || _stop_pipe_fd[1] >= FD_SETSIZE) 
+            {
+                throw linux_backend_exception("fd number too large");
+            }
+
             fd_set fds{};
             FD_ZERO(&fds);
             FD_SET(_fd, &fds);
@@ -761,9 +766,22 @@ namespace librealsense
 
             int max_fd = std::max(std::max(_stop_pipe_fd[0], _stop_pipe_fd[1]), _fd);
 
-            struct timeval tv = {5,0};
-
-            auto val = select(max_fd+1, &fds, NULL, NULL, &tv);
+            struct timespec mono_time;
+            int r = clock_gettime(CLOCK_MONOTONIC, &mono_time);
+            struct timeval expiration_time = { mono_time.tv_sec + 5, mono_time.tv_nsec / 1000 };
+            int val = 0;
+            do {
+                struct timeval remaining;
+                r = clock_gettime(CLOCK_MONOTONIC, &mono_time);
+                struct timeval current_time = { mono_time.tv_sec, mono_time.tv_nsec / 1000 };
+                timersub(&expiration_time, &current_time, &remaining);
+                if (timercmp(&current_time, &expiration_time, <)) {
+                    val = select(max_fd + 1, &fds, NULL, NULL, &remaining);
+                }
+                else {
+                    val = 0;
+                }
+            } while (val < 0 && errno == EINTR);
 
             if(val < 0)
             {
