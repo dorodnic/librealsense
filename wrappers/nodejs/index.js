@@ -765,7 +765,7 @@ class Sensor extends Options {
   * @return {undefined} No return value
   */
   destroy() {
-    this.events_ = null;
+    this._events = null;
     if (this.cxxSensor) {
       this.cxxSensor.destroy();
       this.cxxSensor = undefined;
@@ -1723,8 +1723,7 @@ class Align {
  * @property {Integer} streamType - The stream type of the frame.
  * see <code>enum {@link stream}</code>
  * @property {Integer} bitsPerPixel - The number of bits per pixel
- * @property {string} timestampDomain - Get the domain (clock name) of timestamp value.
- *
+ * @property {Integer} timestampDomain - Get the domain (clock name) of timestamp value.
  */
 class Frame {
   constructor(cxxFrame) {
@@ -1952,10 +1951,10 @@ class Frame {
  *
  * @property {Integer} width - The image width in pixels.
  * @property {Integer} height - The image height in pixels.
+ * @property {Integer} dataByteLength - The length in bytes
  * @property {Integer} strideInBytes - The stride of the frame. The unit is number of bytes.
  * @property {Integer} bitsPerPixel - The number of bits per pixel
- * @property {string} timestampDomain - Get the domain (clock name) of timestamp value.
- *
+ * @property {Integer} bytesPerPixel - The number of bytes per pixel
  */
 class VideoFrame extends Frame {
   constructor(frame) {
@@ -4318,6 +4317,12 @@ const option = {
    */
   option_stereo_baseline: 'stereo-baseline',
   /**
+   * String literal of <code>'auto-exposure-converage-step'</code>. <br>Allows dynamically ajust
+   * the converge step value of the target exposure in Auto-Exposure algorithm
+   * <br>Equivalent to its uppercase counterpart.
+   */
+  option_auto_exposure_converge_step: 'auto-exposure-converge-step',
+  /**
    * Enable / disable color backlight compensatio.<br>Equivalent to its lowercase counterpart.
    * @type {Integer}
    */
@@ -4538,17 +4543,24 @@ const option = {
    */
   OPTION_FILTER_SMOOTH_DELTA: RS2.RS2_OPTION_FILTER_SMOOTH_DELTA,
   /**
+   * Enhance depth data post-processing with holes filling where appropriate
+   * <br> Equivalent to its lowercase counterpart.
+   * @type {Integer}
+   */
+  OPTION_HOLES_FILL: RS2.RS2_OPTION_HOLES_FILL,
+  /**
    * The distance in mm between the first and the second imagers in stereo-based depth cameras
    * <br>Equivalent to its lowercase counterpart
    * @type {Integer}
    */
   OPTION_STEREO_BASELINE: RS2.RS2_OPTION_STEREO_BASELINE,
   /**
-   * Enhance depth data post-processing with holes filling where appropriate
-   * <br> Equivalent to its lowercase counterpart.
+   * Allows dynamically ajust the converge step value of the target exposure in Auto-Exposure
+   * algorithm
+   * <br>Equivalent to its lowercase counterpart
    * @type {Integer}
    */
-  OPTION_HOLES_FILL: RS2.RS2_OPTION_HOLES_FILL,
+  OPTION_AUTO_EXPOSURE_CONVERGE_STEP: RS2.RS2_OPTION_AUTO_EXPOSURE_CONVERGE_STEP,
   /**
    * Number of enumeration values. Not a valid input: intended to be used in for-loops.
    * @type {Integer}
@@ -4647,6 +4659,8 @@ const option = {
         return this.option_holes_fill;
       case this.OPTION_STEREO_BASELINE:
         return this.option_stereo_baseline;
+      case this.OPTION_AUTO_EXPOSURE_CONVERGE_STEP:
+        return this.option_auto_exposure_converge_step;
       default:
         throw new TypeError(
             'option.optionToString(option) expects a valid value as the 1st argument');
