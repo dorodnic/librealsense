@@ -37,11 +37,13 @@ add_subdirectory(third_party/pybind11)
 
     set(RS_VIEWER_CPP
             realsense-viewer.cpp
+            software-dev.cpp
             ../../third-party/imgui/imgui.cpp
             ../../third-party/imgui/imgui_draw.cpp
             ../../third-party/imgui/imgui_impl_glfw.cpp
             ../../third-party/imgui/imgui-fonts-karla.hpp
             ../../third-party/imgui/imgui-fonts-fontawesome.hpp
+            software-dev.hpp
             ../../common/rendering.h
             ../../common/model-views.h
             ../../common/model-views.cpp
@@ -51,10 +53,9 @@ add_subdirectory(third_party/pybind11)
 
     # config-ui
     if(WIN32)
-        add_executable(realsense-viewer WIN32
-                ${RS_VIEWER_CPP} ${CMAKE_CURRENT_SOURCE_DIR}/res/resource.h
-                ${RS_VIEWER_CPP} ${CMAKE_CURRENT_SOURCE_DIR}/res/realsense-viewer.rc
-                ../../common/windows-app-bootstrap.cpp)
+        add_executable(realsense-viewer
+                ${RS_VIEWER_CPP}
+                ${RS_VIEWER_CPP})
 
         source_group("3rd Party" FILES
             ../../third-party/imgui/imgui.cpp

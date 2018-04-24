@@ -5,6 +5,8 @@
 #include "model-views.h"
 #include "ux-window.h"
 
+#include "software-dev.hpp"
+
 #include <cstdarg>
 #include <thread>
 #include <iostream>
@@ -88,8 +90,7 @@ void StrategyInstance::sendOrder(const std::string& symbol)
 
 namespace py = pybind11;
 
-class PyStrategyInstance final
-: public StrategyInstance
+class PyStrategyInstance final : public StrategyInstance
 {
     using StrategyInstance::StrategyInstance;
     
@@ -425,18 +426,18 @@ int main(int argv, const char** argc) try
 {
     rs2::log_to_console(RS2_LOG_SEVERITY_WARN);
     
-//    Py_Initialize();
-//    pybind11_init();
-//    
-//    StrategyServer server;
-//    
-//    py::object main     = py::module::import("__main__");
-//    py::object globals  = main.attr("__dict__");
-//    py::object module   = import("strategy", "strategy.py", globals);
-//    py::object Strategy = module.attr("Strategy");
-//    py::object strategy = Strategy(&server);
-//    
-//    strategy.attr("eval")();
+    Py_Initialize();
+    pybind11_init();
+    
+    StrategyServer server;
+    
+    py::object main     = py::module::import("__main__");
+    py::object globals  = main.attr("__dict__");
+    py::object module   = import("strategy", "strategy.py", globals);
+    py::object Strategy = module.attr("Strategy");
+    py::object strategy = Strategy(&server);
+    
+    strategy.attr("eval")();
     
 
     ux_window window("Intel RealSense Viewer");
