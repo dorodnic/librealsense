@@ -24,6 +24,117 @@
 using namespace rs2;
 using namespace rs400;
 
+#include <librealsense2/hpp/rs_internal.hpp>
+
+#include <stb_image_write.h>
+namespace bla
+{
+    #include <res/int-rs-splash.hpp>
+}
+
+#include <stb_image.h>
+
+const int W = 640;
+const int H = 480;
+const int BPP = 2;
+
+struct synthetic_frame
+{
+    int x, y, bpp;
+    std::vector<uint8_t> frame;
+};
+
+class custom_frame_source
+{
+public:
+    custom_frame_source()
+    {
+        depth_frame.x = W;
+        depth_frame.y = H;
+        depth_frame.bpp = BPP;
+        
+        last = std::chrono::high_resolution_clock::now();
+        
+        std::vector<uint8_t> pixels_depth(depth_frame.x * depth_frame.y * depth_frame.bpp, 0);
+        depth_frame.frame = std::move(pixels_depth);
+        
+        auto realsense_logo = stbi_load_from_memory(bla::splash, (int)bla::splash_size, &color_frame.x, &color_frame.y, &color_frame.bpp, false);
+        
+        std::vector<uint8_t> pixels_color(color_frame.x * color_frame.y * color_frame.bpp, 0);
+        
+        memcpy(pixels_color.data(), realsense_logo, color_frame.x*color_frame.y * 4);
+        
+        for (auto i = 0; i< color_frame.y; i++)
+            for (auto j = 0; j < color_frame.x * 4; j += 4)
+            {
+                if (pixels_color.data()[i*color_frame.x * 4 + j] == 0)
+                {
+                    pixels_color.data()[i*color_frame.x * 4 + j] = 22;
+                    pixels_color.data()[i*color_frame.x * 4 + j + 1] = 115;
+                    pixels_color.data()[i*color_frame.x * 4 + j + 2] = 185;
+                }
+            }
+        color_frame.frame = std::move(pixels_color);
+    }
+    
+    synthetic_frame& get_synthetic_texture()
+    {
+        return color_frame;
+    }
+    
+    synthetic_frame& get_synthetic_depth()
+    {
+        //draw_text(50, 50, "This point-cloud is generated from a synthetic device:");
+        
+        auto now = std::chrono::high_resolution_clock::now();
+        if (now - last > std::chrono::milliseconds(1))
+        {
+            static float yaw = 0;
+            yaw -= 1;
+            wave_base += 0.1f;
+            last = now;
+            
+            for (int i = 0; i < depth_frame.y; i++)
+            {
+                for (int j = 0; j < depth_frame.x; j++)
+                {
+                    auto d = 2 + 0.1 * (1 + sin(wave_base + j / 50.f));
+                    ((uint16_t*)depth_frame.frame.data())[i*depth_frame.x + j] = (int)(d * 0xff);
+                }
+            }
+        }
+        return depth_frame;
+    }
+    
+    rs2_intrinsics create_texture_intrinsics()
+    {
+        rs2_intrinsics intrinsics = { color_frame.x, color_frame.y,
+            (float)color_frame.x / 2, (float)color_frame.y / 2,
+            (float)color_frame.x / 2, (float)color_frame.y / 2,
+            RS2_DISTORTION_BROWN_CONRADY ,{ 0,0,0,0,0 } };
+        
+        return intrinsics;
+    }
+    
+    rs2_intrinsics create_depth_intrinsics()
+    {
+        rs2_intrinsics intrinsics = { depth_frame.x, depth_frame.y,
+            (float)depth_frame.x / 2, (float)depth_frame.y / 2,
+            (float)depth_frame.x , (float)depth_frame.y ,
+            RS2_DISTORTION_BROWN_CONRADY ,{ 0,0,0,0,0 } };
+        
+        return intrinsics;
+    }
+    
+private:
+    synthetic_frame depth_frame;
+    synthetic_frame color_frame;
+    
+    std::chrono::high_resolution_clock::time_point last;
+    float wave_base = 0.f;
+};
+    
+    
 void add_playback_device(context& ctx, std::vector<device_model>& device_models, std::string& error_message, viewer_model& viewer_model, const std::string& file)
 {
     bool was_loaded = false;
@@ -211,9 +322,66 @@ int main(int argv, const char** argc) try
     rs2::log_to_console(RS2_LOG_SEVERITY_WARN);
 
     ux_window window("Intel RealSense Viewer");
+    
+    custom_frame_source app_data;
+    
+    auto texture = app_data.get_synthetic_texture();
+    
+    rs2_intrinsics color_intrinsics = app_data.create_texture_intrinsics();
+    rs2_intrinsics depth_intrinsics = app_data.create_depth_intrinsics();
+    
+    //==================================================//
+    //           Declare Software-Only Device           //
+    //==================================================//
+    
+    rs2::software_device dev; // Create software-only device
+    
+    auto depth_sensor = dev.add_sensor("Depth"); // Define single sensor
+    auto color_sensor = dev.add_sensor("Color"); // Define single sensor
+    
+    auto depth_stream = depth_sensor.add_video_stream({  RS2_STREAM_DEPTH, 0, 0,
+        W, H, 60, BPP,
+        RS2_FORMAT_Z16, depth_intrinsics });
+    
+    depth_sensor.add_read_only_option(RS2_OPTION_DEPTH_UNITS, 0.001f);
+    
+    
+    auto color_stream = color_sensor.add_video_stream({  RS2_STREAM_COLOR, 0, 1, texture.x,
+        texture.y, 60, texture.bpp,
+        RS2_FORMAT_RGBA8, color_intrinsics });
+    
+    dev.create_matcher(RS2_MATCHER_DLR_C);
+    depth_stream.register_extrinsics_to(color_stream, { { 1,0,0,0,1,0,0,0,1 },{ 0,0,0 } });
+    
+    std::thread t([&](){
+        int frame_number = 0;
+        while (true) // Application still alive?
+        {
+            synthetic_frame& depth_frame = app_data.get_synthetic_depth();
+            
+            depth_sensor.on_video_frame({ depth_frame.frame.data(), // Frame pixels from capture API
+                [](void*) {}, // Custom deleter (if required)
+                depth_frame.x*depth_frame.bpp, depth_frame.bpp, // Stride and Bytes-per-pixel
+                (rs2_time_t)frame_number * 16, RS2_TIMESTAMP_DOMAIN_HARDWARE_CLOCK, frame_number, // Timestamp, Frame# for potential sync services
+                depth_stream });
+            
+            
+            color_sensor.on_video_frame({ texture.frame.data(), // Frame pixels from capture API
+                [](void*) {}, // Custom deleter (if required)
+                texture.x*texture.bpp, texture.bpp, // Stride and Bytes-per-pixel
+                (rs2_time_t)frame_number * 16, RS2_TIMESTAMP_DOMAIN_HARDWARE_CLOCK, frame_number, // Timestamp, Frame# for potential sync services
+                color_stream });
+            
+            ++frame_number;
+        }
+    });
+    
 
     // Create RealSense Context
     context ctx;
+
+    dev.inject_to(ctx);
+    
     device_changes devices_connection_changes(ctx);
     std::vector<std::pair<std::string, std::string>> device_names;
 

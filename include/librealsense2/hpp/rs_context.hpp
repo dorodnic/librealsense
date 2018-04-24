@@ -70,6 +70,7 @@ namespace rs2
 
     class pipeline;
     class device_hub;
+    class software_device;
 
     /**
     * default librealsense context class
@@ -166,9 +167,10 @@ namespace rs2
             rs2::error::handle(e);
         }
 
-protected:
+    protected:
         friend class rs2::pipeline;
         friend class rs2::device_hub;
+        friend class rs2::software_device;
 
         context(std::shared_ptr<rs2_context> ctx)
             : _context(ctx)
