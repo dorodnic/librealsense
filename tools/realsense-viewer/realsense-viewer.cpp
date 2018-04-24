@@ -21,6 +21,9 @@
 // We use NOC file helper function for cross-platform file dialogs
 #include <noc_file_dialog.h>
 
+#include <pybind11/pybind11.h>
+#include <pybind11/eval.h>
+
 using namespace rs2;
 using namespace rs400;
 
@@ -37,6 +40,107 @@ namespace bla
 const int W = 640;
 const int H = 480;
 const int BPP = 2;
+
+class StrategyInstance;
+
+class StrategyServer
+{
+public:
+    void sendOrder(StrategyInstance&, const std::string& symbol);
+private:
+    int _next_order_id = 0;
+};
+
+class StrategyInstance
+{
+public:
+    StrategyInstance(StrategyServer*);
+    virtual ~StrategyInstance() = default;
+    
+    virtual void eval() = 0;
+    virtual void onOrder(const std::string& str) = 0;
+    
+    void sendOrder(const std::string& str);
+    
+private:
+    StrategyServer& _server;
+};
+
+void StrategyServer::sendOrder(StrategyInstance& instance, const std::string& symbol)
+{
+    // simulate sending an order, receiving an acknowledgement and calling back to the strategy instance
+    
+    std::cout << "sending order to market\n";
+    
+    instance.onOrder(symbol);
+}
+
+///////////////////////////////////
+
+StrategyInstance::StrategyInstance(StrategyServer* server) : _server(*server)
+{
+}
+
+void StrategyInstance::sendOrder(const std::string& symbol)
+{
+    _server.sendOrder(*this, symbol);
+}
+
+namespace py = pybind11;
+
+class PyStrategyInstance final
+: public StrategyInstance
+{
+    using StrategyInstance::StrategyInstance;
+    
+    void eval() override
+    {
+        PYBIND11_OVERLOAD_PURE(
+                               void,              // return type
+                               StrategyInstance,  // super class
+                               eval               // function name
+                               );
+    }
+    
+    void onOrder(const std::string& order) override
+    {
+        PYBIND11_OVERLOAD_PURE_NAME(
+                                    void,              // return type
+                                    StrategyInstance,  // super class
+                                    "on_order",        // python function name
+                                    onOrder,           // function name
+                                    order              // args
+                                    );
+    }
+};
+
+PYBIND11_PLUGIN(StrategyFramework)
+{
+    py::module m("StrategyFramework", "Example strategy framework");
+    
+    py::class_<StrategyServer>(m, "StrategyServer");
+    
+    py::class_<StrategyInstance, PyStrategyInstance>(m, "StrategyInstance")
+    .def(py::init<StrategyServer*>())
+    .def("send_order", &StrategyInstance::sendOrder);
+    
+    return m.ptr();
+}
+
+py::object import(const std::string& module, const std::string& path, py::object& globals)
+{
+    py::dict locals;
+    locals["module_name"] = py::cast(module);
+    locals["path"]        = py::cast(path);
+    
+    py::eval<py::eval_statements>(
+                                  "import imp\n"
+                                  "new_module = imp.load_module(module_name, open(path), path, ('py', 'U', imp.PY_SOURCE))\n",
+                                  globals,
+                                  locals);
+    
+    return locals["new_module"];
+}
 
 struct synthetic_frame
 {
@@ -320,6 +424,20 @@ void refresh_devices(std::mutex& m,
 int main(int argv, const char** argc) try
 {
     rs2::log_to_console(RS2_LOG_SEVERITY_WARN);
+    
+//    Py_Initialize();
+//    pybind11_init();
+//    
+//    StrategyServer server;
+//    
+//    py::object main     = py::module::import("__main__");
+//    py::object globals  = main.attr("__dict__");
+//    py::object module   = import("strategy", "strategy.py", globals);
+//    py::object Strategy = module.attr("Strategy");
+//    py::object strategy = Strategy(&server);
+//    
+//    strategy.attr("eval")();
+    
 
     ux_window window("Intel RealSense Viewer");
     
