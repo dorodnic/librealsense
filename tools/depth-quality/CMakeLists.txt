@@ -33,6 +33,8 @@ endif()
 
 if(BUILD_GRAPHICAL_EXAMPLES)
     set(RS_QUALITY_TOOL_CPP
+            ./software-dev.cpp
+            ./software-dev.hpp
             ./rs-depth-quality.cpp
             ./depth-quality-model.h
             ./depth-quality-model.cpp
@@ -49,15 +51,10 @@ if(BUILD_GRAPHICAL_EXAMPLES)
             ../../third-party/imgui/imgui-fonts-fontawesome.hpp
         )
 
-    if(WIN32)
-        add_executable(rs-depth-quality WIN32 ${RS_QUALITY_TOOL_CPP}
-                ${CMAKE_CURRENT_SOURCE_DIR}/res/resource.h
-                ${CMAKE_CURRENT_SOURCE_DIR}/res/realsense-viewer.rc
-                ../../common/windows-app-bootstrap.cpp)
+        add_subdirectory(third_party/pybind11)
 
-        source_group("Resources" FILES
-                ${CMAKE_CURRENT_SOURCE_DIR}/res/resource.h
-                ${CMAKE_CURRENT_SOURCE_DIR}/res/realsense-viewer.rc)
+    if(WIN32)
+        add_executable(rs-depth-quality ${RS_QUALITY_TOOL_CPP})
 
         source_group("3rd Party" FILES
             ../../third-party/imgui/imgui.cpp
@@ -90,7 +87,11 @@ if(BUILD_GRAPHICAL_EXAMPLES)
                                              ../../third-party/tclap/include)
     endif()
 
-    target_link_libraries(rs-depth-quality ${DEPENDENCIES} ${GTK3_LIBRARIES})
+    
+    target_link_libraries(rs-depth-quality PRIVATE pybind11::module ${DEPENDENCIES} ${GTK3_LIBRARIES})
+    set_target_properties(rs-depth-quality PROPERTIES PREFIX "${PYTHON_MODULE_PREFIX}"
+                                            SUFFIX "${PYTHON_MODULE_EXTENSION}")
+
     set_target_properties (rs-depth-quality PROPERTIES
         FOLDER Tools
     )

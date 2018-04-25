@@ -951,7 +951,7 @@ namespace librealsense
             std::shared_ptr<const wmf_backend> backend)
             : _streamIndex(MAX_PINS), _info(info), _is_flushed(), _has_started(), _backend(std::move(backend)),
             _systemwide_lock(info.unique_id.c_str(), WAIT_FOR_MUTEX_TIME_OUT),
-            _location(""), _device_usb_spec(usb_undefined)
+            _location(""), _device_usb_spec(usb3_1_type)
         {
             if (!is_connected(info))
             {

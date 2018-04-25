@@ -321,6 +321,11 @@ namespace librealsense
         std::copy(begin(tm2_devices), end(tm2_devices), std::back_inserter(list));
 #endif
 
+        for (auto&& item : playback_devices)
+        {
+            list.push_back(item.second.lock());
+        }
+
         auto l500_devices = l500_info::pick_l500_devices(ctx, devices.uvc_devices, devices.usb_devices);
         std::copy(begin(l500_devices), end(l500_devices), std::back_inserter(list));
 
@@ -335,11 +340,6 @@ namespace librealsense
 
         auto uvc_devices = platform_camera_info::pick_uvc_devices(ctx, devices.uvc_devices);
         std::copy(begin(uvc_devices), end(uvc_devices), std::back_inserter(list));
-
-        for (auto&& item : playback_devices)
-        {
-            list.push_back(item.second.lock());
-        }
 
         return list;
     }

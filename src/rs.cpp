@@ -1833,6 +1833,13 @@ void rs2_software_sensor_on_video_frame(rs2_sensor* sensor, rs2_software_video_f
 }
 HANDLE_EXCEPTIONS_AND_RETURN(, sensor, frame.pixels)
 
+int rs2_is_streaming(const rs2_sensor* sensor, rs2_error** error) BEGIN_API_CALL
+{
+    VALIDATE_NOT_NULL(sensor);
+    return sensor->sensor->is_streaming();
+}
+HANDLE_EXCEPTIONS_AND_RETURN(0, sensor)
+
 rs2_stream_profile* rs2_software_sensor_add_video_stream(rs2_sensor* sensor, rs2_video_stream video_stream, rs2_error** error) BEGIN_API_CALL
 {
     auto bs = VALIDATE_INTERFACE(sensor->sensor, librealsense::software_sensor);

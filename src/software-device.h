@@ -64,7 +64,7 @@ namespace librealsense
         }
     };
 
-    class software_sensor : public sensor_base
+    class software_sensor : public sensor_base, public depth_sensor
     {
     public:
         software_sensor(std::string name, software_device* owner);
@@ -82,6 +82,13 @@ namespace librealsense
         void on_video_frame(rs2_software_video_frame frame);
         void add_read_only_option(rs2_option option, float val);
         void update_read_only_option(rs2_option option, float val);
+
+        float get_depth_scale() const override
+        {
+            return get_option(RS2_OPTION_DEPTH_UNITS).query();
+        }
+        void create_snapshot(std::shared_ptr<depth_sensor>& snapshot) const {}
+        void enable_recording(std::function<void(const depth_sensor&)> recording_function) {}
 
     private:
         friend class software_device;

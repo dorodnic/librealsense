@@ -10,6 +10,9 @@ namespace librealsense
         : device(std::make_shared<context>(backend_type::standard), {})
     {
         register_info(RS2_CAMERA_INFO_NAME, "Software-Device");
+        register_info(RS2_CAMERA_INFO_FIRMWARE_VERSION, "00.00.00.00");
+        register_info(RS2_CAMERA_INFO_PRODUCT_ID, "0x0000");
+        register_info(RS2_CAMERA_INFO_SERIAL_NUMBER, "11111111");
     }
 
     software_sensor& software_device::add_software_sensor(const std::string& name)
@@ -45,7 +48,9 @@ namespace librealsense
     software_sensor::software_sensor(std::string name, software_device* owner)
         : sensor_base(name, owner)
     {
-
+        register_info(RS2_CAMERA_INFO_FIRMWARE_VERSION, "00.00.00.00");
+        register_info(RS2_CAMERA_INFO_PRODUCT_ID, "0x0000");
+        register_info(RS2_CAMERA_INFO_SERIAL_NUMBER, "11111111");
     }
 
     std::shared_ptr<matcher> software_device::create_matcher(const frame_holder& frame) const

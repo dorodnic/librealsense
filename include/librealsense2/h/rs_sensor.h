@@ -216,6 +216,8 @@ void rs2_close(const rs2_sensor* sensor, rs2_error** error);
 */
 void rs2_start(const rs2_sensor* sensor, rs2_frame_callback_ptr on_frame, void* user, rs2_error** error);
 
+int rs2_is_streaming(const rs2_sensor* sensor, rs2_error** error);
+
 /**
 * start streaming from specified configured sensor
 * \param[in] sensor  RealSense device

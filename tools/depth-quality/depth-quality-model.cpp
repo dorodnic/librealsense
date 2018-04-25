@@ -2,13 +2,24 @@
 #include "depth-quality-model.h"
 #include <librealsense2/rs_advanced_mode.hpp>
 #include "model-views.h"
+#include "software-dev.hpp"
 
 namespace rs2
 {
     namespace depth_quality
     {
+        context make_ctx()
+        {
+            context ctx;
+            static python_device dev;
+            dev.get_device().inject_to(ctx);
+            return ctx;
+        }
+
         tool_model::tool_model()
-            : _update_readonly_options_timer(std::chrono::seconds(6)), _roi_percent(0.4f),
+            : _ctx(make_ctx()),
+              _pipe(_ctx),
+              _update_readonly_options_timer(std::chrono::seconds(6)), _roi_percent(0.4f),
               _roi_located(std::chrono::seconds(4)),
               _too_close(std::chrono::seconds(4)),
               _too_far(std::chrono::seconds(4)),
@@ -39,6 +50,7 @@ namespace rs2
             auto devices = _ctx.query_devices();
             if (devices.size())
             {
+                auto s = devices.size();
                 auto dev = devices[0];
                 bool usb3_device = true;
                 if (dev.supports(RS2_CAMERA_INFO_USB_TYPE_DESCRIPTOR))
@@ -52,13 +64,7 @@ namespace rs2
 
             int requested_fps = usb3_device ? 30 : 15;
 
-            {
-                rs2::config cfg_default;
-                // Preferred configuration Depth + Synthetic Color
-                cfg_default.enable_stream(RS2_STREAM_DEPTH, -1, 0, 0, RS2_FORMAT_Z16, requested_fps);
-                cfg_default.enable_stream(RS2_STREAM_INFRARED, -1, 0, 0, RS2_FORMAT_RGB8, requested_fps);
-                cfgs.emplace_back(cfg_default);
-            }
+
             // Use Infrared luminocity as a secondary video in case synthetic chroma is not supported
             {
                 rs2::config cfg_alt;
@@ -76,6 +82,15 @@ namespace rs2
                         valid_config = active_profile;
                         break;
                     }
+                    catch (const std::exception& ex)
+                    {
+                        valid_config = false;
+                        if (!_device_in_use)
+                        {
+                            window.add_on_load_message(ex.what());
+                            _device_in_use = true;
+                        }
+                    }
                     catch (...)
                     {
                         valid_config = false;
@@ -88,21 +103,9 @@ namespace rs2
                 }
             }
 
+
             if (valid_config)
             {
-                // Toggle advanced mode
-                auto dev = _pipe.get_active_profile().get_device();
-                if (dev.is<rs400::advanced_mode>())
-                {
-                    auto advanced_mode = dev.as<rs400::advanced_mode>();
-                    if (!advanced_mode.is_enabled())
-                    {
-                        window.add_on_load_message("Toggling device into Advanced Mode...");
-                        advanced_mode.toggle_advanced_mode(true);
-                        valid_config = false;
-                    }
-                }
-
                 update_configuration();
             }
 

@@ -138,6 +138,10 @@ namespace rs2
                     {
                         _app_ready = on_load();
                     }
+                    catch (const std::exception& ex)
+                    {
+                        std::cout << ex.what() << std::endl;
+                    }
                     catch (...)
                     {
                         std::this_thread::sleep_for(std::chrono::seconds(1)); // Wait for connect event and retry

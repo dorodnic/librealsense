@@ -295,6 +295,14 @@ namespace rs2
             error::handle(e);
         }
 
+        bool is_streaming() const
+        {
+            rs2_error* e = nullptr;
+            auto res = rs2_is_streaming(_sensor.get(), &e);
+            error::handle(e);
+            return res;
+        }
+
         /**
         * close sensor for exclusive access
         * this method should be used for releasing sensor resource
