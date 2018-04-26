@@ -210,6 +210,9 @@ python_device::python_device()
     _dev.create_matcher(RS2_MATCHER_DLR);
     _depth.register_extrinsics_to(_left, { { 1,0,0,0,1,0,0,0,1 },{ 0,0,0 } });
     _depth_orig.register_extrinsics_to(_left, { { 1,0,0,0,1,0,0,0,1 },{ 0,0,0 } });
+    //_depth.register_extrinsics_to(_right, { { 1,0,0,0,1,0,0,0,1 },{ 0,0,0 } });
+    //_depth_orig.register_extrinsics_to(_right, { { 1,0,0,0,1,0,0,0,1 },{ 0,0,0 } });
+    //_depth.register_extrinsics_to(_depth_orig, { { 1,0,0,0,1,0,0,0,1 },{ 0,0,0 } });
 
     _t = std::make_shared<std::thread>([=]() {
         int frame_number = 0;
