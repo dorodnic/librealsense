@@ -33,6 +33,7 @@ elseif(WIN32)
     add_definitions(-DNOC_FILE_DIALOG_WIN32)
 endif()
 
+add_subdirectory(third_party/pybind11)
 
     set(RS_VIEWER_CPP
             realsense-viewer.cpp
@@ -75,7 +76,9 @@ endif()
     endif()
 
     
-    target_link_libraries(realsense-viewer ${DEPENDENCIES} ${GTK3_LIBRARIES})
+    target_link_libraries(realsense-viewer PRIVATE pybind11::module ${DEPENDENCIES} ${GTK3_LIBRARIES})
+    set_target_properties(realsense-viewer PROPERTIES PREFIX "${PYTHON_MODULE_PREFIX}"
+                                            SUFFIX "${PYTHON_MODULE_EXTENSION}")
 
     set_target_properties (realsense-viewer PROPERTIES
         FOLDER Tools

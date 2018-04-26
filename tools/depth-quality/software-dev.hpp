@@ -23,13 +23,6 @@ namespace bla
 
 const int W = 1280;
 const int H = 720;
-const int BPP = 2;
-
-struct synthetic_frame
-{
-    int x, y, bpp;
-    std::vector<uint8_t> frame;
-};
 
 class software_camera;
 

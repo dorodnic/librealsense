@@ -27,6 +27,8 @@ public:
     virtual void stop() = 0;
     virtual void update() = 0;
 
+    bool embedded() { return true; }
+
     uint16_t* get_pixels(int stream_id) { return _server.get_pixels(stream_id); }
 private:
     native_platform& _server;
@@ -81,6 +83,7 @@ PYBIND11_PLUGIN()
         .def("start", &software_camera::start)
         .def("stop", &software_camera::stop)
         .def("update", &software_camera::update)
+        .def("embedded", &software_camera::embedded)
         .def("upload_z", [](py_software_camera& self, py::array_t<uint16_t> x, int stream_id) {
         //std::cout << "bla" << std::endl;
         auto r = x.mutable_unchecked<2>(); // Will throw if ndim != 3 or flags.writeable is false
@@ -135,7 +138,7 @@ void python_device::start()
 {
     py::object main = py::module::import("__main__");
     py::object globals = main.attr("__dict__");
-    py::object module = import("script", "script.py", globals);
+    py::object module = import("script", "script.temp.py", globals);
     py::object Strategy = module.attr("depth_from_stereo");
     _instance = Strategy(&_server);
 }
@@ -145,6 +148,33 @@ void python_device::stop()
     //pybind11::detail::clear_instance(module);
     //Py_Finalize();
 }
+
+std::vector<std::string> split(const std::string& s, char delimiter)
+{
+    std::vector<std::string> tokens;
+    std::string token;
+    std::istringstream tokenStream(s);
+    while (std::getline(tokenStream, token, delimiter))
+    {
+        tokens.push_back(token);
+    }
+    return tokens;
+}
+
+void store_updated_script(const std::string& script)
+{
+    auto lines = split(script, '\n');
+    for (int i = 0; i < 5; i++)
+        lines[i] = "";
+    lines[0] = "from device_framework import *";
+    std::ofstream out("script.temp.py");
+    for (auto&& line : lines)
+    {
+        out << line << std::endl;
+    }
+    out.close();
+}
+
 
 python_device::python_device()
 {
@@ -160,7 +190,7 @@ python_device::python_device()
     _sensor = _dev.add_sensor("Stereo Module"); // Define single sensor
 
     _depth = _sensor.add_video_stream({ RS2_STREAM_DEPTH, 0, 2,
-        W, H, 30, BPP,
+        W, H, 30, 2,
         RS2_FORMAT_Z16, depth_intrinsics });
 
     _left = _sensor.add_video_stream({ RS2_STREAM_INFRARED, 0, 0,
@@ -182,6 +212,7 @@ python_device::python_device()
         pybind11_init();
 
         _script = load_script("script.py");
+        store_updated_script(_script);
 
         while (_alive) // Application still alive?
         {
@@ -195,6 +226,8 @@ python_device::python_device()
                     _script = new_script;
                     refresh = true;
                     std::cout << "Reloading Script!" << std::endl;
+
+                    store_updated_script(_script);
                 }
 
                 if (_streaming && (!_dev.query_sensors().front().is_streaming() || refresh))
@@ -218,7 +251,7 @@ python_device::python_device()
                 auto pixels = _server.get_pixels(2);
                 _sensor.on_video_frame({ pixels, // Frame pixels from capture API
                     [](void*) {}, // Custom deleter (if required)
-                    W * BPP, BPP, // Stride and Bytes-per-pixel
+                    W * 2, 2, // Stride and Bytes-per-pixel
                     (rs2_time_t)frame_number * 16, RS2_TIMESTAMP_DOMAIN_HARDWARE_CLOCK, frame_number, // Timestamp, Frame# for potential sync services
                     _depth });
 
