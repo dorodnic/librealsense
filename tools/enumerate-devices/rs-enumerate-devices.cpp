@@ -171,7 +171,7 @@ int main(int argc, char** argv) try
 
     cmd.parse(argc, argv);
 
-    log_to_console(RS2_LOG_SEVERITY_ERROR);
+    log_to_console(RS2_LOG_SEVERITY_INFO);
 
     // Obtain a list of devices currently present on the system
     context ctx;
