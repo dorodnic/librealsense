@@ -23,6 +23,39 @@ endif()
 
 list(APPEND DEPENDENCIES ${OPENGL_LIBRARIES})
 
+set(PROTOTEXT_FILE "MobileNetSSD_deploy.prototxt")
+set(PROTOTEXT_URL "https://raw.githubusercontent.com/chuanqi305/MobileNet-SSD/master/MobileNetSSD_deploy.prototxt")
+set(PROTOTEXT_PATH "${CMAKE_CURRENT_BINARY_DIR}/${PROTOTEXT_FILE}")
+
+set(MODEL_FILE "MobileNetSSD_deploy.caffemodel")
+set(MODEL_URL "https://drive.google.com/uc?export=download&id=0B3gersZ2cHIxRm5PMWRoTkdHdHc")
+set(MODEL_PATH "${CMAKE_CURRENT_BINARY_DIR}/${MODEL_FILE}")
+
+if(NOT EXISTS "${PROTOTEXT_PATH}")
+	message("Downloading ${PROTOTEXT_FILE} into ${CMAKE_CURRENT_BINARY_DIR}")
+    file(DOWNLOAD "${PROTOTEXT_URL}" "${PROTOTEXT_PATH}")
+endif()
+
+if(NOT EXISTS "${MODEL_PATH}")
+	message("Downloading ${MODEL_FILE} into ${CMAKE_CURRENT_BINARY_DIR}")
+    file(DOWNLOAD "${MODEL_URL}" "${MODEL_PATH}")
+endif()
+
+if(APPLE)
+    add_definitions(-DNOC_FILE_DIALOG_OSX)
+elseif(UNIX)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(GTK3 REQUIRED gtk+-3.0)
+
+    include_directories(${GTK3_INCLUDE_DIRS})
+    link_directories(${GTK3_LIBRARY_DIRS})
+    add_definitions(${GTK3_CFLAGS_OTHER})
+
+    add_definitions(-DNOC_FILE_DIALOG_GTK)
+elseif(WIN32)
+    add_definitions(-DNOC_FILE_DIALOG_WIN32)
+endif()
+
 if(WIN32)
 	list(APPEND DEPENDENCIES glfw3)
 else()
@@ -50,9 +83,16 @@ else()
 	include_directories(${GLFW_INCLUDE_DIR})
 endif()
 
-add_executable(rs-stitch rs-stitch.cpp ../cv-helpers.hpp)
+add_executable(rs-stitch rs-stitch.cpp ../cv-helpers.hpp 
+../../../third-party/imgui/imgui.cpp 
+../../../third-party/imgui/imgui_draw.cpp 
+../../../third-party/imgui/imgui_impl_glfw.cpp
+../../../common/ux-window.cpp
+../../../common/model-views.cpp
+)
 target_link_libraries(rs-stitch ${DEPENDENCIES})
-include_directories(rs-stitch ../../../examples)
+include_directories(rs-align ../../../common ../../../third-party/imgui ../../../third-party)
+
 set_target_properties (rs-stitch PROPERTIES
 	FOLDER "Examples/OpenCV"
 )
