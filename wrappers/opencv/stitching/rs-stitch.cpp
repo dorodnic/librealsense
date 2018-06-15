@@ -408,6 +408,8 @@ int main(int argc, char * argv[]) try
                             detected_object.r = detected_object.r & cv::Rect(0, 0, depth_mat.cols, depth_mat.rows);
                             depth_mat = depth_mat(detected_object.r);
 
+                            resize(depth_mat, depth_mat, { d0.get_width() / 3, d0.get_height() / 3 }, 0,0, INTER_NEAREST );
+
                             depth_mat.setTo(cv::Scalar(1000.f), depth_mat == 0);
 
                             //auto color_mat = frame_to_mat(c);
