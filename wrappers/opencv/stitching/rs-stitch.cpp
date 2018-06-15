@@ -133,9 +133,15 @@ void update_3d_camera(const rect& viewer_rect,
 struct Detection
 {
     Rect r;
-    float min_z, max_z;
-    float confidence;
-    float left, right, top, bottom;
+    float min_z = 0.f, max_z = 0.f;
+    float confidence = 0.f;
+    float left = 0.f, right = 0.f, top = 0.f, bottom = 0.f;
+
+    std::chrono::steady_clock::time_point _last_updated;
+
+    Rect ar;
+    float amz = 0.f;
+    float aMz = 0.f;
 };
 
 void render_3d_view(const rect& viewer_rect, texture_buffer* texture, rs2::points points, 
@@ -144,7 +150,7 @@ void render_3d_view(const rect& viewer_rect, texture_buffer* texture, rs2::point
     glViewport(static_cast<GLint>(viewer_rect.x), 0,
         static_cast<GLsizei>(viewer_rect.w), static_cast<GLsizei>(viewer_rect.h));
 
-    glClearColor(1, 1, 1, 1);
+    glClearColor(0, 113.f / 256, 197.f / 256, 1.f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     glMatrixMode(GL_PROJECTION);
@@ -162,15 +168,13 @@ void render_3d_view(const rect& viewer_rect, texture_buffer* texture, rs2::point
 
     texture_buffer::draw_axis(0.1f, 1);
 
-    glColor4f(1.f, 1.f, 1.f, 1.f);
-
     glLineWidth(1.f);
     glBegin(GL_LINES);
 
     auto vf_prof = points.get_profile().as<video_stream_profile>();
     auto intrin = vf_prof.get_intrinsics();
 
-    glColor4f(36.f / 255, 44.f / 255, 51.f / 255, 0.5f);
+    glColor4f(0.1f, 0.3f, 0.3f, 0.7f);
 
     for (float d = 1; d < 6; d += 2)
     {
@@ -195,58 +199,69 @@ void render_3d_view(const rect& viewer_rect, texture_buffer* texture, rs2::point
         glVertex3fv(&bottom_left.x); glVertex3fv(&top_left.x);
     }
 
-    glColor4f(1, 0, 0, 1);
+    glEnd();
+    glLineWidth(2);
+    glBegin(GL_LINES);
+
+    glColor4f(0, 174.f / 256, 239.f / 256, 1);
 
     for (auto& o : objects)
     {
-        auto object = o.r;
-
-        auto get_point = [&](float x, float y, float z) -> float3
+        auto diff = std::chrono::steady_clock::now() - o._last_updated;
+        if (std::chrono::duration_cast<std::chrono::milliseconds>(diff).count() < 1000 &&
+            o.r.width * o.r.height > 0)
         {
-            float point[3];
-            float pixel[2]{ x, y };
-            rs2_deproject_pixel_to_point(point, &intrin, pixel, z);
-            //glVertex3f(0.f, 0.f, 0.f);
-            glVertex3fv(point);
-            return{ point[0], point[1], point[2] };
-        };
+            auto object = o.ar;
 
-        auto top_left = get_point(object.x / scaledown, object.y / scaledown, o.min_z);
-        auto top_right = get_point(static_cast<float>(object.x / scaledown + object.width / scaledown), object.y / scaledown, o.min_z);
-        auto bottom_right = get_point(static_cast<float>(object.x / scaledown + object.width / scaledown), 
-            static_cast<float>(object.y / scaledown + object.height / scaledown), o.min_z);
-        auto bottom_left = get_point(object.x / scaledown, 
-            static_cast<float>(object.y / scaledown + object.height / scaledown), o.min_z);
+            auto get_point = [&](float x, float y, float z) -> float3
+            {
+                float point[3];
+                float pixel[2]{ x, y };
+                rs2_deproject_pixel_to_point(point, &intrin, pixel, z);
+                //glVertex3f(0.f, 0.f, 0.f);
+                glVertex3fv(point);
+                return{ point[0], point[1], point[2] };
+            };
 
-        auto top_left2 = get_point(object.x / scaledown, object.y / scaledown, o.max_z);
-        auto top_right2 = get_point(static_cast<float>(object.x / scaledown + object.width / scaledown), object.y / scaledown, o.max_z);
-        auto bottom_right2 = get_point(static_cast<float>(object.x / scaledown + object.width / scaledown),
-            static_cast<float>(object.y / scaledown + object.height / scaledown), o.max_z);
-        auto bottom_left2 = get_point(object.x / scaledown,
-            static_cast<float>(object.y / scaledown + object.height / scaledown), o.max_z);
+            auto top_left = get_point(object.x / scaledown, object.y / scaledown, o.amz);
+            auto top_right = get_point(static_cast<float>(object.x / scaledown + object.width / scaledown), object.y / scaledown, o.amz);
+            auto bottom_right = get_point(static_cast<float>(object.x / scaledown + object.width / scaledown),
+                static_cast<float>(object.y / scaledown + object.height / scaledown), o.amz);
+            auto bottom_left = get_point(object.x / scaledown,
+                static_cast<float>(object.y / scaledown + object.height / scaledown), o.amz);
 
-        o.left = top_left2.x;
-        o.right = top_right2.x;
-        o.top = top_left2.y;
-        o.bottom = bottom_right2.y;
+            auto top_left2 = get_point(object.x / scaledown, object.y / scaledown, o.aMz);
+            auto top_right2 = get_point(static_cast<float>(object.x / scaledown + object.width / scaledown), object.y / scaledown, o.aMz);
+            auto bottom_right2 = get_point(static_cast<float>(object.x / scaledown + object.width / scaledown),
+                static_cast<float>(object.y / scaledown + object.height / scaledown), o.aMz);
+            auto bottom_left2 = get_point(object.x / scaledown,
+                static_cast<float>(object.y / scaledown + object.height / scaledown), o.aMz);
 
-        glVertex3fv(&top_left.x); glVertex3fv(&top_right.x);
-        glVertex3fv(&top_right.x); glVertex3fv(&bottom_right.x);
-        glVertex3fv(&bottom_right.x); glVertex3fv(&bottom_left.x);
-        glVertex3fv(&bottom_left.x); glVertex3fv(&top_left.x);
+            o.left = top_left2.x;
+            o.right = top_right2.x;
+            o.top = top_left2.y;
+            o.bottom = bottom_right2.y;
 
-        glVertex3fv(&top_left2.x); glVertex3fv(&top_right2.x);
-        glVertex3fv(&top_right2.x); glVertex3fv(&bottom_right2.x);
-        glVertex3fv(&bottom_right2.x); glVertex3fv(&bottom_left2.x);
-        glVertex3fv(&bottom_left2.x); glVertex3fv(&top_left2.x);
+            glVertex3fv(&top_left.x); glVertex3fv(&top_right.x);
+            glVertex3fv(&top_right.x); glVertex3fv(&bottom_right.x);
+            glVertex3fv(&bottom_right.x); glVertex3fv(&bottom_left.x);
+            glVertex3fv(&bottom_left.x); glVertex3fv(&top_left.x);
 
-        glVertex3fv(&top_left.x); glVertex3fv(&top_left2.x);
-        glVertex3fv(&top_right.x); glVertex3fv(&top_right2.x);
-        glVertex3fv(&bottom_right.x); glVertex3fv(&bottom_right2.x);
-        glVertex3fv(&bottom_left.x); glVertex3fv(&bottom_left2.x);
+            glVertex3fv(&top_left2.x); glVertex3fv(&top_right2.x);
+            glVertex3fv(&top_right2.x); glVertex3fv(&bottom_right2.x);
+            glVertex3fv(&bottom_right2.x); glVertex3fv(&bottom_left2.x);
+            glVertex3fv(&bottom_left2.x); glVertex3fv(&top_left2.x);
+
+            glVertex3fv(&top_left.x); glVertex3fv(&top_left2.x);
+            glVertex3fv(&top_right.x); glVertex3fv(&top_right2.x);
+            glVertex3fv(&bottom_right.x); glVertex3fv(&bottom_right2.x);
+            glVertex3fv(&bottom_left.x); glVertex3fv(&bottom_left2.x);
+        }
     }
 
     glEnd();
+
+    glLineWidth(1);
 
     glColor4f(1.f, 1.f, 1.f, 1.f);
 
@@ -277,10 +292,15 @@ void render_3d_view(const rect& viewer_rect, texture_buffer* texture, rs2::point
             bool show = false;
             for (auto o : objects)
             {
-                if (o.min_z > va.z || o.max_z < va.z) continue;
-                if (o.left > va.x || o.right < va.x) continue;
-                if (o.top > va.y || o.bottom < va.y) continue;
-                show = true;
+                auto diff = std::chrono::steady_clock::now() - o._last_updated;
+                if (std::chrono::duration_cast<std::chrono::milliseconds>(diff).count() < 500 &&
+                    o.r.width * o.r.height > 0)
+                {
+                    if (o.amz > va.z || o.aMz < va.z) continue;
+                    if (o.left > va.x || o.right < va.x) continue;
+                    if (o.top > va.y || o.bottom < va.y) continue;
+                    show = true;
+                }
             }
 
             if (show)
@@ -402,7 +422,9 @@ int main(int argc, char * argv[]) try
                     std::lock_guard<std::mutex> lock(mx);
                     for (auto& detected_object : detected_objects)
                     {
-                        if (detected_object.r.width * detected_object.r.height > 0)
+                        auto diff = std::chrono::steady_clock::now() - detected_object._last_updated;
+                        if (std::chrono::duration_cast<std::chrono::milliseconds>(diff).count() < 1000 &&
+                            detected_object.r.width * detected_object.r.height > 0)
                         {
                             auto depth_mat = depth_frame_to_meters(pipe, d0);
                             detected_object.r = detected_object.r & cv::Rect(0, 0, depth_mat.cols, depth_mat.rows);
@@ -473,6 +495,8 @@ int main(int argc, char * argv[]) try
 
                             detected_object.min_z = min;
                             detected_object.max_z = *fg_only.rbegin();
+                            length = detected_object.max_z - detected_object.min_z;
+                            detected_object.max_z = detected_object.min_z + length * 1.2f;
 
                             //cv::imshow("win", color_mat);
                         }
@@ -531,7 +555,7 @@ int main(int argc, char * argv[]) try
                         detected_object.height *= last_aligned.get_height() / 300.f;
                         detected_object.x += (last_aligned.get_width() - last_aligned.get_height()) / 2;
                         d.confidence = confidence;
-                        d.min_z = 0.f; 
+                        d.min_z = 0.f;
                         d.max_z = 0.f;
                         d.r = detected_object;
 
@@ -547,13 +571,43 @@ int main(int argc, char * argv[]) try
 
                     if (draft.size() != detected_objects.size())
                     {
-                        detected_objects.clear();
-                        detected_objects.resize(draft.size());
+                        while (detected_objects.size() < draft.size())
+                            detected_objects.push_back({});
                     }
+
                     for (int i = 0; i < draft.size(); i++)
                     {
-                        detected_objects[i].confidence = draft[i].confidence;
-                        detected_objects[i].r = draft[i].r;
+                        if (draft[i].r.x == 0)
+                        {
+                            std::cout << "!";
+                        }
+
+                        float min_dist = 10000.f;
+                        int min_idx = 0;
+                        for (int j = 0; j < detected_objects.size(); j++)
+                        {
+                            auto dist = fabs((detected_objects[j].r.x + detected_objects[j].r.width / 2) -
+                                (draft[i].r.x + draft[i].r.width / 2));
+                            if (dist < min_dist)
+                            {
+                                min_dist = dist;
+                                min_idx = j;
+                            }
+                        }
+
+                        detected_objects[min_idx].confidence = draft[i].confidence;
+                        detected_objects[min_idx].r = draft[i].r;
+
+                        detected_objects[min_idx]._last_updated = std::chrono::steady_clock::now();
+                    }
+
+                    for (auto&& det : detected_objects)
+                    {
+                        auto diff = std::chrono::steady_clock::now() - det._last_updated;
+                        if (std::chrono::duration_cast<std::chrono::milliseconds>(diff).count() > 5000)
+                        {
+                            //det.r = { 0, 0, 0, 0 };
+                        }
                     }
                 }
             }
@@ -573,6 +627,20 @@ int main(int argc, char * argv[]) try
             std::lock_guard<std::mutex> lock(mx);
             std::vector<Detection> obj_copy(detected_objects.begin(), detected_objects.end());
             render_3d_view(view_rect, &color_tex, points, obj_copy);
+        }
+
+        {
+            float t = 0.1f;
+            std::lock_guard<std::mutex> lock(mx);
+            for (auto& det : detected_objects)
+            {
+                det.ar.x =      t * det.r.x +      (1-t) * det.ar.x;
+                det.ar.y =      t * det.r.y +      (1-t) * det.ar.y;
+                det.ar.width =  t * det.r.width +  (1-t) * det.ar.width;
+                det.ar.height = t * det.r.height + (1-t) * det.ar.height;
+                det.amz =       t * det.min_z +    (1-t) * det.amz;
+                det.aMz =       t * det.max_z +    (1 - t) * det.aMz;
+            }
         }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(20));
