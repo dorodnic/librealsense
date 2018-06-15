@@ -41,7 +41,7 @@ float3 target = { 0.0f, 0.0f, 0.5f };
 float3 up;
 bool fixed_up = true;
 bool render_quads = true;
-float scaledown = 2.f;
+float scaledown = 1.f;
 
 float view[16];
 bool texture_wrapping_on = true;
@@ -433,6 +433,8 @@ int main(int argc, char * argv[]) try
                             cv::minMaxLoc(depth_mat, &min, &max);
                             double fg = min;
                             double bg = *max_element(std::begin(array), std::end(array));
+                            double length = bg - fg;
+                            bg = fg + 0.7 * length;
 
                             std::vector<bool> is_bg(array.size(), false);
                             std::vector<double>::iterator fg_start;
