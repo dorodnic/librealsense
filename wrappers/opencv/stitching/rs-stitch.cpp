@@ -18,6 +18,8 @@
 
 #include <opencv2/imgproc.hpp>
 
+#include <numeric>
+
 using namespace cv;
 using namespace rs2;
 
@@ -133,10 +135,11 @@ struct Detection
     Rect r;
     float min_z, max_z;
     float confidence;
+    float left, right, top, bottom;
 };
 
 void render_3d_view(const rect& viewer_rect, texture_buffer* texture, rs2::points points, 
-    const std::vector<Detection>& objects)
+    std::vector<Detection>& objects)
 {
     glViewport(static_cast<GLint>(viewer_rect.x), 0,
         static_cast<GLsizei>(viewer_rect.w), static_cast<GLsizei>(viewer_rect.h));
@@ -194,7 +197,7 @@ void render_3d_view(const rect& viewer_rect, texture_buffer* texture, rs2::point
 
     glColor4f(1, 0, 0, 1);
 
-    for (auto o : objects)
+    for (auto& o : objects)
     {
         auto object = o.r;
 
@@ -221,6 +224,11 @@ void render_3d_view(const rect& viewer_rect, texture_buffer* texture, rs2::point
             static_cast<float>(object.y / scaledown + object.height / scaledown), o.max_z);
         auto bottom_left2 = get_point(object.x / scaledown,
             static_cast<float>(object.y / scaledown + object.height / scaledown), o.max_z);
+
+        o.left = top_left2.x;
+        o.right = top_right2.x;
+        o.top = top_left2.y;
+        o.bottom = bottom_right2.y;
 
         glVertex3fv(&top_left.x); glVertex3fv(&top_right.x);
         glVertex3fv(&top_right.x); glVertex3fv(&bottom_right.x);
@@ -264,14 +272,28 @@ void render_3d_view(const rect& viewer_rect, texture_buffer* texture, rs2::point
     auto width = vf_prof.width(), height = vf_prof.height();
     for (int x = 0; x < width - 1; ++x) {
         for (int y = 0; y < height - 1; ++y) {
-            auto a = y * width + x, b = y * width + x + 1, c = (y + 1)*width + x, d = (y + 1)*width + x + 1;
-            if (vertices[a].z && vertices[b].z && vertices[c].z && vertices[d].z
-                && abs(vertices[a].z - vertices[b].z) < threshold && abs(vertices[a].z - vertices[c].z) < threshold
-                && abs(vertices[b].z - vertices[d].z) < threshold && abs(vertices[c].z - vertices[d].z) < threshold) {
-                glVertex3fv(vertices[a]); glTexCoord2fv(tex_coords[a]);
-                glVertex3fv(vertices[b]); glTexCoord2fv(tex_coords[b]);
-                glVertex3fv(vertices[d]); glTexCoord2fv(tex_coords[d]);
-                glVertex3fv(vertices[c]); glTexCoord2fv(tex_coords[c]);
+            auto& va = vertices[y * width + x];
+
+            bool show = false;
+            for (auto o : objects)
+            {
+                if (o.min_z > va.z || o.max_z < va.z) continue;
+                if (o.left > va.x || o.right < va.x) continue;
+                if (o.top > va.y || o.bottom < va.y) continue;
+                show = true;
+            }
+
+            if (show)
+            {
+                auto a = y * width + x, b = y * width + x + 1, c = (y + 1)*width + x, d = (y + 1)*width + x + 1;
+                if (vertices[a].z && vertices[b].z && vertices[c].z && vertices[d].z
+                    && abs(vertices[a].z - vertices[b].z) < threshold && abs(vertices[a].z - vertices[c].z) < threshold
+                    && abs(vertices[b].z - vertices[d].z) < threshold && abs(vertices[c].z - vertices[d].z) < threshold) {
+                    glVertex3fv(vertices[a]); glTexCoord2fv(tex_coords[a]);
+                    glVertex3fv(vertices[b]); glTexCoord2fv(tex_coords[b]);
+                    glVertex3fv(vertices[d]); glTexCoord2fv(tex_coords[d]);
+                    glVertex3fv(vertices[c]); glTexCoord2fv(tex_coords[c]);
+                }
             }
         }
     }
@@ -313,6 +335,7 @@ int main(int argc, char * argv[]) try
     df.set_option(RS2_OPTION_FILTER_MAGNITUDE, scaledown);
     rs2::spatial_filter sf;
     rs2::temporal_filter tf;
+    rs2::hole_filling_filter hf;
 
     // We want the points object to be persistent so we can display the last cloud when a frame drops
     rs2::points points;
@@ -329,6 +352,7 @@ int main(int argc, char * argv[]) try
 
     // Start streaming with default recommended configuration
     auto prof = pipe.start(cfg);
+    prof.get_device().first<depth_sensor>().set_option(RS2_OPTION_VISUAL_PRESET, 3.f);
     auto vp = prof.get_stream(RS2_STREAM_COLOR).as<rs2::video_stream_profile>();
     auto intrin = vp.get_intrinsics();
 
@@ -367,6 +391,7 @@ int main(int argc, char * argv[]) try
                 d = df.process(d0);
                 d = sf.process(d);
                 d = tf.process(d);
+                d = hf.process(d);
 
                 points = pc.calculate(d);
                 pc.map_to(c0);
@@ -385,14 +410,65 @@ int main(int argc, char * argv[]) try
 
                             depth_mat.setTo(cv::Scalar(1000.f), depth_mat == 0);
 
-                            auto color_mat = frame_to_mat(c);
-                            color_mat = color_mat(detected_object.r);
+                            //auto color_mat = frame_to_mat(c);
+                            //color_mat = color_mat(detected_object.r);
+
+                            std::vector<double> array;
+                            if (depth_mat.isContinuous()) {
+                                array.assign((double*)depth_mat.datastart, (double*)depth_mat.dataend);
+                            }
+                            else {
+                                for (int i = 0; i < depth_mat.rows; ++i) {
+                                    array.insert(array.end(), depth_mat.ptr<double>(i), depth_mat.ptr<double>(i) + depth_mat.cols);
+                                }
+                            }
+
+                            array.erase(std::remove_if(
+                                array.begin(), array.end(),
+                                [](const int& x) {
+                                return x > 10; // put your condition here
+                            }), array.end());
 
                             double min, max;
                             cv::minMaxLoc(depth_mat, &min, &max);
+                            double fg = min;
+                            double bg = *max_element(std::begin(array), std::end(array));
+
+                            std::vector<bool> is_bg(array.size(), false);
+                            std::vector<double>::iterator fg_start;
+                            bool stop = false;
+                            for (int i = 0; i < 10 && !stop; i++)
+                            {
+                                stop = true;
+                                for (int j = 0; j < array.size(); j++)
+                                {
+                                    auto new_val = fabs(array[j] - fg) > fabs(bg - array[j]);
+                                    if (new_val != is_bg[j]) stop = false;
+                                    is_bg[j] = new_val;
+                                }
+                                fg_start = std::stable_partition(array.begin(), array.end(), [&](const double& x) {
+                                    size_t index = &x - &array[0];
+                                    return is_bg[index];
+                                });
+
+                                auto bg_size = std::distance(begin(array), fg_start);
+                                double sum = std::accumulate(array.begin(), fg_start, 0.0);
+                                double mean = sum / bg_size;
+                                bg = mean;
+
+                                auto fg_size = array.size() - bg_size;
+                                sum = std::accumulate(fg_start, array.end(), 0.0);
+                                mean = sum / fg_size;
+                                fg = mean;
+                            }
+
+                            std::vector<double> fg_only(fg_start, std::end(array));
+                            std::sort(fg_only.begin(), fg_only.end());
+                            size_t outliers = fg_only.size() / 20;
+                            fg_only.resize(fg_only.size() - outliers); // crop max 0.5% of the dataset
 
                             detected_object.min_z = min;
-                            detected_object.max_z = min + 2;
+                            detected_object.max_z = *fg_only.rbegin();
 
                             //cv::imshow("win", color_mat);
                         }
@@ -423,11 +499,7 @@ int main(int argc, char * argv[]) try
                 color_mat = color_mat(crop);
                 //depth_mat = depth_mat(crop);
 
-                {
-                    std::lock_guard<std::mutex> lock(mx);
-                    detected_objects.clear();
-                }
-                
+                std::vector<Detection> draft;
 
                 float confidenceThreshold = 0.8f;
                 for (int i = 0; i < detectionMat.rows; i++)
@@ -459,10 +531,25 @@ int main(int argc, char * argv[]) try
                         d.max_z = 0.f;
                         d.r = detected_object;
 
-                        {
-                            std::lock_guard<std::mutex> lock(mx);
-                            detected_objects.push_back(d);
-                        }
+                        draft.push_back(d);
+                    }
+                }
+
+                {
+                    std::lock_guard<std::mutex> lock(mx);
+
+                    std::sort(draft.begin(), draft.end(),
+                        [](const Detection& a, const Detection& b) { return a.confidence > b.confidence; });
+
+                    if (draft.size() != detected_objects.size())
+                    {
+                        detected_objects.clear();
+                        detected_objects.resize(draft.size());
+                    }
+                    for (int i = 0; i < draft.size(); i++)
+                    {
+                        detected_objects[i].confidence = draft[i].confidence;
+                        detected_objects[i].r = draft[i].r;
                     }
                 }
             }
