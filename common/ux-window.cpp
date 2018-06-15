@@ -8,6 +8,10 @@
 // int-rs-splash.hpp contains the PNG image from res/int-rs-splash.png
 #include "res/int-rs-splash.hpp"
 
+#ifndef GL_MULTISAMPLE
+#define GL_MULTISAMPLE  0x809D
+#endif
+
 namespace rs2
 {
     void ux_window::open_window()
@@ -41,6 +45,8 @@ namespace rs2
                 _height = int(mode->height * 0.7f);
             }
         }
+
+        glfwWindowHint(GLFW_SAMPLES, 4);
 
         // Create GUI Windows
         _win = glfwCreateWindow(_width, _height, _title_str.c_str(),
@@ -309,6 +315,8 @@ namespace rs2
             std::string msg = to_string() << "Scale Factor is now " << _scale_factor;
             rs2::log(RS2_LOG_SEVERITY_INFO, msg.c_str());
         }
+
+        glEnable(GL_MULTISAMPLE);
 
         // Reset ImGui state
         glMatrixMode(GL_PROJECTION);
