@@ -41,7 +41,7 @@ float3 target = { 0.0f, 0.0f, 0.5f };
 float3 up;
 bool fixed_up = true;
 bool render_quads = true;
-float scaledown = 2.f;
+float scaledown = 1.f;
 
 float view[16];
 bool texture_wrapping_on = true;
@@ -407,6 +407,8 @@ int main(int argc, char * argv[]) try
                             auto depth_mat = depth_frame_to_meters(pipe, d0);
                             detected_object.r = detected_object.r & cv::Rect(0, 0, depth_mat.cols, depth_mat.rows);
                             depth_mat = depth_mat(detected_object.r);
+
+                            resize(depth_mat, depth_mat, { d0.get_width() / 3, d0.get_height() / 3 }, 0,0, INTER_NEAREST );
 
                             depth_mat.setTo(cv::Scalar(1000.f), depth_mat == 0);
 
