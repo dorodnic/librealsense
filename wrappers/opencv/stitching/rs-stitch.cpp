@@ -296,9 +296,9 @@ void render_3d_view(const rect& viewer_rect, texture_buffer* texture, rs2::point
                 if (std::chrono::duration_cast<std::chrono::milliseconds>(diff).count() < 500 &&
                     o.r.width * o.r.height > 0)
                 {
-                    if (o.amz > va.z || o.aMz < va.z) continue;
-                    if (o.left > va.x || o.right < va.x) continue;
-                    if (o.top > va.y || o.bottom < va.y) continue;
+                    if (o.amz * 0.9 > va.z || o.aMz * 1.1 < va.z) continue;
+                    if (o.left * 0.9 > va.x || o.right * 1.1  < va.x) continue;
+                    if (o.top * 0.9 > va.y || o.bottom * 1.1  < va.y) continue;
                     show = true;
                 }
             }
@@ -389,6 +389,9 @@ int main(int argc, char * argv[]) try
     std::atomic_bool alive2(true);
 
     std::mutex mx;
+
+    auto last_action = std::chrono::steady_clock::now();
+    bool is_paused = false;
 
     //namedWindow("win", WINDOW_AUTOSIZE);
 
@@ -537,6 +540,7 @@ int main(int argc, char * argv[]) try
                     if (confidence > confidenceThreshold)
                     {
                         size_t objectClass = (size_t)(detectionMat.at<float>(i, 1));
+                        if (std::string(classNames[objectClass]) != "person") continue;
 
                         int xLeftBottom = static_cast<int>(detectionMat.at<float>(i, 3) * color_mat.cols);
                         int yLeftBottom = static_cast<int>(detectionMat.at<float>(i, 4) * color_mat.rows);
@@ -616,8 +620,20 @@ int main(int argc, char * argv[]) try
         }
     });
 
+    float last_mouse_x = 0.f;
+    float last_mouse_y = 0.f;
+
     while (app) // Application still alive?
     {
+        auto mouse_movement = fabs(app.get_mouse().cursor.x - last_mouse_x) + fabs(app.get_mouse().cursor.y - last_mouse_y);
+        
+        if (mouse_movement > 1)
+        {
+            last_action = std::chrono::steady_clock::now();
+        }
+        last_mouse_x = app.get_mouse().cursor.x;
+        last_mouse_y = app.get_mouse().cursor.y;
+
         if (last_color) color_tex.upload(last_color);
 
         rect view_rect{ 0, 0, app.width(), app.height() };
@@ -650,11 +666,20 @@ int main(int argc, char * argv[]) try
             static float x2 = 0.f;
             static float y1 = 0.f;
 
-            if (detected_objects.size() > 0)
+            static float p = 0.f;
+
+            /*auto diff =std::chrono::steady_clock::now() -  last_action;
+            if (std::chrono::duration_cast<std::chrono::milliseconds>(diff).count() > 15000
+                && detected_objects.size() > 0)
             {
-                auto y = (detected_objects.front().top + detected_objects.front().bottom) / 2;
-                auto x = (detected_objects.front().left + detected_objects.front().right) / 2;
-                auto z = (detected_objects.front().amz + detected_objects.front().aMz) / 2;
+                std::vector<Detection> copy(begin(detected_objects), end(detected_objects));
+                std::sort(copy.begin(), copy.end(),
+                    [](const Detection& a, const Detection& b) { return a.amz < b.amz; });
+
+
+                auto y = (copy.front().top + copy.front().bottom) / 2;
+                auto x = (copy.front().left + copy.front().right) / 2;
+                auto z = (copy.front().amz + copy.front().aMz) / 2;
 
                 z1 = s * z1 + (1 - s) * z;
                 x1 = s * x1 + (1 - s) * x;
@@ -663,8 +688,9 @@ int main(int argc, char * argv[]) try
                 x2 = T * x2 + (1 - T) * x;
 
                 target = { x1, y1, z1 };
-                pos = { x2 + 0.4f, y1 - 0.3f, z2 - 1.3f };
-            }
+                pos = { x2 + 0.3f * cos(p), y1 - 0.1f * sin(p), z2 - 1.2f };
+                p += 0.02f;
+            }*/
 
         }
 
