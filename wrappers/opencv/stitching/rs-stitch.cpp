@@ -372,7 +372,7 @@ int main(int argc, char * argv[]) try
 
     // Start streaming with default recommended configuration
     auto prof = pipe.start(cfg);
-    prof.get_device().first<depth_sensor>().set_option(RS2_OPTION_VISUAL_PRESET, 3.f);
+    prof.get_device().first<depth_sensor>().set_option(RS2_OPTION_VISUAL_PRESET, 4.f);
     auto vp = prof.get_stream(RS2_STREAM_COLOR).as<rs2::video_stream_profile>();
     auto intrin = vp.get_intrinsics();
 
@@ -390,7 +390,7 @@ int main(int argc, char * argv[]) try
 
     std::mutex mx;
 
-    namedWindow("win", WINDOW_AUTOSIZE);
+    //namedWindow("win", WINDOW_AUTOSIZE);
 
     std::thread t([&]() {
         frameset frames;
@@ -630,17 +630,42 @@ int main(int argc, char * argv[]) try
         }
 
         {
-            float t = 0.1f;
+            float t = 0.5f;
+            float s = 0.2f;
+            float T = 0.05f;
             std::lock_guard<std::mutex> lock(mx);
             for (auto& det : detected_objects)
             {
                 det.ar.x =      t * det.r.x +      (1-t) * det.ar.x;
-                det.ar.y =      t * det.r.y +      (1-t) * det.ar.y;
+                det.ar.y =      s * det.r.y +      (1-s) * det.ar.y;
                 det.ar.width =  t * det.r.width +  (1-t) * det.ar.width;
-                det.ar.height = t * det.r.height + (1-t) * det.ar.height;
+                det.ar.height = s * det.r.height + (1-s) * det.ar.height;
                 det.amz =       t * det.min_z +    (1-t) * det.amz;
                 det.aMz =       t * det.max_z +    (1 - t) * det.aMz;
             }
+
+            static float z1 = 0.f;
+            static float x1 = 0.f;
+            static float z2 = 0.f;
+            static float x2 = 0.f;
+            static float y1 = 0.f;
+
+            if (detected_objects.size() > 0)
+            {
+                auto y = (detected_objects.front().top + detected_objects.front().bottom) / 2;
+                auto x = (detected_objects.front().left + detected_objects.front().right) / 2;
+                auto z = (detected_objects.front().amz + detected_objects.front().aMz) / 2;
+
+                z1 = s * z1 + (1 - s) * z;
+                x1 = s * x1 + (1 - s) * x;
+                y1 = s * y1 + (1 - s) * y;
+                z2 = T * z2 + (1 - T) * z;
+                x2 = T * x2 + (1 - T) * x;
+
+                target = { x1, y1, z1 };
+                pos = { x2 + 0.4f, y1 - 0.3f, z2 - 1.3f };
+            }
+
         }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(20));
