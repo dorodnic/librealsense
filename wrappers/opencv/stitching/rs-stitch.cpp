@@ -208,7 +208,7 @@ void render_3d_view(const rect& viewer_rect, texture_buffer* texture, rs2::point
     for (auto& o : objects)
     {
         auto diff = std::chrono::steady_clock::now() - o._last_updated;
-        if (std::chrono::duration_cast<std::chrono::milliseconds>(diff).count() < 1000 &&
+        if (std::chrono::duration_cast<std::chrono::milliseconds>(diff).count() < 3000 &&
             o.r.width * o.r.height > 0)
         {
             auto object = o.ar;
@@ -293,7 +293,7 @@ void render_3d_view(const rect& viewer_rect, texture_buffer* texture, rs2::point
             for (auto o : objects)
             {
                 auto diff = std::chrono::steady_clock::now() - o._last_updated;
-                if (std::chrono::duration_cast<std::chrono::milliseconds>(diff).count() < 500 &&
+                if (std::chrono::duration_cast<std::chrono::milliseconds>(diff).count() < 2000 &&
                     o.r.width * o.r.height > 0)
                 {
                     if (o.amz * 0.9 > va.z || o.aMz * 1.1 < va.z) continue;
@@ -364,6 +364,7 @@ int main(int argc, char * argv[]) try
     rs2::colorizer colorizer;
 
     rs2::config cfg;
+    //cfg.enable_device_from_file("1.bag");
     cfg.enable_stream(RS2_STREAM_DEPTH, 0, 0, RS2_FORMAT_Z16,  15);
     cfg.enable_stream(RS2_STREAM_COLOR, 0, 0, RS2_FORMAT_RGB8, 15);
 
@@ -372,12 +373,16 @@ int main(int argc, char * argv[]) try
 
     // Start streaming with default recommended configuration
     auto prof = pipe.start(cfg);
-    prof.get_device().first<depth_sensor>().set_option(RS2_OPTION_VISUAL_PRESET, 4.f);
+    auto ds = prof.get_device().first<depth_sensor>();
+    ds.set_option(RS2_OPTION_VISUAL_PRESET, 4.f);
     auto vp = prof.get_stream(RS2_STREAM_COLOR).as<rs2::video_stream_profile>();
     auto intrin = vp.get_intrinsics();
 
     auto ratio = vp.width() / vp.height();
     auto new_w = 300 * ratio;
+
+    region_of_interest roi{ 0, vp.height() / 2, vp.width() - 1, vp.height() - 1 };
+    ds.as<roi_sensor>().set_region_of_interest(roi);
 
     Size cropSize(300, 300);
     Rect crop(Point((new_w - 300) / 2, 0),
@@ -426,7 +431,7 @@ int main(int argc, char * argv[]) try
                     for (auto& detected_object : detected_objects)
                     {
                         auto diff = std::chrono::steady_clock::now() - detected_object._last_updated;
-                        if (std::chrono::duration_cast<std::chrono::milliseconds>(diff).count() < 1000 &&
+                        if (std::chrono::duration_cast<std::chrono::milliseconds>(diff).count() < 3000 &&
                             detected_object.r.width * detected_object.r.height > 0)
                         {
                             auto depth_mat = depth_frame_to_meters(pipe, d0);
@@ -532,7 +537,7 @@ int main(int argc, char * argv[]) try
 
                 std::vector<Detection> draft;
 
-                float confidenceThreshold = 0.8f;
+                float confidenceThreshold = 0.6f;
                 for (int i = 0; i < detectionMat.rows; i++)
                 {
                     float confidence = detectionMat.at<float>(i, 2);
@@ -571,7 +576,7 @@ int main(int argc, char * argv[]) try
                     std::lock_guard<std::mutex> lock(mx);
 
                     std::sort(draft.begin(), draft.end(),
-                        [](const Detection& a, const Detection& b) { return a.confidence > b.confidence; });
+                        [](const Detection& a, const Detection& b) { return a.r.x + a.r.width / 2 > b.r.x + b.r.width / 2; });
 
                     if (draft.size() != detected_objects.size())
                     {
