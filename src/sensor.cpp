@@ -379,6 +379,7 @@ namespace librealsense
             throw wrong_api_call_sequence_exception("open(...) failed. UVC device is already opened!");
 
         auto on = std::unique_ptr<power>(new power(std::dynamic_pointer_cast<uvc_sensor>(shared_from_this())));
+
         _source.init(_metadata_parsers);
         _source.set_sensor(this->shared_from_this());
         auto mapping = resolve_requests(requests);
@@ -858,6 +859,7 @@ namespace librealsense
             throw wrong_api_call_sequence_exception("start_streaming(...) failed. Hid device was not opened!");
 
         _source.set_callback(callback);
+
         _source.init(_metadata_parsers);
         _source.set_sensor(this->shared_from_this());
         raise_on_before_streaming_changes(true); //Required to be just before actual start allow recording to work

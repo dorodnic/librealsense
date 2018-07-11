@@ -37,6 +37,8 @@
 // API implementation //
 ////////////////////////
 
+using namespace librealsense;
+
 struct rs2_stream_profile_list
 {
     std::vector<std::shared_ptr<stream_profile_interface>> list;
@@ -1863,6 +1865,14 @@ void rs2_software_sensor_on_video_frame(rs2_sensor* sensor, rs2_software_video_f
     return bs->on_video_frame(frame);
 }
 HANDLE_EXCEPTIONS_AND_RETURN(, sensor, frame.pixels)
+
+void rs2_software_sensor_set_metadata(rs2_sensor* sensor, rs2_frame_metadata_value key, rs2_metadata_type value, rs2_error** error) BEGIN_API_CALL
+{
+    VALIDATE_NOT_NULL(sensor);
+    auto bs = VALIDATE_INTERFACE(sensor->sensor, librealsense::software_sensor);
+    return bs->set_metadata(key, value);
+}
+HANDLE_EXCEPTIONS_AND_RETURN(, sensor, key, value)
 
 rs2_stream_profile* rs2_software_sensor_add_video_stream(rs2_sensor* sensor, rs2_video_stream video_stream, rs2_error** error) BEGIN_API_CALL
 {
