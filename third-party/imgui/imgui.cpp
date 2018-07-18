@@ -1750,6 +1750,10 @@ ImGuiWindow::~ImGuiWindow()
 
 ImGuiID ImGuiWindow::GetID(const char* str, const char* str_end)
 {
+    ImGuiWindow* window = ImGui::GetCurrentWindowRead();
+    ImGuiContext& g = *GImGui;
+    if (g.CollectIDs) g.AllIDs.push_back(str);
+
     ImGuiID seed = IDStack.back();
     ImGuiID id = ImHash(str, str_end ? (int)(str_end - str) : 0, seed);
     ImGui::KeepAliveID(id);
@@ -1758,6 +1762,10 @@ ImGuiID ImGuiWindow::GetID(const char* str, const char* str_end)
 
 ImGuiID ImGuiWindow::GetID(const void* ptr)
 {
+    //ImGuiWindow* window = ImGui::GetCurrentWindowRead();
+    //ImGuiContext& g = *GImGui;
+    //if (g.CollectIDs) g.AllIDs.push_back(std::string((char*)ptr, (char*)ptr + sizeof(void*)));
+
     ImGuiID seed = IDStack.back();
     ImGuiID id = ImHash(&ptr, sizeof(void*), seed);
     ImGui::KeepAliveID(id);
@@ -5515,7 +5523,38 @@ bool ImGui::ButtonBehavior(const ImRect& bb, ImGuiID id, bool* out_hovered, bool
     if (out_hovered) *out_hovered = hovered;
     if (out_held) *out_held = held;
 
+    if (g.SignaledButton == id)
+    {
+        g.SignaledButton = false;
+        return true;
+    }
+
     return pressed;
+}
+
+void ImGui::BeginReflection()
+{
+    ImGuiWindow* window = GetCurrentWindowRead();
+    ImGuiContext& g = *GImGui;
+    g.AllIDs.clear();
+    g.CollectIDs = true;
+}
+
+std::vector<std::string> ImGui::EndReflection()
+{
+    ImGuiWindow* window = GetCurrentWindowRead();
+    ImGuiContext& g = *GImGui;
+    g.CollectIDs = false;
+    return g.AllIDs;
+}
+
+void ImGui::SignalButton(const char* label)
+{
+    ImGuiWindow* window = GetCurrentWindow();
+    ImGuiContext& g = *GImGui;
+    const ImGuiID id = window->GetID(label);
+
+    g.SignaledButton = id;
 }
 
 bool ImGui::ButtonEx(const char* label, const ImVec2& size_arg, ImGuiButtonFlags flags)

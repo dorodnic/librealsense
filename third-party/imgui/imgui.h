@@ -41,6 +41,9 @@
 #pragma clang diagnostic ignored "-Wold-style-cast"
 #endif
 
+#include <vector>
+#include <string>
+
 // Forward declarations
 struct ImDrawChannel;               // Temporary storage for outputting drawing commands out of order, used by ImDrawList::ChannelsSplit()
 struct ImDrawCmd;                   // A single draw command within a parent ImDrawList (generally maps to 1 GPU draw call)
@@ -130,6 +133,11 @@ enum ImGuiButtonFlags_
 // In a namespace so that user can add extra functions in a separate file (e.g. Value() helpers for your vector or common types)
 namespace ImGui
 {
+    // Additions
+    IMGUI_API void          SignalButton(const char* label);
+    IMGUI_API void          BeginReflection();
+    IMGUI_API std::vector<std::string> EndReflection();
+
     // Main
     IMGUI_API ImGuiIO&      GetIO();
     IMGUI_API ImGuiStyle&   GetStyle();

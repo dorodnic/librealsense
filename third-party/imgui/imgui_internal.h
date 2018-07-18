@@ -343,6 +343,10 @@ struct ImGuiPopupRef
 // Main state for ImGui
 struct ImGuiContext
 {
+    std::vector<std::string> AllIDs{};
+    bool                    CollectIDs = false;
+    ImGuiID                 SignaledButton;
+
     bool                    Initialized;
     ImGuiIO                 IO;
     ImGuiStyle              Style;

@@ -1,9 +1,4 @@
 #include "ux-window.h"
-
-#include "stdlib.h"
-#include "stdio.h"
-#include "string.h"
-
 #include "model-views.h"
 
 // We use STB image to load the splash-screen from memory
@@ -15,6 +10,7 @@
 #include "tclap/CmdLine.h"
 
 #ifdef UI_SCRIPTING_ENABLED
+#include <regex>
 #include "TinyJS.h"
 #include "TinyJS_Functions.h"
 #include "TinyJS_MathFunctions.h"
@@ -29,6 +25,8 @@ namespace rs2
     public:
         virtual void next_frame() = 0;
         virtual bool to_exit() = 0;
+        virtual bool to_collect_ids() = 0;
+        virtual void report_ids(std::vector<std::string> res) = 0;
     };
 
 #ifdef UI_SCRIPTING_ENABLED
@@ -41,6 +39,7 @@ namespace rs2
     void js_button_click(CScriptVar *v, void *userdata);
     void js_fail(CScriptVar *v, void *userdata);
     void js_pass(CScriptVar *v, void *userdata);
+    void js_find_element(CScriptVar *v, void *userdata);
 
     class scripting_engine : public internal_automation
     {
@@ -51,9 +50,32 @@ namespace rs2
         {
         }
 
+        bool to_collect_ids() override 
+        {
+            std::unique_lock<std::mutex> lock(_lock);
+            return _to_collect_ids;
+        }
+
+        void report_ids(std::vector<std::string> res) override
+        {
+            std::unique_lock<std::mutex> lock(_lock);
+            _ids = res;
+            _to_collect_ids = false;
+            _cond_ready.notify_one();
+        }
+
+        std::vector<std::string> collect_ids()
+        {
+            std::unique_lock<std::mutex> lock(_lock);
+            _to_collect_ids = true;
+            _cond_ready.wait(lock, [this]() { return !_to_collect_ids; });
+            return _ids;
+        }
+
         void wait(std::unique_lock<std::mutex>& lock)
         {
             _cond_ready.wait(lock, [this]() { return _ready; });
+            _ready = false;
         }
 
         void ready()
@@ -90,16 +112,14 @@ namespace rs2
             wait(lock);
         }
 
-        bool button(const std::string& id) override
+        bool button(std::string& id) override
         {
             std::unique_lock<std::mutex> lock(_lock);
             if (_button_ids.size())
             {
-                if (_button_ids.front() == id)
-                {
-                    _button_ids.pop();
-                    return true;
-                }
+                id = _button_ids.front();
+                _button_ids.pop();
+                return true;
             }
             return false;
         }
@@ -139,9 +159,10 @@ namespace rs2
             CTinyJS js;
             js.addNative("function sleep(ms)", &js_sleep, 0);
             js.addNative("function log(message)", &js_log, this);
-            js.addNative("function button_click(id)", &js_button_click, this);
+            js.addNative("function click_button(id)", &js_button_click, this);
             js.addNative("function fail(message)", &js_fail, this);
             js.addNative("function pass(message)", &js_pass, this);
+            js.addNative("function find_element(id)", &js_find_element, this);
             registerFunctions(&js);
             registerMathFunctions(&js);
 
@@ -180,11 +201,13 @@ namespace rs2
         bool _ready = false;
         bool _to_exit = false;
         bool _passed = true;
+        bool _to_collect_ids = false;
 
         std::string _content;
         std::thread _thread;
         std::mutex _lock;
         std::vector<std::string> _log;
+        std::vector<std::string> _ids;
     };
 
     void js_log(CScriptVar *v, void *userdata) {
@@ -211,6 +234,24 @@ namespace rs2
         auto that = (scripting_engine*)userdata;
         that->send_button_click(id);
     }
+
+    void js_find_element(CScriptVar *v, void *userdata)
+    {
+        auto selected = v->getParameter("id")->getString();
+        auto that = (scripting_engine*)userdata;
+        auto ids = that->collect_ids();
+        for (auto&& id : ids)
+        {
+            std::string pattern = to_string() << "(.*)(" << selected << ")(.*)";
+            std::regex e(pattern);
+
+            if (std::regex_match(id, e))
+            {
+                v->getReturnVar()->setString(id);
+                return;
+            }
+        }
+    }
 #endif
 
     class empty_scripting_engine : public internal_automation
@@ -219,9 +260,11 @@ namespace rs2
         empty_scripting_engine() {}
 
         bool read_log(std::string& line) override { return false; }
-        bool button(const std::string& id) override { return false; }
+        bool button(std::string& id) override { return false; }
         void next_frame() override {}
         bool to_exit() override { return false; }
+        bool to_collect_ids() override { return false; }
+        void report_ids(std::vector<std::string> res) override {}
     private:
     };
 
@@ -489,10 +532,22 @@ namespace rs2
         }
 
         auto ptr = (internal_automation*)_script.get();
+
         ptr->next_frame();
 
         // reset graphic pipe
         begin_frame();
+
+        if (ptr->to_collect_ids())
+        {
+            ImGui::BeginReflection();
+            _to_collect_ids = true;
+        }
+        std::string button_id;
+        if (ptr->button(button_id))
+        {
+            ImGui::SignalButton(button_id.c_str());
+        }
 
         if (ptr->to_exit()) return false;
 
@@ -591,6 +646,9 @@ namespace rs2
     {
         if (!_first_frame)
         {
+            auto ptr = (internal_automation*)_script.get();
+            if (_to_collect_ids) ptr->report_ids(ImGui::EndReflection());
+
             ImGui::Render();
 
             glfwSwapBuffers(_win);
