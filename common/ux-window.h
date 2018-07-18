@@ -25,6 +25,15 @@ namespace rs2
             ImGuiWindowFlags_NoSavedSettings;
     };
 
+    class automation
+    {
+    public:
+        virtual bool read_log(std::string& line) = 0;
+        virtual bool button(const std::string& id) = 0;
+
+        virtual ~automation() {};
+    };
+
     class ux_window
     {
     public:
@@ -62,6 +71,8 @@ namespace rs2
 
         void add_on_load_message(const std::string& msg);
 
+        automation& get_script() { return *_script; }
+
     private:
         void open_window();
 
@@ -92,5 +103,7 @@ namespace rs2
         bool                     _fullscreen_pressed = false;
         bool                     _fullscreen = false;
         std::string              _title;
+
+        std::shared_ptr<automation> _script;
     };
 }

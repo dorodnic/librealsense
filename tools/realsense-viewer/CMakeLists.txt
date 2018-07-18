@@ -40,15 +40,21 @@ endif()
             ../../third-party/imgui/imgui_impl_glfw.cpp
             ../../third-party/imgui/imgui-fonts-karla.hpp
             ../../third-party/imgui/imgui-fonts-fontawesome.hpp
-            ../../third-party/tiny-js/TinyJS.cpp
-            ../../third-party/tiny-js/TinyJS_Functions.cpp
-            ../../third-party/tiny-js/TinyJS_MathFunctions.cpp
             ../../common/rendering.h
             ../../common/model-views.h
             ../../common/model-views.cpp
             ../../common/ux-window.h
             ../../common/ux-window.cpp
         )
+
+    if (ENABLE_UI_SCRIPTING)
+        add_definitions(-DUI_SCRIPTING_ENABLED)
+        list(APPEND RS_VIEWER_CPP 
+            ../../third-party/tiny-js/TinyJS.cpp
+            ../../third-party/tiny-js/TinyJS_Functions.cpp
+            ../../third-party/tiny-js/TinyJS_MathFunctions.cpp
+        )
+    endif()
 
     # config-ui
     if(WIN32)
@@ -72,12 +78,12 @@ endif()
                 ${CMAKE_CURRENT_SOURCE_DIR}/res/realsense-viewer.rc)
 
         include_directories(realsense-viewer ../../third-party/imgui ../../common 
-             ../../third-party/tclap/include
+             ../../third-party/tclap/include ../../third-party/tiny-js
             ../../third-party ${CMAKE_CURRENT_SOURCE_DIR}/res/)
     else()
         add_executable(realsense-viewer
                 ${RS_VIEWER_CPP})
-        include_directories(realsense-viewer ../../third-party/imgui 
+        include_directories(realsense-viewer ../../third-party/imgui ../../third-party/tiny-js
              ../../third-party/tclap/include ../../common ../../third-party)
     endif()
 

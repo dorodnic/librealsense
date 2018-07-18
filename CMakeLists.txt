@@ -77,6 +77,8 @@ if (ENABLE_ZERO_COPY)
     add_definitions(-DZERO_COPY)
 endif()
 
+option(ENABLE_UI_SCRIPTING "Enable UI Scripting" OFF)
+
 if(ANDROID_NDK_TOOLCHAIN_INCLUDED)
     unset(WIN32)
     unset(UNIX)

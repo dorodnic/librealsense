@@ -243,8 +243,10 @@ int main(int argc, const char** argv) try
         }
     };
 
+    std::vector<const char*> rest;
     for (int i = 1; i < argc; i++)
     {
+        bool pass = true;
         try
         {
             const char* arg = argv[i];
@@ -256,6 +258,7 @@ int main(int argc, const char** argv) try
                     continue;
 
                 add_playback_device(ctx, device_models, error_message, viewer_model, arg);
+                pass = false;
             }
         }
         catch (const rs2::error& e)
@@ -266,6 +269,7 @@ int main(int argc, const char** argv) try
         {
             error_message = e.what();
         }
+        if (pass) rest.push_back(argv[i]);
     }
 
     window.on_load = [&]()
@@ -396,6 +400,10 @@ int main(int argc, const char** argv) try
 
 
         viewer_model.show_top_bar(window, viewer_rect);
+
+        std::string log_line;
+        if (window.get_script().read_log(log_line))
+            viewer_model.not_model.add_log(log_line);
 
         viewer_model.show_event_log(window.get_font(), viewer_model.panel_width,
             window.height() - (viewer_model.is_output_collapsed ? viewer_model.default_log_h : 20),

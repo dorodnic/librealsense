@@ -43,15 +43,21 @@ endif()
             ../../common/ux-window.cpp
             ../../common/model-views.h
             ../../common/model-views.cpp
-            ../../third-party/tiny-js/TinyJS.cpp
-            ../../third-party/tiny-js/TinyJS_Functions.cpp
-            ../../third-party/tiny-js/TinyJS_MathFunctions.cpp
             ../../third-party/imgui/imgui.cpp
             ../../third-party/imgui/imgui_draw.cpp
             ../../third-party/imgui/imgui_impl_glfw.cpp
             ../../third-party/imgui/imgui-fonts-karla.hpp
             ../../third-party/imgui/imgui-fonts-fontawesome.hpp
         )
+
+    if (ENABLE_UI_SCRIPTING)
+        add_definitions(-DUI_SCRIPTING_ENABLED)
+        list(APPEND RS_QUALITY_TOOL_CPP 
+            ../../third-party/tiny-js/TinyJS.cpp
+            ../../third-party/tiny-js/TinyJS_Functions.cpp
+            ../../third-party/tiny-js/TinyJS_MathFunctions.cpp
+        )
+    endif()
 
     if(WIN32)
         add_executable(rs-depth-quality WIN32 ${RS_QUALITY_TOOL_CPP}
@@ -86,6 +92,7 @@ endif()
 
         include_directories(rs-depth-quality ../../common  ../../third-party
                                              ../../third-party/imgui
+                                             ../../third-party/tiny-js
                                              ../../third-party/tclap/include
                                              ${CMAKE_CURRENT_SOURCE_DIR}/res/)
 
@@ -94,6 +101,7 @@ endif()
 
         include_directories(rs-depth-quality ../../common  ../../third-party
                                              ../../third-party/imgui
+                                             ../../third-party/tiny-js
                                              ../../third-party/tclap/include)
     endif()
 

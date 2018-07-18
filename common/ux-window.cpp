@@ -10,10 +10,163 @@
 
 #include "tclap/CmdLine.h"
 
+#ifdef UI_SCRIPTING_ENABLED
+#include "TinyJS.h"
+#include "TinyJS_Functions.h"
+#include "TinyJS_MathFunctions.h"
+#endif
+
 using namespace TCLAP;
 
 namespace rs2
 {
+    class internal_automation : public automation
+    {
+    public:
+        virtual void next_frame() = 0;
+    };
+
+#ifdef UI_SCRIPTING_ENABLED
+    void js_sleep(CScriptVar *v, void *userdata) {
+        auto ms = v->getParameter("ms")->getInt();
+        std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+    }
+
+    void js_log(CScriptVar *v, void *userdata);
+    void js_button_click(CScriptVar *v, void *userdata);
+
+    class scripting_engine : public internal_automation
+    {
+    public:
+        scripting_engine(std::string content)
+            : _content(content),
+            _thread([this]() { thread_function(); })
+        {
+        }
+
+        void wait(std::unique_lock<std::mutex>& lock)
+        {
+            _cond_ready.wait(lock, [this]() { return _ready; });
+        }
+
+        void ready()
+        {
+            std::lock_guard<std::mutex> guard(_lock);
+            _ready = true;
+            _cond_ready.notify_one();
+        }
+
+        void send_log(const std::string& line)
+        {
+            std::unique_lock<std::mutex> lock(_lock);
+            _log_lines.push(line);
+            wait(lock);
+        }
+
+        bool read_log(std::string& line) override
+        {
+            std::unique_lock<std::mutex> lock(_lock);
+            if (_log_lines.size())
+            {
+                line = _log_lines.front();
+                _log_lines.pop();
+                return true;
+            }
+            return false;
+        }
+
+        void send_button_click(const std::string& id)
+        {
+            std::unique_lock<std::mutex> lock(_lock);
+            _button_ids.push(id);
+            wait(lock);
+        }
+
+        bool button(const std::string& id) override
+        {
+            std::unique_lock<std::mutex> lock(_lock);
+            if (_button_ids.size())
+            {
+                if (_button_ids.front() == id)
+                {
+                    _button_ids.pop();
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        void next_frame()
+        {
+            ready();
+        }
+
+        ~scripting_engine() override { 
+            _thread.join(); 
+        }
+    private:
+        void thread_function()
+        {
+            CTinyJS js;
+            js.addNative("function sleep(ms)", &js_sleep, 0);
+            js.addNative("function log(message)", &js_log, this);
+            js.addNative("function button_click(id)", &js_button_click, this);
+            registerFunctions(&js);
+            registerMathFunctions(&js);
+
+            {
+                std::unique_lock<std::mutex> lock(_lock);
+                wait(lock); // wait for splash screen to go away
+            }
+
+            try
+            {
+                js.execute(_content.c_str());
+            }
+            catch (CScriptException *e)
+            {
+                send_log(to_string() << "ERROR: " << e->text);
+            }
+
+            send_log("Script Execution Halted");
+        }
+
+        std::queue<std::string> _log_lines;
+        std::queue<std::string> _button_ids;
+
+        std::condition_variable _cond_ready;
+        bool _ready = false;
+
+        std::string _content;
+        std::thread _thread;
+        std::mutex _lock;
+    };
+
+    void js_log(CScriptVar *v, void *userdata) {
+        auto msg = v->getParameter("message")->getString();
+        auto that = (scripting_engine*)userdata;
+        that->send_log(msg);
+    }
+
+    void js_button_click(CScriptVar *v, void *userdata)
+    {
+        auto id = v->getParameter("id")->getString();
+        auto that = (scripting_engine*)userdata;
+        that->send_button_click(id);
+    }
+#endif
+
+    class empty_scripting_engine : public internal_automation
+    {
+    public:
+        empty_scripting_engine() {}
+
+        bool read_log(std::string& line) override { return false; }
+        bool button(const std::string& id) override { return false; }
+        void next_frame() override {}
+    private:
+    };
+
     void ux_window::open_window()
     {
         if (_win)
@@ -97,16 +250,43 @@ namespace rs2
         _win(nullptr), _width(0), _height(0), _output_height(0),
         _font_14(nullptr), _font_18(nullptr), _app_ready(false),
         _first_frame(true), _query_devices(true), _missing_device(false),
-        _hourglass_index(0), _dev_stat_message{}, _keep_alive(true), _title(title)
+        _hourglass_index(0), _dev_stat_message{}, _keep_alive(true), _title(title),
+        _script(std::make_shared<empty_scripting_engine>())
     {
         CmdLine cmd(title, ' ', RS2_API_VERSION_STR);
 
-        SwitchArg fullscreen_arg("f", "fullscreen", "Launch the app in full screen");
+        SwitchArg fullscreen_arg("F", "fullscreen", "Launch the app in full screen");
         cmd.add(fullscreen_arg);
+#ifdef UI_SCRIPTING_ENABLED
+        ValueArg<std::string> input_script("s", "script", "JavaScript filename", false, "", "input_file");
+        cmd.add(input_script);
+#endif
 
         cmd.parse(argc, argv);
 
         _fullscreen = fullscreen_arg.getValue();
+
+#ifdef UI_SCRIPTING_ENABLED
+        if (input_script.isSet())
+        {
+            auto script_filename = input_script.getValue();
+            if (ends_with(to_lower(script_filename), ".js"))
+            {
+                std::ifstream file(script_filename);
+                if (!file.good())
+                    throw std::runtime_error(to_string() << "Cannot open \"" << script_filename << "\"!");
+
+                std::string content((std::istreambuf_iterator<char>(file)),
+                    std::istreambuf_iterator<char>());
+
+                _script = std::make_shared<scripting_engine>(content);
+            }
+            else
+            {
+                throw std::runtime_error(to_string() << "Input script must have .js file extension!");
+            }
+        }
+#endif
 
         if (!glfwInit())
         {
@@ -137,7 +317,7 @@ namespace rs2
         end_frame();
 
         // Yield the CPU
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
 
         auto res = !glfwWindowShouldClose(_win);
 
@@ -249,6 +429,8 @@ namespace rs2
             // Yield the CPU
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
+
+        ((internal_automation*)_script.get())->next_frame();
 
         // reset graphic pipe
         begin_frame();
