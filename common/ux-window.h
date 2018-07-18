@@ -31,7 +31,7 @@ namespace rs2
         std::function<void(std::string)> on_file_drop = [](std::string) {};
         std::function<bool()>            on_load = []() { return false; };
 
-        ux_window(const char* title);
+        ux_window(const char* title, int argc = 0, const char** argv = nullptr);
 
         float width() const { return float(_width); }
         float height() const { return float(_height); }

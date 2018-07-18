@@ -43,6 +43,9 @@ endif()
             ../../common/ux-window.cpp
             ../../common/model-views.h
             ../../common/model-views.cpp
+            ../../third-party/tiny-js/TinyJS.cpp
+            ../../third-party/tiny-js/TinyJS_Functions.cpp
+            ../../third-party/tiny-js/TinyJS_MathFunctions.cpp
             ../../third-party/imgui/imgui.cpp
             ../../third-party/imgui/imgui_draw.cpp
             ../../third-party/imgui/imgui_impl_glfw.cpp
@@ -61,6 +64,9 @@ endif()
                 ${CMAKE_CURRENT_SOURCE_DIR}/res/realsense-viewer.rc)
 
         source_group("3rd Party" FILES
+            ../../third-party/tiny-js/TinyJS.cpp
+            ../../third-party/tiny-js/TinyJS_Functions.cpp
+            ../../third-party/tiny-js/TinyJS_MathFunctions.cpp
             ../../third-party/imgui/imgui.cpp
             ../../third-party/imgui/imgui_draw.cpp
             ../../third-party/imgui/imgui_impl_glfw.cpp

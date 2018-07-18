@@ -8,6 +8,10 @@
 // int-rs-splash.hpp contains the PNG image from res/int-rs-splash.png
 #include "res/int-rs-splash.hpp"
 
+#include "tclap/CmdLine.h"
+
+using namespace TCLAP;
+
 namespace rs2
 {
     void ux_window::open_window()
@@ -89,14 +93,25 @@ namespace rs2
         });
     }
 
-    ux_window::ux_window(const char* title) :
+    ux_window::ux_window(const char* title, int argc, const char** argv) :
         _win(nullptr), _width(0), _height(0), _output_height(0),
         _font_14(nullptr), _font_18(nullptr), _app_ready(false),
         _first_frame(true), _query_devices(true), _missing_device(false),
         _hourglass_index(0), _dev_stat_message{}, _keep_alive(true), _title(title)
     {
+        CmdLine cmd(title, ' ', RS2_API_VERSION_STR);
+
+        SwitchArg fullscreen_arg("f", "fullscreen", "Launch the app in full screen");
+        cmd.add(fullscreen_arg);
+
+        cmd.parse(argc, argv);
+
+        _fullscreen = fullscreen_arg.getValue();
+
         if (!glfwInit())
-            exit(1);
+        {
+            throw std::runtime_error("Could not open OpenGL window, please check your graphic drivers or use the textual SDK tools");
+        }
 
         open_window();
 
@@ -108,7 +123,6 @@ namespace rs2
 
         // Apply initial UI state
         reset();
-
     }
 
     void ux_window::add_on_load_message(const std::string& msg)

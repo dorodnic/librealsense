@@ -209,11 +209,11 @@ void refresh_devices(std::mutex& m,
     }
 }
 
-int main(int argv, const char** argc) try
+int main(int argc, const char** argv) try
 {
     rs2::log_to_console(RS2_LOG_SEVERITY_WARN);
 
-    ux_window window("Intel RealSense Viewer");
+    ux_window window("Intel RealSense Viewer", argc, argv);
 
     // Create RealSense Context
     context ctx;
@@ -243,16 +243,20 @@ int main(int argv, const char** argc) try
         }
     };
 
-    for (int i = 1; i < argv; i++)
+    for (int i = 1; i < argc; i++)
     {
         try
         {
-            const char* arg = argc[i];
-            std::ifstream file(arg);
-            if (!file.good())
-                continue;
+            const char* arg = argv[i];
+            
+            if (ends_with(to_lower(arg), ".bag"))
+            {
+                std::ifstream file(arg);
+                if (!file.good())
+                    continue;
 
-            add_playback_device(ctx, device_models, error_message, viewer_model, arg);
+                add_playback_device(ctx, device_models, error_message, viewer_model, arg);
+            }
         }
         catch (const rs2::error& e)
         {

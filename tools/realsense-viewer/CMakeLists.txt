@@ -40,6 +40,9 @@ endif()
             ../../third-party/imgui/imgui_impl_glfw.cpp
             ../../third-party/imgui/imgui-fonts-karla.hpp
             ../../third-party/imgui/imgui-fonts-fontawesome.hpp
+            ../../third-party/tiny-js/TinyJS.cpp
+            ../../third-party/tiny-js/TinyJS_Functions.cpp
+            ../../third-party/tiny-js/TinyJS_MathFunctions.cpp
             ../../common/rendering.h
             ../../common/model-views.h
             ../../common/model-views.cpp
@@ -55,6 +58,9 @@ endif()
                 ../../common/windows-app-bootstrap.cpp)
 
         source_group("3rd Party" FILES
+            ../../third-party/tiny-js/TinyJS.cpp
+            ../../third-party/tiny-js/TinyJS_Functions.cpp
+            ../../third-party/tiny-js/TinyJS_MathFunctions.cpp
             ../../third-party/imgui/imgui.cpp
             ../../third-party/imgui/imgui_draw.cpp
             ../../third-party/imgui/imgui_impl_glfw.cpp
@@ -65,11 +71,14 @@ endif()
                 ${CMAKE_CURRENT_SOURCE_DIR}/res/resource.h
                 ${CMAKE_CURRENT_SOURCE_DIR}/res/realsense-viewer.rc)
 
-        include_directories(realsense-viewer ../../third-party/imgui ../../common ../../third-party ${CMAKE_CURRENT_SOURCE_DIR}/res/)
+        include_directories(realsense-viewer ../../third-party/imgui ../../common 
+             ../../third-party/tclap/include
+            ../../third-party ${CMAKE_CURRENT_SOURCE_DIR}/res/)
     else()
         add_executable(realsense-viewer
                 ${RS_VIEWER_CPP})
-        include_directories(realsense-viewer ../../third-party/imgui ../../common ../../third-party)
+        include_directories(realsense-viewer ../../third-party/imgui 
+             ../../third-party/tclap/include ../../common ../../third-party)
     endif()
 
     target_link_libraries(realsense-viewer ${DEPENDENCIES} ${GTK3_LIBRARIES})
