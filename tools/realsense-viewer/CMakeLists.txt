@@ -57,7 +57,7 @@ endif()
     endif()
 
     # config-ui
-    if(WIN32)
+    if((NOT ENABLE_UI_SCRIPTING) AND WIN32)
         add_executable(realsense-viewer WIN32
                 ${RS_VIEWER_CPP} ${CMAKE_CURRENT_SOURCE_DIR}/res/resource.h
                 ${RS_VIEWER_CPP} ${CMAKE_CURRENT_SOURCE_DIR}/res/realsense-viewer.rc
