@@ -2,6 +2,7 @@
 // Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 #include <librealsense2/rs.hpp>
+#include <librealsense2/hpp/rs_internal.hpp>
 #include "model-views.h"
 #include "ux-window.h"
 
@@ -209,14 +210,85 @@ void refresh_devices(std::mutex& m,
     }
 }
 
+context make_context(int argc, const char** argv)
+{
+    std::string base_filename;
+    bool record = false;
+    bool playback = false;
+    for (auto i = 0; i < argc; i++)
+    {
+        std::string param(argv[i]);
+        if (param == "into")
+        {
+            i++;
+            if (i < argc)
+            {
+                base_filename = argv[i];
+                record = true;
+            }
+        }
+        else if (param == "from")
+        {
+            i++;
+            if (i < argc)
+            {
+                base_filename = argv[i];
+                playback = true;
+            }
+        }
+    }
+
+    try
+    {
+        if (record)
+        {
+            return rs2::recording_context(base_filename, "");
+        }
+        else if (playback)
+        {
+            return rs2::mock_context(base_filename, "");
+        }
+    }
+    catch (...)
+    {
+        return context();
+    }
+
+    return context();
+}
+
 int main(int argc, const char** argv) try
 {
     rs2::log_to_console(RS2_LOG_SEVERITY_WARN);
 
-    ux_window window("Intel RealSense Viewer", argc, argv);
+    std::vector<const char*> new_argvs;
+    for (auto i = 0; i < argc; i++)
+    {
+        std::string param(argv[i]);
+        if (param != "into" && param != "from")
+        {
+            new_argvs.push_back(argv[i]);
+        }
+        else
+        {
+            i++;
+            if (i < argc && param == "from")
+            {
+                auto filename = argv[i];
+                std::ifstream f(filename);
+                if (!f.good())
+                {
+                    std::cout << "Could not load " << filename << "!" << std::endl;
+                    return EXIT_FAILURE;
+                }
+            }
+        }
+    }
+
+    ux_window window("Intel RealSense Viewer", new_argvs.size(), new_argvs.data());
 
     // Create RealSense Context
-    context ctx;
+    context ctx = make_context(argc, argv);
     device_changes devices_connection_changes(ctx);
     std::vector<std::pair<std::string, std::string>> device_names;
 

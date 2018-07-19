@@ -133,9 +133,12 @@ namespace rs2
             _to_exit = true;
         }
 
-        void pass_test(const std::string& id)
+        void pass_test(const std::string& message)
         {
-            exit(0);
+            std::unique_lock<std::mutex> lock(_lock);
+            _log.push_back(to_string() << "PASSED: " << message);
+            _passed = true;
+            _to_exit = true;
         }
 
         void invoke_on_frame(std::function<void()> on_start = []() {},

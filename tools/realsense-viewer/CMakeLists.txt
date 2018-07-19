@@ -93,8 +93,9 @@ endif()
         FOLDER Tools
     )
 
-    file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_default_formats.js
-         DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+    file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_default_formats.js DESTINATION ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
+    file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/tests/awgc_5992 DESTINATION ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
+    file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/tests/run_tests.ps1 DESTINATION ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 
     install(
         TARGETS

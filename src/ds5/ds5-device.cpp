@@ -434,7 +434,7 @@ namespace librealsense
             auto error_control = std::unique_ptr<uvc_xu_option<uint8_t>>(new uvc_xu_option<uint8_t>(depth_ep, depth_xu, DS5_ERROR_REPORTING, "Error reporting"));
 
             _polling_error_handler = std::unique_ptr<polling_error_handler>(
-                new polling_error_handler(1000,
+                new polling_error_handler(5000,
                     std::move(error_control),
                     depth_ep.get_notifications_processor(),
 
