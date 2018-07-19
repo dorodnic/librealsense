@@ -347,6 +347,8 @@ struct ImGuiContext
     bool                    CollectIDs = false;
     std::string             SignaledButton = "";
     ImGuiID                 SignaledButtonID;
+    std::string             QueryTextLabel = "";
+    std::string             QueryTextResult = "";
 
     bool                    Initialized;
     ImGuiIO                 IO;

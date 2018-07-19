@@ -5553,8 +5553,22 @@ void ImGui::SignalButton(const char* label)
 {
     ImGuiWindow* window = GetCurrentWindowRead();
     ImGuiContext& g = *GImGui;
-
     g.SignaledButton = label;
+}
+
+void ImGui::QueryText(const char* label)
+{
+    ImGuiWindow* window = GetCurrentWindowRead();
+    ImGuiContext& g = *GImGui;
+    g.QueryTextLabel = label;
+    g.QueryTextResult = "";
+}
+
+std::string ImGui::ReadText()
+{
+    ImGuiWindow* window = GetCurrentWindowRead();
+    ImGuiContext& g = *GImGui;
+    return g.QueryTextResult;
 }
 
 bool ImGui::ButtonEx(const char* label, const ImVec2& size_arg, ImGuiButtonFlags flags)
@@ -7703,6 +7717,12 @@ bool ImGui::InputTextEx(const char* label, char* buf, int buf_size, const ImVec2
     ImGuiContext& g = *GImGui;
     const ImGuiIO& io = g.IO;
     const ImGuiStyle& style = g.Style;
+
+    if (g.QueryTextLabel == label)
+    {
+        g.QueryTextResult = std::string(buf, buf + buf_size);
+        g.QueryTextLabel = "";
+    }
 
     const ImGuiID id = window->GetID(label);
     const bool is_multiline = (flags & ImGuiInputTextFlags_Multiline) != 0;

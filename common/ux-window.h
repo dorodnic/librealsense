@@ -29,7 +29,6 @@ namespace rs2
     {
     public:
         virtual bool read_log(std::string& line) = 0;
-        virtual bool button(std::string& id) = 0;
 
         virtual ~automation() {};
     };
@@ -105,6 +104,5 @@ namespace rs2
         std::string              _title;
 
         std::shared_ptr<automation> _script;
-        bool                     _to_collect_ids = false;
     };
 }

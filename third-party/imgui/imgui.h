@@ -135,6 +135,8 @@ namespace ImGui
 {
     // Additions
     IMGUI_API void          SignalButton(const char* label);
+    IMGUI_API void          QueryText(const char* label);
+    IMGUI_API std::string   ReadText();
     IMGUI_API void          BeginReflection();
     IMGUI_API std::vector<std::string> EndReflection();
 

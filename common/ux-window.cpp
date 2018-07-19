@@ -14,6 +14,7 @@
 #include "TinyJS.h"
 #include "TinyJS_Functions.h"
 #include "TinyJS_MathFunctions.h"
+#include "../src/concurrency.h"
 #endif
 
 using namespace TCLAP;
@@ -23,10 +24,8 @@ namespace rs2
     class internal_automation : public automation
     {
     public:
-        virtual void next_frame() = 0;
         virtual bool to_exit() = 0;
-        virtual bool to_collect_ids() = 0;
-        virtual void report_ids(std::vector<std::string> res) = 0;
+        virtual void on_frame(bool start) = 0;
     };
 
 #ifdef UI_SCRIPTING_ENABLED
@@ -40,6 +39,8 @@ namespace rs2
     void js_fail(CScriptVar *v, void *userdata);
     void js_pass(CScriptVar *v, void *userdata);
     void js_find_element(CScriptVar *v, void *userdata);
+    void js_get_elements(CScriptVar *v, void *userdata);
+    void js_get_text(CScriptVar *v, void *userdata);
 
     class scripting_engine : public internal_automation
     {
@@ -50,78 +51,57 @@ namespace rs2
         {
         }
 
-        bool to_collect_ids() override 
+        void on_frame(bool start) override
         {
-            std::unique_lock<std::mutex> lock(_lock);
-            return _to_collect_ids;
+            auto queue = &_on_frame_end;
+            if (start) queue = &_on_frame_start;
+            std::vector<std::function<void()>> actions;
+            std::function<void()> action;
+            while (queue->try_dequeue(&action))
+                actions.push_back(action);
+            for (auto&& action : actions) action();
         }
 
-        void report_ids(std::vector<std::string> res) override
+        std::string get_text(std::string id)
         {
-            std::unique_lock<std::mutex> lock(_lock);
-            _ids = res;
-            _to_collect_ids = false;
-            _cond_ready.notify_one();
+            std::string result;
+            invoke_on_frame([&]() {
+                ImGui::QueryText(id.c_str());
+            }, [&]() {
+                result = ImGui::ReadText();
+            });
+            return result;
         }
 
         std::vector<std::string> collect_ids()
         {
-            std::unique_lock<std::mutex> lock(_lock);
-            _to_collect_ids = true;
-            _cond_ready.wait(lock, [this]() { return !_to_collect_ids; });
-            return _ids;
+            std::vector<std::string> results;
+            invoke_on_frame([&]() {
+                ImGui::BeginReflection();
+            }, [&]() {
+                results = ImGui::EndReflection();
+            });
+            return results;
         }
 
-        void wait(std::unique_lock<std::mutex>& lock)
-        {
-            _cond_ready.wait(lock, [this]() { return _ready; });
-            _ready = false;
-        }
-
-        void ready()
-        {
-            std::lock_guard<std::mutex> guard(_lock);
-            _ready = true;
-            _cond_ready.notify_one();
-        }
-
-        void send_log(const std::string& line)
+        void send_log(std::string line)
         {
             std::unique_lock<std::mutex> lock(_lock);
-            _log_lines.push(line);
             _log.push_back(line);
-            wait(lock);
+            _log_lines.enqueue(std::move(line));
         }
 
         bool read_log(std::string& line) override
         {
-            std::unique_lock<std::mutex> lock(_lock);
-            if (_log_lines.size())
-            {
-                line = _log_lines.front();
-                _log_lines.pop();
-                return true;
-            }
-            return false;
+            return _log_lines.try_dequeue(&line);
         }
 
         void send_button_click(const std::string& id)
         {
-            std::unique_lock<std::mutex> lock(_lock);
-            _button_ids.push(id);
-            wait(lock);
-        }
-
-        bool button(std::string& id) override
-        {
-            std::unique_lock<std::mutex> lock(_lock);
-            if (_button_ids.size())
-            {
-                id = _button_ids.front();
-                _button_ids.pop();
-                return true;
-            }
-            return false;
+            std::string result;
+            invoke_on_frame([&]() {
+                ImGui::SignalButton(id.c_str());
+            });
         }
 
         void fail_test(const std::string& message)
@@ -139,9 +119,23 @@ namespace rs2
             _to_exit = true;
         }
 
-        void next_frame()
+        void invoke_on_frame(std::function<void()> on_start = []() {},
+                             std::function<void()> on_end = []() {})
         {
-            ready();
+            _on_frame_end.enqueue([&]() {
+                _on_frame_start.enqueue([&]() {
+                    on_start();
+                    _acks.enqueue(true);
+                });
+                _on_frame_end.enqueue([&]() {
+                    on_end();
+                    _acks.enqueue(true);
+                });
+            });
+            
+            bool res;
+            if (!_acks.dequeue(&res) || !_acks.dequeue(&res))
+                throw new CScriptException("UI unresponsive!");
         }
 
         bool to_exit() override 
@@ -153,33 +147,37 @@ namespace rs2
         ~scripting_engine() override { 
             _thread.join(); 
         }
+
+        CTinyJS* get_js() { return &_js; }
     private:
         void thread_function()
         {
-            CTinyJS js;
-            js.addNative("function sleep(ms)", &js_sleep, 0);
-            js.addNative("function log(message)", &js_log, this);
-            js.addNative("function click_button(id)", &js_button_click, this);
-            js.addNative("function fail(message)", &js_fail, this);
-            js.addNative("function pass(message)", &js_pass, this);
-            js.addNative("function find_element(id)", &js_find_element, this);
-            registerFunctions(&js);
-            registerMathFunctions(&js);
+            _js.addNative("function sleep(ms)", &js_sleep, 0);
+            _js.addNative("function log(message)", &js_log, this);
+            _js.addNative("function click_button(id)", &js_button_click, this);
+            _js.addNative("function fail(message)", &js_fail, this);
+            _js.addNative("function pass(message)", &js_pass, this);
+            _js.addNative("function find_element(id)", &js_find_element, this);
+            _js.addNative("function find_nth_element(id, number)", &js_find_element, this);
+            _js.addNative("function get_elements()", &js_get_elements, this);
+            _js.addNative("function get_text(id)", &js_get_text, this);
+            registerFunctions(&_js);
+            registerMathFunctions(&_js);
 
             {
                 std::unique_lock<std::mutex> lock(_lock);
-                wait(lock); // wait for splash screen to go away
+                invoke_on_frame();
             }
 
             send_log("Running script...");
 
             try
             {
-                js.execute(_content.c_str());
+                _js.execute(_content.c_str());
             }
-            catch (CScriptException& e)
+            catch (CScriptException* e)
             {
-                send_log(to_string() << "ERROR: " << e.text);
+                send_log(to_string() << "ERROR: " << e->text);
             }
 
             send_log("Script Execution Halted");
@@ -191,23 +189,24 @@ namespace rs2
                 for (auto&& line : _log)
                     report << line << "\n";
                 report.close();
+
+                exit(-1);
             }
         }
 
-        std::queue<std::string> _log_lines;
-        std::queue<std::string> _button_ids;
+        single_consumer_queue<std::string> _log_lines;
+        single_consumer_queue<std::function<void()>> _on_frame_start;
+        single_consumer_queue<std::function<void()>> _on_frame_end;
+        single_consumer_queue<bool> _acks;
 
-        std::condition_variable _cond_ready;
-        bool _ready = false;
         bool _to_exit = false;
         bool _passed = true;
-        bool _to_collect_ids = false;
 
         std::string _content;
+        CTinyJS _js;
         std::thread _thread;
         std::mutex _lock;
         std::vector<std::string> _log;
-        std::vector<std::string> _ids;
     };
 
     void js_log(CScriptVar *v, void *userdata) {
@@ -220,6 +219,7 @@ namespace rs2
         auto msg = v->getParameter("message")->getString();
         auto that = (scripting_engine*)userdata;
         that->fail_test(msg);
+        throw new CScriptException("Test failed");
     }
 
     void js_pass(CScriptVar *v, void *userdata) {
@@ -235,20 +235,57 @@ namespace rs2
         that->send_button_click(id);
     }
 
+    void js_get_elements(CScriptVar *v, void *userdata)
+    {
+        auto that = (scripting_engine*)userdata;
+        auto ids = that->collect_ids();
+        v->getReturnVar()->setArray();
+        int index = 0;
+        for (auto&& id : ids)
+        {
+            auto t = new CScriptVar(id);
+            v->getReturnVar()->setArrayIndex(index, t);
+            index++;
+        }
+    }
+
+    void js_get_text(CScriptVar *v, void *userdata)
+    {
+        auto id = v->getParameter("id")->getString();
+        auto that = (scripting_engine*)userdata;
+        v->getReturnVar()->setString(that->get_text(id));
+    }
+
     void js_find_element(CScriptVar *v, void *userdata)
     {
         auto selected = v->getParameter("id")->getString();
+        auto number = 1;
+        if (v->getParameter("number")->isNumeric())
+        {
+            number = v->getParameter("number")->getInt();
+        }
         auto that = (scripting_engine*)userdata;
         auto ids = that->collect_ids();
         for (auto&& id : ids)
         {
-            std::string pattern = to_string() << "(.*)(" << selected << ")(.*)";
+            std::regex dotdot("\\.\\.\\.");
+
+            std::string new_selected;
+            std::regex_replace(std::back_inserter(new_selected), 
+                selected.begin(), selected.end(), dotdot, ")(.|\\r|\\n)*(");
+
+            std::string pattern = to_string() 
+                << "(.|\\r|\\n)*(" << new_selected << ")(.|\\r|\\n)*";
             std::regex e(pattern);
 
             if (std::regex_match(id, e))
             {
-                v->getReturnVar()->setString(id);
-                return;
+                number--;
+                if (number == 0)
+                {
+                    v->getReturnVar()->setString(id);
+                    return;
+                }
             }
         }
     }
@@ -260,11 +297,8 @@ namespace rs2
         empty_scripting_engine() {}
 
         bool read_log(std::string& line) override { return false; }
-        bool button(std::string& id) override { return false; }
-        void next_frame() override {}
         bool to_exit() override { return false; }
-        bool to_collect_ids() override { return false; }
-        void report_ids(std::vector<std::string> res) override {}
+        void on_frame(bool) override {}
     private:
     };
 
@@ -531,23 +565,11 @@ namespace rs2
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
 
-        auto ptr = (internal_automation*)_script.get();
-
-        ptr->next_frame();
-
         // reset graphic pipe
         begin_frame();
 
-        if (ptr->to_collect_ids())
-        {
-            ImGui::BeginReflection();
-            _to_collect_ids = true;
-        }
-        std::string button_id;
-        if (ptr->button(button_id))
-        {
-            ImGui::SignalButton(button_id.c_str());
-        }
+        auto ptr = (internal_automation*)_script.get();
+        ptr->on_frame(true);
 
         if (ptr->to_exit()) return false;
 
@@ -647,7 +669,7 @@ namespace rs2
         if (!_first_frame)
         {
             auto ptr = (internal_automation*)_script.get();
-            if (_to_collect_ids) ptr->report_ids(ImGui::EndReflection());
+            ptr->on_frame(false);
 
             ImGui::Render();
 

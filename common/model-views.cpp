@@ -4665,7 +4665,7 @@ namespace rs2
 
     void device_model::draw_info_icon(const ImVec2& size)
     {
-        std::string info_button_name = to_string() << textual_icons::info_circle << "##" << id;
+        std::string info_button_name = to_string() << textual_icons::info_circle << "##Device Details" << id;
         auto info_button_color = show_device_info ? light_blue : light_grey;
         ImGui::PushStyleColor(ImGuiCol_Text, info_button_color);
         ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, info_button_color);
@@ -4768,7 +4768,7 @@ namespace rs2
         // Draw Menu icon
         ////////////////////////////////////////
         std::string label = to_string() << "device_menu" << id;
-        std::string bars_button_name = to_string() << textual_icons::bars << "##" << id;
+        std::string bars_button_name = to_string() << textual_icons::bars << "##More" << id;
 
         if (ImGui::Button(bars_button_name.c_str(), device_panel_icons_size))
         {
