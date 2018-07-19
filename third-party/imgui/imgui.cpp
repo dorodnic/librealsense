@@ -5523,10 +5523,10 @@ bool ImGui::ButtonBehavior(const ImRect& bb, ImGuiID id, bool* out_hovered, bool
     if (out_hovered) *out_hovered = hovered;
     if (out_held) *out_held = held;
 
-    if (g.SignaledButtonID == id)
+    if (g.SignaledElementID == id)
     {
-        g.SignaledButtonID = 0;
-        g.SignaledButton = "";
+        g.SignaledElementID = 0;
+        g.SignaledElement = "";
         return true;
     }
 
@@ -5549,26 +5549,41 @@ std::vector<std::string> ImGui::EndReflection()
     return g.AllIDs;
 }
 
-void ImGui::SignalButton(const char* label)
+void ImGui::SignalElement(const char* label)
 {
     ImGuiWindow* window = GetCurrentWindowRead();
     ImGuiContext& g = *GImGui;
-    g.SignaledButton = label;
+    g.SignaledElement = label;
 }
 
-void ImGui::QueryText(const char* label)
+void ImGui::QueryElement(const char* label)
 {
     ImGuiWindow* window = GetCurrentWindowRead();
     ImGuiContext& g = *GImGui;
-    g.QueryTextLabel = label;
-    g.QueryTextResult = "";
+    g.QueryElementLabel = label;
+    g.QueryElementValue = "";
 }
 
-std::string ImGui::ReadText()
+std::string ImGui::ReadElementValue()
 {
     ImGuiWindow* window = GetCurrentWindowRead();
     ImGuiContext& g = *GImGui;
-    return g.QueryTextResult;
+    return g.QueryElementValue;
+}
+
+std::vector<std::string> ImGui::ReadElementValues()
+{
+    ImGuiWindow* window = GetCurrentWindowRead();
+    ImGuiContext& g = *GImGui;
+    return g.QueryElementValues;
+}
+
+void ImGui::SetElementValue(const char* id, double value)
+{
+    ImGuiWindow* window = GetCurrentWindowRead();
+    ImGuiContext& g = *GImGui;
+    g.SetElementValueLabel = id;
+    g.SetElementValue = value;
 }
 
 bool ImGui::ButtonEx(const char* label, const ImVec2& size_arg, ImGuiButtonFlags flags)
@@ -5582,8 +5597,8 @@ bool ImGui::ButtonEx(const char* label, const ImVec2& size_arg, ImGuiButtonFlags
     const ImGuiID id = window->GetID(label);
     const ImVec2 label_size = CalcTextSize(label, NULL, true);
 
-    if (g.SignaledButton == label)
-        g.SignaledButtonID = id;
+    if (g.SignaledElement == label)
+        g.SignaledElementID = id;
 
     ImVec2 pos = window->DC.CursorPos;
     if ((flags & ImGuiButtonFlags_AlignTextBaseLine) && style.FramePadding.y < window->DC.CurrentLineTextBaseOffset)
@@ -6030,7 +6045,10 @@ bool ImGui::CollapsingHeader(const char* label, bool* p_open, ImGuiTreeNodeFlags
     if (p_open && !*p_open)
         return false;
 
-    ImGuiID id = window->GetID(label);
+    auto id = window->GetID(label);
+    ImGuiContext& g = *GImGui;
+    if (g.SignaledElement == label)
+        g.SignaledElementID = id;
     bool is_open = TreeNodeBehavior(id, flags | ImGuiTreeNodeFlags_CollapsingHeader | ImGuiTreeNodeFlags_NoTreePushOnOpen | (p_open ? ImGuiTreeNodeFlags_AllowOverlapMode : 0), label);
     if (p_open)
     {
@@ -6050,7 +6068,11 @@ bool ImGui::TreeNodeEx(const char* label, ImGuiTreeNodeFlags flags)
     if (window->SkipItems)
         return false;
 
-    return TreeNodeBehavior(window->GetID(label), flags, label, NULL);
+    auto id = window->GetID(label);
+    ImGuiContext& g = *GImGui;
+    if (g.SignaledElement == label)
+        g.SignaledElementID = id;
+    return TreeNodeBehavior(id, flags, label, NULL);
 }
 
 bool ImGui::TreeNodeExV(const char* str_id, ImGuiTreeNodeFlags flags, const char* fmt, va_list args)
@@ -6126,7 +6148,11 @@ bool ImGui::TreeNode(const char* label)
     ImGuiWindow* window = GetCurrentWindow();
     if (window->SkipItems)
         return false;
-    return TreeNodeBehavior(window->GetID(label), 0, label, NULL);
+    auto id = window->GetID(label);
+    ImGuiContext& g = *GImGui;
+    if (g.SignaledElement == label)
+        g.SignaledElementID = id;
+    return TreeNodeBehavior(id, 0, label, NULL);
 }
 
 void ImGui::TreeAdvanceToLabelPos()
@@ -7332,6 +7358,9 @@ bool ImGui::Checkbox(const char* label, bool* v)
     const ImGuiID id = window->GetID(label);
     const ImVec2 label_size = CalcTextSize(label, NULL, true);
 
+    if (g.SignaledElement == label)
+        g.SignaledElementID = id;
+
     const ImRect check_bb(window->DC.CursorPos, window->DC.CursorPos + ImVec2(label_size.y + style.FramePadding.y*2, label_size.y + style.FramePadding.y*2));
     ItemSize(check_bb, style.FramePadding.y);
 
@@ -7718,10 +7747,10 @@ bool ImGui::InputTextEx(const char* label, char* buf, int buf_size, const ImVec2
     const ImGuiIO& io = g.IO;
     const ImGuiStyle& style = g.Style;
 
-    if (g.QueryTextLabel == label)
+    if (g.QueryElementLabel == label)
     {
-        g.QueryTextResult = std::string(buf, buf + buf_size);
-        g.QueryTextLabel = "";
+        g.QueryElementValue = std::string(buf, buf + buf_size);
+        g.QueryElementLabel = "";
     }
 
     const ImGuiID id = window->GetID(label);
@@ -8531,7 +8560,21 @@ bool ImGui::Combo(const char* label, int* current_item, bool (*items_getter)(voi
     {
         const char* item_text;
         if (items_getter(data, *current_item, &item_text))
+        {
+            if (g.QueryElementLabel == label)
+            {
+                g.QueryElementValue = item_text;
+                g.QueryElementValues.clear();
+                for (int i = 0; i < items_count; i++)
+                {
+                    const char* text;
+                    if (items_getter(data, i, &text))
+                        g.QueryElementValues.push_back(text);
+                }
+            }
+
             RenderTextClipped(frame_bb.Min + style.FramePadding, value_bb.Max, item_text, NULL, NULL, ImGuiAlign_Center);
+        }
     }
 
     if (label_size.x > 0)
@@ -8557,6 +8600,13 @@ bool ImGui::Combo(const char* label, int* current_item, bool (*items_getter)(voi
     }
 
     bool value_changed = false;
+
+    if (g.SetElementValueLabel == label)
+    {
+        value_changed = true;
+        *current_item = (int)g.SetElementValue;
+    }
+
     if (IsPopupOpen(id))
     {
         // Size default to hold ~7 items
@@ -8621,6 +8671,10 @@ bool ImGui::Selectable(const char* label, bool selected, ImGuiSelectableFlags fl
         PopClipRect();
 
     ImGuiID id = window->GetID(label);
+
+    if (g.SignaledElement == label)
+        g.SignaledElementID = id;
+
     ImVec2 label_size = CalcTextSize(label, NULL, true);
     ImVec2 size(size_arg.x != 0.0f ? size_arg.x : label_size.x, size_arg.y != 0.0f ? size_arg.y : label_size.y);
     ImVec2 pos = window->DC.CursorPos;

@@ -41,6 +41,8 @@ namespace rs2
     void js_find_element(CScriptVar *v, void *userdata);
     void js_get_elements(CScriptVar *v, void *userdata);
     void js_get_text(CScriptVar *v, void *userdata);
+    void js_get_list(CScriptVar *v, void *userdata);
+    void js_set_value(CScriptVar *v, void *userdata);
 
     class scripting_engine : public internal_automation
     {
@@ -66,9 +68,9 @@ namespace rs2
         {
             std::string result;
             invoke_on_frame([&]() {
-                ImGui::QueryText(id.c_str());
+                ImGui::QueryElement(id.c_str());
             }, [&]() {
-                result = ImGui::ReadText();
+                result = ImGui::ReadElementValue();
             });
             return result;
         }
@@ -84,10 +86,29 @@ namespace rs2
             return results;
         }
 
+        std::vector<std::string> get_list(std::string id)
+        {
+            std::vector<std::string> results;
+            invoke_on_frame([&]() {
+                ImGui::QueryElement(id.c_str());
+            }, [&]() {
+                results = ImGui::ReadElementValues();
+            });
+            return results;
+        }
+
+        void set_value(std::string id, double val)
+        {
+            invoke_on_frame([&]() {
+                ImGui::SetElementValue(id.c_str(), val);
+            });
+        }
+
         void send_log(std::string line)
         {
             std::unique_lock<std::mutex> lock(_lock);
             _log.push_back(line);
+            std::cout << line << std::endl;
             _log_lines.enqueue(std::move(line));
         }
 
@@ -100,7 +121,7 @@ namespace rs2
         {
             std::string result;
             invoke_on_frame([&]() {
-                ImGui::SignalButton(id.c_str());
+                ImGui::SignalElement(id.c_str());
             });
         }
 
@@ -161,11 +182,12 @@ namespace rs2
             _js.addNative("function find_nth_element(id, number)", &js_find_element, this);
             _js.addNative("function get_elements()", &js_get_elements, this);
             _js.addNative("function get_text(id)", &js_get_text, this);
+            _js.addNative("function get_list(id)", &js_get_list, this);
+            _js.addNative("function set_value(id, val)", &js_set_value, this);
             registerFunctions(&_js);
             registerMathFunctions(&_js);
 
             {
-                std::unique_lock<std::mutex> lock(_lock);
                 invoke_on_frame();
             }
 
@@ -247,6 +269,29 @@ namespace rs2
             v->getReturnVar()->setArrayIndex(index, t);
             index++;
         }
+    }
+
+    void js_get_list(CScriptVar *v, void *userdata)
+    {
+        auto that = (scripting_engine*)userdata;
+        auto id = v->getParameter("id")->getString();
+        auto ids = that->get_list(id);
+        v->getReturnVar()->setArray();
+        int index = 0;
+        for (auto&& id : ids)
+        {
+            auto t = new CScriptVar(id);
+            v->getReturnVar()->setArrayIndex(index, t);
+            index++;
+        }
+    }
+
+    void js_set_value(CScriptVar *v, void *userdata)
+    {
+        auto that = (scripting_engine*)userdata;
+        auto id = v->getParameter("id")->getString();
+        auto val = v->getParameter("val")->getDouble();
+        that->set_value(id, val);
     }
 
     void js_get_text(CScriptVar *v, void *userdata)

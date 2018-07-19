@@ -345,10 +345,13 @@ struct ImGuiContext
 {
     std::vector<std::string> AllIDs{};
     bool                    CollectIDs = false;
-    std::string             SignaledButton = "";
-    ImGuiID                 SignaledButtonID;
-    std::string             QueryTextLabel = "";
-    std::string             QueryTextResult = "";
+    std::string             SignaledElement = "";
+    ImGuiID                 SignaledElementID;
+    std::string             QueryElementLabel = "";
+    std::string             QueryElementValue = "";
+    std::vector<std::string> QueryElementValues;
+    std::string             SetElementValueLabel = "";
+    double                  SetElementValue = 0.0;
 
     bool                    Initialized;
     ImGuiIO                 IO;
