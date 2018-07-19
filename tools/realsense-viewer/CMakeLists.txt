@@ -93,6 +93,9 @@ endif()
         FOLDER Tools
     )
 
+    file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_default_formats.js
+         DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+
     install(
         TARGETS
 
