@@ -5523,9 +5523,10 @@ bool ImGui::ButtonBehavior(const ImRect& bb, ImGuiID id, bool* out_hovered, bool
     if (out_hovered) *out_hovered = hovered;
     if (out_held) *out_held = held;
 
-    if (g.SignaledButton == id)
+    if (g.SignaledButtonID == id)
     {
-        g.SignaledButton = false;
+        g.SignaledButtonID = 0;
+        g.SignaledButton = "";
         return true;
     }
 
@@ -5550,11 +5551,10 @@ std::vector<std::string> ImGui::EndReflection()
 
 void ImGui::SignalButton(const char* label)
 {
-    ImGuiWindow* window = GetCurrentWindow();
+    ImGuiWindow* window = GetCurrentWindowRead();
     ImGuiContext& g = *GImGui;
-    const ImGuiID id = window->GetID(label);
 
-    g.SignaledButton = id;
+    g.SignaledButton = label;
 }
 
 bool ImGui::ButtonEx(const char* label, const ImVec2& size_arg, ImGuiButtonFlags flags)
@@ -5567,6 +5567,9 @@ bool ImGui::ButtonEx(const char* label, const ImVec2& size_arg, ImGuiButtonFlags
     const ImGuiStyle& style = g.Style;
     const ImGuiID id = window->GetID(label);
     const ImVec2 label_size = CalcTextSize(label, NULL, true);
+
+    if (g.SignaledButton == label)
+        g.SignaledButtonID = id;
 
     ImVec2 pos = window->DC.CursorPos;
     if ((flags & ImGuiButtonFlags_AlignTextBaseLine) && style.FramePadding.y < window->DC.CurrentLineTextBaseOffset)

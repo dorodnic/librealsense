@@ -345,7 +345,8 @@ struct ImGuiContext
 {
     std::vector<std::string> AllIDs{};
     bool                    CollectIDs = false;
-    ImGuiID                 SignaledButton;
+    std::string             SignaledButton = "";
+    ImGuiID                 SignaledButtonID;
 
     bool                    Initialized;
     ImGuiIO                 IO;
