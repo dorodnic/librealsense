@@ -103,32 +103,11 @@ script:
       cd ..;
 
       mkdir build && cd build;
-      cmake .. -DBUILD_EXAMPLES:BOOL=true -DBUILD_PYTHON_BINDINGS:BOOL=true -DBUILD_NODEJS_BINDINGS:BOOL=true -DBUILD_UNIT_TESTS:BOOL=true;
+      cmake .. -DBUILD_EXAMPLES=true -DBUILD_GRAPHICAL_EXAMPLES=true -DENABLE_UI_SCRIPTING=true;
       make -j $CPU_NUM;
       sudo "PATH=$PATH" make install;
 
-      export LRS_LOG_LEVEL="DEBUG";
-
-      url_records_path="http://realsense-hw-public.s3.amazonaws.com/rs-tests/lrs_2.8.3/";
-      records_name="records.txt";
-      url_records_list=$url_records_path$records_name;
-      wget $url_records_path$records_name;
-      tests_list=`cat $records_name`;
-
-      echo "Downloading unit-test records...";
-      for record in $tests_list; do echo $url_records_path$record; wget $url_records_path$record -P "records/"$(echo $record | cut -d '/' -f 1); done;
-
-      ./unit-tests/live-test -d yes -i [software-device];
-      for i in ./records/single_cam/*; do ./unit-tests/live-test -d yes -i ~[multicam] from "$i"; done;
-      for i in ./records/multi_cam/*; do ./unit-tests/live-test -d yes -i [multicam] from "$i"; done;
-
-      echo "Build RealSense SDK for Android...";
-      cd ../;
-      wget https://dl.google.com/android/repository/android-ndk-r16b-linux-x86_64.zip;
-      unzip android-ndk-r16b-linux-x86_64.zip -d ./;
-      mkdir build_android && cd build_android;
-      cmake .. -DCMAKE_TOOLCHAIN_FILE=../android-ndk-r16b/build/cmake/android.toolchain.cmake;
-      make -j $CPU_NUM;
+      ./realsense-viewer.exe -s "test_default_formats.js" from awgc_5992;
     fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
       mkdir build && cd build;
