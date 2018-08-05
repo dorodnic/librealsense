@@ -42,7 +42,6 @@ before_install:
       brew install xctool --HEAD;
       brew install homebrew/core/glfw3;
       brew list libusb || brew install libusb;
-      brew upgrade libusb;
     fi
 
   # Install linux required packages
@@ -107,7 +106,7 @@ script:
       make -j $CPU_NUM;
       sudo "PATH=$PATH" make install;
 
-      ./realsense-viewer.exe -s "test_default_formats.js" from awgc_5992;
+      ./tools/realsense-viewer/realsense-viewer.exe -s ../tools/realsense-viewer/tests/test_default_formats.js from ../tools/realsense-viewer/tests/awgc_5992;
     fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
       mkdir build && cd build;
