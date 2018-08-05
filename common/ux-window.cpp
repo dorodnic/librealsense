@@ -13,7 +13,6 @@
 #include <regex>
 #include "TinyJS.h"
 #include "TinyJS_Functions.h"
-#include "TinyJS_MathFunctions.h"
 #include "../src/concurrency.h"
 #endif
 
@@ -174,46 +173,55 @@ namespace rs2
     private:
         void thread_function()
         {
-            _js.addNative("function sleep(ms)", &js_sleep, 0);
-            _js.addNative("function log(message)", &js_log, this);
-            _js.addNative("function click_button(id)", &js_button_click, this);
-            _js.addNative("function fail(message)", &js_fail, this);
-            _js.addNative("function pass(message)", &js_pass, this);
-            _js.addNative("function find_element(id)", &js_find_element, this);
-            _js.addNative("function find_nth_element(id, number)", &js_find_element, this);
-            _js.addNative("function get_elements()", &js_get_elements, this);
-            _js.addNative("function get_text(id)", &js_get_text, this);
-            _js.addNative("function get_list(id)", &js_get_list, this);
-            _js.addNative("function set_value(id, val)", &js_set_value, this);
-            registerFunctions(&_js);
-            registerMathFunctions(&_js);
-
-            {
-                invoke_on_frame();
-            }
-
-            send_log("Running script...");
-
             try
             {
-                _js.execute(_content.c_str());
+                std::cout << "Starting JS env" << std::endl;
+                std::cout << _content << std::endl;
+
+                _js.addNative("function sleep(ms)", &js_sleep, 0);
+                _js.addNative("function log(message)", &js_log, this);
+                _js.addNative("function click_button(id)", &js_button_click, this);
+                _js.addNative("function fail(message)", &js_fail, this);
+                _js.addNative("function pass(message)", &js_pass, this);
+                _js.addNative("function find_element(id)", &js_find_element, this);
+                _js.addNative("function find_nth_element(id, number)", &js_find_element, this);
+                _js.addNative("function get_elements()", &js_get_elements, this);
+                _js.addNative("function get_text(id)", &js_get_text, this);
+                _js.addNative("function get_list(id)", &js_get_list, this);
+                _js.addNative("function set_value(id, val)", &js_set_value, this);
+                registerFunctions(&_js);
+
+                {
+                    invoke_on_frame();
+                }
+
+                send_log("Running script...");
+
+                try
+                {
+                    _js.execute(_content.c_str());
+                }
+                catch (CScriptException* e)
+                {
+                    send_log(to_string() << "ERROR: " << e->text);
+                }
+
+                send_log("Script Execution Halted");
+
+                if (!_passed)
+                {
+                    std::ofstream report;
+                    report.open("report.txt");
+                    for (auto&& line : _log)
+                        report << line << "\n";
+                    report.close();
+
+                    exit(-1);
+                }
             }
             catch (CScriptException* e)
             {
                 send_log(to_string() << "ERROR: " << e->text);
-            }
-
-            send_log("Script Execution Halted");
-
-            if (!_passed)
-            {
-                std::ofstream report;
-                report.open("report.txt");
-                for (auto&& line : _log)
-                    report << line << "\n";
-                report.close();
-
-                exit(-1);
             }
         }
 
@@ -447,6 +455,22 @@ namespace rs2
 
         _fullscreen = fullscreen_arg.getValue();
 
+        if (!glfwInit())
+        {
+            throw std::runtime_error("Could not open OpenGL window, please check your graphic drivers or use the textual SDK tools");
+        }
+
+        open_window();
+
+        // Prepare the splash screen and do some initialization in the background
+        int x, y, comp;
+        auto r = stbi_load_from_memory(splash, (int)splash_size, &x, &y, &comp, false);
+        _splash_tex.upload_image(x, y, r);
+        stbi_image_free(r);
+
+        // Apply initial UI state
+        reset();
+
 #ifdef UI_SCRIPTING_ENABLED
         if (input_script.isSet())
         {
@@ -468,22 +492,6 @@ namespace rs2
             }
         }
 #endif
-
-        if (!glfwInit())
-        {
-            throw std::runtime_error("Could not open OpenGL window, please check your graphic drivers or use the textual SDK tools");
-        }
-
-        open_window();
-
-        // Prepare the splash screen and do some initialization in the background
-        int x, y, comp;
-        auto r = stbi_load_from_memory(splash, (int)splash_size, &x, &y, &comp, false);
-        _splash_tex.upload_image(x, y, r);
-        stbi_image_free(r);
-
-        // Apply initial UI state
-        reset();
     }
 
     void ux_window::add_on_load_message(const std::string& msg)

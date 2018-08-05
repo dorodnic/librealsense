@@ -54,6 +54,7 @@ before_install:
       sudo apt-get install -qq python python-dev;
       sudo apt-get install gcc-5 g++-5;
       sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-5 60 --slave /usr/bin/g++ g++ /usr/bin/g++-5;
+      sudo apt-get install -qq mesa-utils libgl1-mesa-glx freeglut3-dev libglew-dev mesa-utils xvfb;
     fi
 
 install:
@@ -90,23 +91,25 @@ install:
 # multi_cam/Recorded_Test_3
 # multi_cam/Recorded_Test_4
 #
+before_script:
+  - "export LIBGL_ALWAYS_SOFTWARE=1"
+  - "export DISPLAY=:99.0"
+  - "sh -e /etc/init.d/xvfb start"
+  - sleep 3 # give xvfb some time to start
+
 script:
   # Exit immediately if a command exits with a non-zero status
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
       set -e;
-      pyenv install 3.6.1;
-      pyenv local `pyenv versions|sed 's/ //g'|grep "^3"|tail -1`;
-
-      cd scripts;
-      ./api_check.sh;
-      cd ..;
 
       mkdir build && cd build;
       cmake .. -DBUILD_EXAMPLES=true -DBUILD_GRAPHICAL_EXAMPLES=true -DENABLE_UI_SCRIPTING=true;
       make -j $CPU_NUM;
       sudo "PATH=$PATH" make install;
 
-      ./tools/realsense-viewer/realsense-viewer.exe -s ../tools/realsense-viewer/tests/test_default_formats.js from ../tools/realsense-viewer/tests/awgc_5992;
+      export LIBGL_DEBUG=verbose;
+      export LIBGL_ALWAYS_SOFTWARE=1;
+      xvfb-run -e /dev/stdout -a realsense-viewer -s ../tools/realsense-viewer/tests/test_default_formats.js from ../tools/realsense-viewer/tests/awgc_5992;
     fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
       mkdir build && cd build;

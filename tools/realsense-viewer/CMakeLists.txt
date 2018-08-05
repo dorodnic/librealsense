@@ -52,7 +52,6 @@ endif()
         list(APPEND RS_VIEWER_CPP 
             ../../third-party/tiny-js/TinyJS.cpp
             ../../third-party/tiny-js/TinyJS_Functions.cpp
-            ../../third-party/tiny-js/TinyJS_MathFunctions.cpp
         )
     endif()
 
@@ -66,7 +65,6 @@ endif()
         source_group("3rd Party" FILES
             ../../third-party/tiny-js/TinyJS.cpp
             ../../third-party/tiny-js/TinyJS_Functions.cpp
-            ../../third-party/tiny-js/TinyJS_MathFunctions.cpp
             ../../third-party/imgui/imgui.cpp
             ../../third-party/imgui/imgui_draw.cpp
             ../../third-party/imgui/imgui_impl_glfw.cpp
