@@ -261,6 +261,7 @@ namespace librealsense
             CASE(HOLES_FILL)
             CASE(AUTO_EXPOSURE_CONVERGE_STEP)
             CASE(INTER_CAM_SYNC_MODE)
+            CASE(HARDWARE_PRESET)
         default: assert(!is_valid(value)); return UNKNOWN_VALUE;
         }
 #undef CASE

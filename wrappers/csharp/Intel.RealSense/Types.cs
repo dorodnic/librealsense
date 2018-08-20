@@ -210,6 +210,7 @@ namespace Intel.RealSense
         StereoBaseline = 40,
         AutoExposureConvergeStep = 41,
         InterCamSyncMode = 42,
+        HardwarePreset = 43
     }
 
     public enum Sr300VisualPreset

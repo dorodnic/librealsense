@@ -967,7 +967,7 @@ namespace librealsense
     const native_pixel_format pf_bayer16                  = { 'BYR2', 1, 2, {  { false,               &copy_pixels<2>,                               { { RS2_STREAM_COLOR,          RS2_FORMAT_RAW16 } } } } };
     const native_pixel_format pf_rw10                     = { 'pRAA', 1, 1, {  { false,               &copy_raw10,                                   { { RS2_STREAM_COLOR,          RS2_FORMAT_RAW10 } } } } };
     // W10 development format will be exposed to the user via Y8
-    const native_pixel_format pf_w10                      = { 'W10 ', 1, 1, {  { true,                &unpack_y8_from_rw10,                        { { { RS2_STREAM_INFRARED, 1 },  RS2_FORMAT_Y8 } } } } };
+    const native_pixel_format pf_w10                      = { 'W10 ', 1, 1, {  { true,                &copy_raw10,                                   { { { RS2_STREAM_INFRARED, 1 },  RS2_FORMAT_RAW10 } } } } };
 
     const native_pixel_format pf_yuy2                     = { 'YUY2', 1, 2, {  { true,                &unpack_yuy2<RS2_FORMAT_RGB8 >,                { { RS2_STREAM_COLOR,          RS2_FORMAT_RGB8 } } },
                                                                                { true,                &unpack_yuy2<RS2_FORMAT_Y16>,                  { { RS2_STREAM_COLOR,          RS2_FORMAT_Y16 } } },
