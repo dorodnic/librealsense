@@ -8,7 +8,8 @@
         Closing="control_Closing"
         Title="Intel RealSense Processing .NET Example" Height="700" Width="1200" x:Name="control">
     <Grid>
-        <Image x:Name="imgDepth" Opacity="0.5" />
-        <Image x:Name="imgColor" Opacity="0.5" />
+        <Image x:Name="imgDepth" Opacity="0.3" />
+        <Image x:Name="imgColor" Opacity="0.3" />
+        <Image x:Name="imgIr" Opacity="0.3" />
     </Grid>
 </Window>

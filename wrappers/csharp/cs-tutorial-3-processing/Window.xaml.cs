@@ -57,12 +57,35 @@ namespace Intel.RealSense
             }));
         }
 
+        private void UploadGreyscaleImage(Image img, VideoFrame frame)
+        {
+            Dispatcher.Invoke(new Action(() =>
+            {
+                if (frame.Width == 0) return;
+
+                var bytes = new byte[frame.Stride * frame.Height];
+                frame.CopyTo(bytes);
+
+                var bs = BitmapSource.Create(frame.Width, frame.Height,
+                                  300, 300,
+                                  PixelFormats.Gray8,
+                                  null,
+                                  bytes,
+                                  frame.Stride);
+
+                var imgSrc = bs as ImageSource;
+
+                img.Source = imgSrc;
+            }));
+        }
+
         public ProcessingWindow()
         {
             try
             {
                 var cfg = new Config();
                 cfg.EnableStream(Stream.Depth, 640, 480);
+                cfg.EnableStream(Stream.Infrared, Format.Y8);
                 cfg.EnableStream(Stream.Color, Format.Rgb8);
                 pipeline.Start(cfg);
 
@@ -88,6 +111,7 @@ namespace Intel.RealSense
 
                         VideoFrame depth = FramesReleaser.ScopedReturn(releaser, frames.DepthFrame);
                         VideoFrame color = FramesReleaser.ScopedReturn(releaser, frames.ColorFrame);
+                        VideoFrame ir = FramesReleaser.ScopedReturn(releaser, frames.InfraredFrame);
 
                         // Apply depth post-processing
                         depth = decimate.ApplyFilter(depth, releaser);
@@ -95,7 +119,7 @@ namespace Intel.RealSense
                         depth = temp.ApplyFilter(depth, releaser);
 
                         // Combine the frames into a single result
-                        var res = src.AllocateCompositeFrame(releaser, depth, color);
+                        var res = src.AllocateCompositeFrame(releaser, depth, color, ir);
                         // Send it to the next processing stage
                         src.FramesReady(res);
                     }
@@ -114,9 +138,11 @@ namespace Intel.RealSense
 
                         var depth_frame = FramesReleaser.ScopedReturn(releaser, frames.DepthFrame);
                         var color_frame = FramesReleaser.ScopedReturn(releaser, frames.ColorFrame);
+                        var ir_frame = FramesReleaser.ScopedReturn(releaser, frames.InfraredFrame);
 
                         UploadImage(imgDepth, colorizer.Colorize(depth_frame, releaser));
                         UploadImage(imgColor, color_frame);
+                        UploadGreyscaleImage(imgIr, ir_frame);
                     }
                 });
 

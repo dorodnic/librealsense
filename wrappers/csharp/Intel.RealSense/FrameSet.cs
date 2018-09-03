@@ -69,6 +69,14 @@ namespace Intel.RealSense
             }
         }
 
+        public VideoFrame InfraredFrame
+        {
+            get
+            {
+                return FirstOrDefault<VideoFrame>(Stream.Infrared);
+            }
+        }
+
         public IEnumerator<Frame> GetEnumerator()
         {
             object error;
