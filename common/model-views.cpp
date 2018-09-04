@@ -1244,6 +1244,13 @@ namespace rs2
                 {
                     //ImGui::NextColumn();
                 }
+                
+                if (streaming && ImGui::Button("Flip Stream Orientation", ImVec2(160, 20)))
+                {
+                    rotate_rgb_image(dev, res_values[ui.selected_res_id].first);
+                    if (ImGui::IsItemHovered())
+                        ImGui::SetTooltip("Rotate Sensor 180 deg");
+                }
             }
         }
 
