@@ -666,7 +666,7 @@ namespace rs2
 
             if (new_log)
             {
-                ImGui::SetScrollPosHere();
+                //TODO: ImGui::SetScrollFromCursorPos();
                 new_log = false;
             }
         }

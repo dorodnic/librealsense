@@ -1,3 +1,6 @@
+#define NOMINMAX
+#include <glad/glad.h>
+
 #include "ux-window.h"
 
 #include "model-views.h"
@@ -9,6 +12,8 @@
 #include "res/int-rs-splash.hpp"
 
 #include "ux-alignment.h"
+
+#include <imgui_impl_opengl3.h>
 
 namespace rs2
 {
@@ -43,6 +48,8 @@ namespace rs2
                 _height = int(mode->height * 0.7f);
             }
         }
+        
+        glfwWindowHint(GLFW_SAMPLES, 4);
 
         // Create GUI Windows
         _win = glfwCreateWindow(_width, _height, _title_str.c_str(),
@@ -51,7 +58,14 @@ namespace rs2
             throw std::runtime_error("Could not open OpenGL window, please check your graphic drivers or use the textual SDK tools");
 
         glfwMakeContextCurrent(_win);
-        ImGui_ImplGlfw_Init(_win, true);
+
+        gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
+
+        ImGui::CreateContext();
+
+        ImGui_ImplGlfw_InitForOpenGL(_win, true);
+        const char* glsl_version = "#version 130";
+        ImGui_ImplOpenGL3_Init(glsl_version);
 
         // Load fonts to be used with the ImGui - TODO move to RAII
         imgui_easy_theming(_font_14, _font_18);
@@ -124,6 +138,10 @@ namespace rs2
     {
         end_frame();
 
+        std::stringstream temp_title;
+        temp_title << _title_str << " FPS: " << ImGui::GetIO().Framerate;
+        glfwSetWindowTitle(_win, temp_title.str().c_str());
+
         // Yield the CPU
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
@@ -159,7 +177,7 @@ namespace rs2
 
 			if (_first_frame)
 			{
-				_is_ui_aligned = is_gui_aligned(_win);
+				_is_ui_aligned = /* TODO: */true;
 				_first_frame = false;
 			}
             glPushMatrix();
@@ -204,9 +222,10 @@ namespace rs2
             ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 1);
             ImGui::PushStyleColor(ImGuiCol_WindowBg, transparent);
             ImGui::SetNextWindowPos({ (float)_width / 2 - 150, (float)_height / 2 + 70 });
-            ImGui::PushFont(_font_18);
+            
             ImGui::SetNextWindowSize({ (float)_width, (float)_height });
             ImGui::Begin("Splash Screen Banner", nullptr, flags);
+            ImGui::PushFont(_font_18);
 
             ImGui::Text("%s   Loading %s...", hourglass.c_str(), _title_str.c_str());
 
@@ -230,8 +249,9 @@ namespace rs2
                 }
             }
 
-            ImGui::End();
             ImGui::PopFont();
+            ImGui::End();
+            
             ImGui::PopStyleColor(3);
             ImGui::PopStyleVar(2);
 
@@ -256,6 +276,8 @@ namespace rs2
             _keep_alive = false;
             _first_load.join();
         }
+
+        end_frame();
 
         ImGui::GetIO().Fonts->ClearFonts();  // To be refactored into Viewer theme object
         ImGui_ImplGlfw_Shutdown();
@@ -324,7 +346,9 @@ namespace rs2
         ImGui::GetIO().MouseWheel = _mouse.ui_wheel;
         _mouse.ui_wheel = 0.f;
 
+        ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame(_scale_factor);
+        ImGui::NewFrame();
     }
 
     void ux_window::begin_viewport()
@@ -333,6 +357,7 @@ namespace rs2
         glViewport(0, 0,
             static_cast<int>(ImGui::GetIO().DisplaySize.x * _scale_factor),
             static_cast<int>(ImGui::GetIO().DisplaySize.y * _scale_factor));
+        glEnable(GL_MULTISAMPLE);
         glClearColor(0, 0, 0, 1);
         glClear(GL_COLOR_BUFFER_BIT);
     }
@@ -342,6 +367,7 @@ namespace rs2
         if (!_first_frame)
         {
             ImGui::Render();
+            ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
             glfwSwapBuffers(_win);
             _mouse.mouse_wheel = 0;

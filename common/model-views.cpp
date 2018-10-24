@@ -145,7 +145,7 @@ namespace rs2
         style.Colors[ImGuiCol_ScrollbarGrab] = scrollbar_grab;
         style.Colors[ImGuiCol_ScrollbarGrabHovered] = scrollbar_grab + 0.1f;
         style.Colors[ImGuiCol_ScrollbarGrabActive] = scrollbar_grab + (-0.1f);
-        style.Colors[ImGuiCol_ComboBg] = dark_window_background;
+        //TODO: style.Colors[ImGuiCol_ComboBg] = dark_window_background;
         style.Colors[ImGuiCol_CheckMark] = regular_blue;
         style.Colors[ImGuiCol_SliderGrab] = regular_blue;
         style.Colors[ImGuiCol_SliderGrabActive] = regular_blue;
@@ -545,18 +545,19 @@ namespace rs2
                         {
                             auto int_value = static_cast<int>(value);
 
-                            if (ImGui::SliderIntWithSteps(id.c_str(), &int_value,
-                                static_cast<int>(range.min),
-                                static_cast<int>(range.max),
-                                static_cast<int>(range.step)))
-                            {
-                                // TODO: Round to step?
-                                value = static_cast<float>(int_value);
-                                model.add_log(to_string() << "Setting " << opt << " to " << value);
-                                endpoint->set_option(opt, value);
-                                *invalidate_flag = true;
-                                res = true;
-                            }
+                            //TODO:
+                            //if (ImGui::SliderIntWithSteps(id.c_str(), &int_value,
+                            //    static_cast<int>(range.min),
+                            //    static_cast<int>(range.max),
+                            //    static_cast<int>(range.step)))
+                            //{
+                            //    // TODO: Round to step?
+                            //    value = static_cast<float>(int_value);
+                            //    model.add_log(to_string() << "Setting " << opt << " to " << value);
+                            //    endpoint->set_option(opt, value);
+                            //    *invalidate_flag = true;
+                            //    res = true;
+                            //}
                         }
                         else
                         {
@@ -2769,7 +2770,7 @@ namespace rs2
 
     void stream_model::show_metadata(const mouse_info& g)
     {
-        auto flags = ImGuiWindowFlags_ShowBorders;
+        auto flags = ImGuiWindowFlags_NoSavedSettings;
 
         ImGui::PushStyleColor(ImGuiCol_WindowBg, { 0.3f, 0.3f, 0.3f, 0.5 });
         ImGui::PushStyleColor(ImGuiCol_TitleBg, { 0.f, 0.25f, 0.3f, 1 });
@@ -2915,7 +2916,7 @@ namespace rs2
         ImGui::SetNextWindowSize({ w, h });
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
         is_output_collapsed = ImGui::Begin("Output", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-            ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_ShowBorders);
+            ImGuiWindowFlags_NoSavedSettings);
 
         int i = 0;
         not_model.foreach_log([&](const std::string& line) {
@@ -2926,7 +2927,7 @@ namespace rs2
             ImGui::SetCursorPos({ rc.x + 10, rc.y + 4 });
 
             ImGui::PushStyleColor(ImGuiCol_Text, light_grey);
-            ImGui::Icon(textual_icons::minus); ImGui::SameLine();
+            ImGui::Text(textual_icons::minus); ImGui::SameLine();
             ImGui::PopStyleColor();
 
             rc = ImGui::GetCursorPos();
@@ -4450,7 +4451,7 @@ namespace rs2
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, sensor_bg);
 
         label = to_string() << "## " << id;
-        if (ImGui::Combo(label.c_str(), &playback_speed_index, "Speed:   x0.25\0Speed:   x0.5\0Speed:   x1\0Speed:   x1.5\0Speed:   x2\0\0", -1, false))
+        if (ImGui::Combo(label.c_str(), &playback_speed_index, "Speed:   x0.25\0Speed:   x0.5\0Speed:   x1\0Speed:   x1.5\0Speed:   x2\0\0", -1))
         {
             float speed = 1;
             switch (playback_speed_index)
@@ -4523,17 +4524,18 @@ namespace rs2
         float seek_bar_width = 300.f;
         ImGui::PushItemWidth(seek_bar_width);
         std::string label1 = "## " + id;
-        if (ImGui::SeekSlider(label1.c_str(), &seek_pos, ""))
-        {
-            //Seek was dragged
-            if (playback_status != RS2_PLAYBACK_STATUS_STOPPED) //Ignore seek when playback is stopped
-            {
-                auto duration_db = std::chrono::duration_cast<std::chrono::duration<double, std::nano>>(p.get_duration());
-                auto single_percent = duration_db.count() / 100;
-                auto seek_time = std::chrono::duration<double, std::nano>(seek_pos * single_percent);
-                p.seek(std::chrono::duration_cast<std::chrono::nanoseconds>(seek_time));
-            }
-        }
+        //TODO
+        //if (ImGui::SeekSlider(label1.c_str(), &seek_pos, ""))
+        //{
+        //    //Seek was dragged
+        //    if (playback_status != RS2_PLAYBACK_STATUS_STOPPED) //Ignore seek when playback is stopped
+        //    {
+        //        auto duration_db = std::chrono::duration_cast<std::chrono::duration<double, std::nano>>(p.get_duration());
+        //        auto single_percent = duration_db.count() / 100;
+        //        auto seek_time = std::chrono::duration<double, std::nano>(seek_pos * single_percent);
+        //        p.seek(std::chrono::duration_cast<std::chrono::nanoseconds>(seek_time));
+        //    }
+        //}
 
         ImGui::SetCursorPos({ pos.x, pos.y + 17 });
 
@@ -4989,15 +4991,16 @@ namespace rs2
         //Move to next line, and we want to keep the horizontal alignment
         ImGui::SetCursorPos({ panel_pos.x, ImGui::GetCursorPosY() });
         //Using transparent-non-actionable buttons to have the same locations
-        ImGui::PushStyleColor(ImGuiCol_Button, ImColor(0, 0, 0, 0));
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImColor(0, 0, 0, 0));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImColor(0,0,0,0));
+        //TODO
+        //ImGui::PushStyleColor(ImGuiCol_Button, ImColor(0, 0, 0, 0));
+        //ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImColor(0, 0, 0, 0));
+        //ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImColor(0,0,0,0));
         const ImVec2 device_panel_icons_text_size = { icons_width, 5 };
         ImGui::ButtonEx(is_recording ? "Stop" : "Record", device_panel_icons_size, (!is_streaming ? ImGuiButtonFlags_Disabled : 0));
         ImGui::SameLine();  ImGui::ButtonEx("Sync", device_panel_icons_size, ImGuiButtonFlags_Disabled);
         ImGui::SameLine(); ImGui::ButtonEx("Info", device_panel_icons_size);
         ImGui::SameLine(); ImGui::ButtonEx("More", device_panel_icons_size);
-        ImGui::PopStyleColor(3);
+        //ImGui::PopStyleColor(3);
 
         ImGui::PopStyleVar();
         ImGui::PopStyleColor(7);
@@ -5590,7 +5593,7 @@ namespace rs2
         auto header_h = panel_height;
         if (is_playback_device) header_h += 15;
 
-        ImColor device_header_background_color = title_color;
+        auto device_header_background_color = title_color;
         const float left_space = 3.f;
         const float upper_space = 3.f;
 
@@ -5603,7 +5606,7 @@ namespace rs2
             ImGui::GetWindowDrawList()->AddLine({ initial_screen_pos.x,initial_screen_pos.y + upper_space }, { initial_screen_pos.x + panel_width,initial_screen_pos.y + upper_space }, ImColor(header_color));
         }
         //Device Header area
-        ImGui::GetWindowDrawList()->AddRectFilled({ initial_screen_pos.x + 1,initial_screen_pos.y + upper_space + 1 }, { initial_screen_pos.x + panel_width, initial_screen_pos.y + header_h + upper_space }, device_header_background_color);
+        ImGui::GetWindowDrawList()->AddRectFilled({ initial_screen_pos.x + 1,initial_screen_pos.y + upper_space + 1 }, { initial_screen_pos.x + panel_width, initial_screen_pos.y + header_h + upper_space }, ImU32(1)  /* TODO:, device_header_background_color*/);
 
         auto pos = ImGui::GetCursorPos();
         ImGui::PushFont(window.get_large_font());
@@ -6397,21 +6400,22 @@ namespace rs2
     // Pops the 6 colors that were pushed in set_color_scheme
     void notification_model::unset_color_scheme() const
     {
-        ImGui::PopStyleColor(6);
+        ImGui::PopStyleColor(3);
     }
 
     /* Sets color scheme for notifications, must be used with unset_color_scheme to pop all colors in the end
        Parameter t indicates the transparency of the nofication interface */
     void notification_model::set_color_scheme(float t) const
     {
-        ImGui::PushStyleColor(ImGuiCol_CloseButton, { 0, 0, 0, 0 });
-        ImGui::PushStyleColor(ImGuiCol_CloseButtonActive, { 0, 0, 0, 0 });
+        //TODO:
+        //ImGui::PushStyleColor(ImGuiCol_CloseButton, { 0, 0, 0, 0 });
+        //ImGui::PushStyleColor(ImGuiCol_CloseButtonActive, { 0, 0, 0, 0 });
         if (category == RS2_NOTIFICATION_CATEGORY_FIRMWARE_UPDATE_RECOMMENDED)
         {
             ImGui::PushStyleColor(ImGuiCol_WindowBg, { 33/255.f, 40/255.f, 46/255.f, 1 - t });
             ImGui::PushStyleColor(ImGuiCol_TitleBg, { 62 / 255.f, 77 / 255.f, 89 / 255.f, 1 - t });
             ImGui::PushStyleColor(ImGuiCol_TitleBgActive, { 62 / 255.f, 77 / 255.f, 89 / 255.f, 1 - t });
-            ImGui::PushStyleColor(ImGuiCol_CloseButtonHovered, { 62 / 255.f + 0.1f, 77 / 255.f + 0.1f, 89 / 255.f + 0.1f, 1 - t });
+            //ImGui::PushStyleColor(ImGuiCol_CloseButtonHovered, { 62 / 255.f + 0.1f, 77 / 255.f + 0.1f, 89 / 255.f + 0.1f, 1 - t });
         }
         else
         {
@@ -6421,14 +6425,14 @@ namespace rs2
                 ImGui::PushStyleColor(ImGuiCol_WindowBg, { 0.3f, 0.f, 0.f, 1 - t });
                 ImGui::PushStyleColor(ImGuiCol_TitleBg, { 0.5f, 0.2f, 0.2f, 1 - t });
                 ImGui::PushStyleColor(ImGuiCol_TitleBgActive, { 0.6f, 0.2f, 0.2f, 1 - t });
-                ImGui::PushStyleColor(ImGuiCol_CloseButtonHovered, { 0.5f + 0.1f, 0.2f + 0.1f, 0.2f + 0.1f, 1 - t });
+                //ImGui::PushStyleColor(ImGuiCol_CloseButtonHovered, { 0.5f + 0.1f, 0.2f + 0.1f, 0.2f + 0.1f, 1 - t });
             }
             else
             {
                 ImGui::PushStyleColor(ImGuiCol_WindowBg, { 0.3f, 0.3f, 0.3f, 1 - t });
                 ImGui::PushStyleColor(ImGuiCol_TitleBg, { 0.4f, 0.4f, 0.4f, 1 - t });
                 ImGui::PushStyleColor(ImGuiCol_TitleBgActive, { 0.6f, 0.6f, 0.6f, 1 - t });
-                ImGui::PushStyleColor(ImGuiCol_CloseButtonHovered, { 0.6f + 0.1f, 0.6f + 0.1f, 0.6f + 0.1f, 1 - t });
+                //ImGui::PushStyleColor(ImGuiCol_CloseButtonHovered, { 0.6f + 0.1f, 0.6f + 0.1f, 0.6f + 0.1f, 1 - t });
             }
         }
     }

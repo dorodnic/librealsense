@@ -38,8 +38,10 @@ endif()
             ../../third-party/imgui/imgui.cpp
             ../../third-party/imgui/imgui_draw.cpp
             ../../third-party/imgui/imgui_impl_glfw.cpp
+            ../../third-party/imgui/imgui_impl_opengl3.cpp
             ../../third-party/imgui/imgui-fonts-karla.hpp
             ../../third-party/imgui/imgui-fonts-fontawesome.hpp
+            ../../third-party/glad/glad.c
             ../../common/rendering.h
             ../../common/model-views.h
             ../../common/model-views.cpp
@@ -67,7 +69,7 @@ endif()
                 ${CMAKE_CURRENT_SOURCE_DIR}/res/resource.h
                 ${CMAKE_CURRENT_SOURCE_DIR}/res/realsense-viewer.rc)
 
-        include_directories(realsense-viewer ../../third-party/imgui ../../common ../../third-party ${CMAKE_CURRENT_SOURCE_DIR}/res/)
+        include_directories(realsense-viewer ../../third-party/imgui ../../third-party/glad ../../common ../../third-party ${CMAKE_CURRENT_SOURCE_DIR}/res/)
     else()
         add_executable(realsense-viewer ${RS_VIEWER_CPP})
         include_directories(realsense-viewer ../../third-party/imgui ../../common ../../third-party)
