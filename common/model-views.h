@@ -8,6 +8,9 @@
 #include "ux-window.h"
 #include "parser.hpp"
 
+#include <gl/pc-shader.h>
+#include <gl/camera-shader.h>
+
 #define GLFW_INCLUDE_GLU
 #include <GLFW/glfw3.h>
 #include <imgui.h>
@@ -475,6 +478,14 @@ namespace rs2
         return j == suffix.rend();
     }
 
+    inline bool starts_with(const std::string& s, const std::string& prefix)
+    {
+        auto i = s.begin(), j = prefix.begin();
+        for (; i != s.end() && j != prefix.end() && *i == *j;
+            i++, j++);
+        return j == prefix.end();
+    }
+
     void outline_rect(const rect& r);
     void draw_rect(const rect& r, int line_width = 1);
 
@@ -581,7 +592,7 @@ namespace rs2
         std::set<std::string> advanced_mode_settings_file_names;
         std::string selected_file_preset;
     private:
-        void draw_info_icon(const ImVec2& size);
+        void draw_info_icon(ImFont* font, const ImVec2& size);
         int draw_seek_bar();
         int draw_playback_controls(ImFont* font, viewer_model& view);
         advanced_mode_control amc;
@@ -968,7 +979,6 @@ namespace rs2
 
         float dim_level = 1.f;
 
-
         bool continue_with_ui_not_aligned = false;
     private:
         struct rgb {
@@ -1010,7 +1020,8 @@ namespace rs2
         rs2::points last_points;
         texture_buffer* last_texture;
         texture_buffer texture;
-
+        pointcloud_shader pc_shader;
+        camera_shader cam_shader;
     };
 
     void export_to_ply(const std::string& file_name, notifications_model& ns, frameset points, video_frame texture, bool notify = true);

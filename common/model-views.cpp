@@ -17,6 +17,10 @@
 #include "model-views.h"
 #include <imgui_internal.h>
 
+#include <gl/loader.h>
+#include <gl/vao.h>
+#include <gl/pc-shader.h>
+
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image_write.h>
 
@@ -25,6 +29,13 @@
 
 #define ARCBALL_CAMERA_IMPLEMENTATION
 #include <arcball_camera.h>
+
+#include "rendering.h"
+namespace rs2
+{
+    #include <res/d435.h>
+    #include <res/d415.h>
+}
 
 constexpr const char* recommended_fw_url = "https://downloadcenter.intel.com/download/27522/Latest-Firmware-for-Intel-RealSense-D400-Product-Family?v=t";
 constexpr const char* store_url = "https://click.intel.com/";
@@ -55,6 +66,10 @@ ImVec4 operator+(const ImVec4& c, float v)
         std::max(0.f, std::min(1.f, c.w))
     );
 }
+
+#if (defined(_WIN32) || defined(_WIN64))
+#include "ShellAPI.h"
+#endif
 
 void open_url(const char* url)
 {
@@ -100,7 +115,7 @@ namespace rs2
 
         ImGuiIO& io = ImGui::GetIO();
 
-        const auto OVERSAMPLE = 1;
+        const auto OVERSAMPLE = 4;
 
         static const ImWchar icons_ranges[] = { 0xf000, 0xf3ff, 0 }; // will not be copied by AddFont* so keep in scope.
 
@@ -3838,14 +3853,20 @@ namespace rs2
         glClearColor(0, 0, 0, 1);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+        matrix4 perspective_mat = create_perspective_projection_matrix(viewer_rect.w, viewer_rect.h, 60, 0.001f, 100.f);
+
         glMatrixMode(GL_PROJECTION);
         glPushMatrix();
-        glLoadIdentity();
-        gluPerspective(60, (float)viewer_rect.w / viewer_rect.h, 0.001f, 100.0f);
+        glLoadMatrixf((float*)perspective_mat.mat);
 
         glMatrixMode(GL_MODELVIEW);
         glPushMatrix();
         glLoadMatrixf(view);
+
+        matrix4 view_mat;
+        memcpy(&view_mat, view, sizeof(matrix4));
+        //gluPerspective(60, (float)viewer_rect.w / viewer_rect.h, 0.001f, 100.0f);
+
 
         glDisable(GL_TEXTURE_2D);
 
@@ -3983,10 +4004,9 @@ namespace rs2
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, texture_border_mode);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, texture_border_mode);
 
-            //glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, tex_border_color);
-
             auto vertices = last_points.get_vertices();
             auto tex_coords = last_points.get_texture_coordinates();
+            
             if (!render_quads)
             {
                 glBegin(GL_POINTS);
@@ -4002,25 +4022,69 @@ namespace rs2
             }
             else
             {
-                // Visualization with quads produces better results but requires further optimization
-                glBegin(GL_QUADS);
+				auto width = vf_profile.width(), height = vf_profile.height();
+				
+				static int last_w = 0;
+				static int last_h = 0;
+				static std::unique_ptr<texture_buffer> uvs;
+                static std::unique_ptr<texture_buffer> positions;
+				static std::unique_ptr<vao> model;
+                static std::unique_ptr<vao> camera;
+                static int last_fn = -1;
+				if (width != last_w || height != last_h)
+				{
+                    obj_mesh camera_mesh;
+					obj_mesh mesh = make_grid(height, width, 1.f / height, 1.f / height);
+                    uncompress_d435_obj(camera_mesh.positions, camera_mesh.normals, camera_mesh.indexes);
 
-                const auto threshold = 0.05f;
-                auto width = vf_profile.width(), height = vf_profile.height();
-                for (int x = 0; x < width - 1; ++x) {
-                    for (int y = 0; y < height - 1; ++y) {
-                        auto a = y * width + x, b = y * width + x + 1, c = (y + 1)*width + x, d = (y + 1)*width + x + 1;
-                        if (vertices[a].z && vertices[b].z && vertices[c].z && vertices[d].z
-                            && abs(vertices[a].z - vertices[b].z) < threshold && abs(vertices[a].z - vertices[c].z) < threshold
-                            && abs(vertices[b].z - vertices[d].z) < threshold && abs(vertices[c].z - vertices[d].z) < threshold) {
-                            glVertex3fv(vertices[a]); glTexCoord2fv(tex_coords[a]);
-                            glVertex3fv(vertices[b]); glTexCoord2fv(tex_coords[b]);
-                            glVertex3fv(vertices[d]); glTexCoord2fv(tex_coords[d]);
-                            glVertex3fv(vertices[c]); glTexCoord2fv(tex_coords[c]);
-                        }
+                    for (auto& xyz : camera_mesh.positions)
+                    {
+                        xyz = xyz / 1000.f;
                     }
+
+                    model.reset(); camera.reset();
+                    positions.reset(); uvs.reset();
+					model = vao::create(mesh);
+                    camera = vao::create(camera_mesh);
+					last_w = width; last_h = height;
+					positions = std::unique_ptr<texture_buffer>(new texture_buffer());
+                    uvs = std::unique_ptr<texture_buffer>(new texture_buffer());
+				}
+				
+                if (last_points.get_frame_number() != last_fn)
+                {
+                    positions->upload(last_points, RS2_FORMAT_XYZ32F);
+                    uvs->upload(last_points, RS2_FORMAT_Z16);
+                    last_fn = last_points.get_frame_number();
                 }
-                glEnd();
+
+                pc_shader.begin();
+                pc_shader.set_mvp(identity_matrix(), view_mat, perspective_mat);
+                pc_shader.set_image_size(width, height);
+
+                glActiveTexture(GL_TEXTURE0 + pc_shader.texture_slot());
+                tex = last_texture->get_gl_handle();
+                glBindTexture(GL_TEXTURE_2D, tex);
+
+                glActiveTexture(GL_TEXTURE0 + pc_shader.geometry_slot());
+                glBindTexture(GL_TEXTURE_2D, positions->get_gl_handle());
+
+                glActiveTexture(GL_TEXTURE0 + pc_shader.uvs_slot());
+                glBindTexture(GL_TEXTURE_2D, uvs->get_gl_handle());
+				model->draw();
+                glActiveTexture(GL_TEXTURE0 + pc_shader.texture_slot());
+                glBindTexture(GL_TEXTURE_2D, 0);
+                pc_shader.end();
+
+                glDisable(GL_DEPTH_TEST);
+                glEnable(GL_BLEND);
+                glBlendFunc(GL_ONE, GL_ONE);
+                cam_shader.begin();
+                cam_shader.set_mvp(identity_matrix(), view_mat, perspective_mat);
+                camera->draw();
+                cam_shader.end();
+                glDisable(GL_BLEND);
+                glEnable(GL_DEPTH_TEST);
             }
         }
 
@@ -4459,7 +4523,7 @@ namespace rs2
 
         ////////////////////    Info Icon    ////////////////////
         ImGui::SetCursorPosX(ImGui::GetCursorPosX() + space_width);
-        draw_info_icon(button_dim);
+        draw_info_icon(font, button_dim);
         ////////////////////    Info Icon    ////////////////////
 
         ImGui::PopFont();
@@ -4758,7 +4822,7 @@ namespace rs2
         return was_set;
     }
 
-    void device_model::draw_info_icon(const ImVec2& size)
+    void device_model::draw_info_icon(ImFont* font, const ImVec2& size)
     {
         std::string info_button_name = to_string() << textual_icons::info_circle << "##" << id;
         auto info_button_color = show_device_info ? light_blue : light_grey;
@@ -4856,7 +4920,7 @@ namespace rs2
         ////////////////////////////////////////
         // Draw Info icon
         ////////////////////////////////////////
-        draw_info_icon(device_panel_icons_size);
+        draw_info_icon(window.get_font(), device_panel_icons_size);
         ImGui::SameLine();
 
         ////////////////////////////////////////
@@ -5598,10 +5662,28 @@ namespace rs2
         ImGui::SetCursorPos(name_pos);
         std::stringstream ss;
         ss << dev.get_info(RS2_CAMERA_INFO_NAME);
-        if (dev.supports(RS2_CAMERA_INFO_USB_TYPE_DESCRIPTOR))
-            ss << "   " << textual_icons::usb_type << " " << dev.get_info(RS2_CAMERA_INFO_USB_TYPE_DESCRIPTOR);
-
         ImGui::Text(" %s", ss.str().c_str());
+        if (dev.supports(RS2_CAMERA_INFO_USB_TYPE_DESCRIPTOR))
+        {
+            std::string desc = dev.get_info(RS2_CAMERA_INFO_USB_TYPE_DESCRIPTOR);
+            ss.str("");
+            ss << "   " << textual_icons::usb_type << " " << desc;
+            ImGui::SameLine();
+            if (!starts_with(desc, "3.")) ImGui::PushStyleColor(ImGuiCol_Text, yellow);
+            else ImGui::PushStyleColor(ImGuiCol_Text, light_grey);
+            ImGui::Text(" %s", ss.str().c_str());
+            ImGui::PopStyleColor();
+            ss.str("");
+            ss << "The camera was detected by the OS as connected to a USB " << desc << " port";
+            ImGui::PushFont(window.get_font());
+            ImGui::PushStyleColor(ImGuiCol_Text, light_grey);
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip(" %s", ss.str().c_str());
+            ImGui::PopStyleColor();
+            ImGui::PopFont();
+        }
+
+        
         //ImGui::Text(" %s", dev.get_info(RS2_CAMERA_INFO_NAME));
         ImGui::PopFont();
 

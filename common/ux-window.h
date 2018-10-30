@@ -1,14 +1,17 @@
 #pragma once
 
 #define GLFW_INCLUDE_GLU
-
 #include <GLFW/glfw3.h>
+
 #include "imgui.h"
 #include <string>
 #include <functional>
 #include <thread>
 #include "rendering.h"
 #include <atomic>
+#include <memory>
+
+#include <gl/texture-2d-shader.h>
 
 namespace rs2
 {
@@ -94,6 +97,7 @@ namespace rs2
         bool                     _fullscreen_pressed = false;
         bool                     _fullscreen = false;
         std::string              _title;
+        std::shared_ptr<visualizer_2d> _2d_vis;
 
         bool                     _is_ui_aligned = false;
     };
