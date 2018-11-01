@@ -22,6 +22,7 @@
 #include <cmath>
 #include <map>
 #include <mutex>
+#include <algorithm>
 
 #include <yuy2rgb.h>
 
@@ -1125,6 +1126,8 @@ namespace rs2
                                         colorized_frame.get_height(),
                                         0, GL_RGB, GL_UNSIGNED_BYTE,
                                         colorized_frame.get_data());
+
+
                         
                         rendered_frame = colorized_frame;
                     }

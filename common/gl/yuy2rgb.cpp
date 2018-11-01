@@ -1,12 +1,15 @@
 #include "yuy2rgb.h"
 
-#include <glad/glad.h>
+#define NOMINMAX
 
-#include "texture-2d-shader.h"
+#include <glad/glad.h>
 
 #include <iostream>
 
 #include <chrono>
+#include <strstream>
+
+#include "texture-2d-shader.h"
 
 static const char* fragment_shader_text =
 "#version 110\n"
@@ -21,7 +24,7 @@ static const char* fragment_shader_text =
 "    float y = 0.0;\n"
 "    float u = 0.0;\n"
 "    float v = 0.0;\n"
-"    float tex_y = 1.0 - textCoords.y - pixel_height;\n"
+"    float tex_y = 1.0 - textCoords.y;\n"
 "    if (mod(floor(gl_FragCoord.x), 2.0) == 0.0){\n"
 "        vec2 tx1 = vec2(textCoords.x, tex_y);\n"
 "        vec4 px1 = texture2D(textureSampler, tx1);\n"
@@ -42,11 +45,17 @@ static const char* fragment_shader_text =
 "    float d = u - 0.5;\n"
 "    float e = v - 0.5;\n"
 "    vec3 color = vec3(0.0);\n"
-"    color.x = clamp(((298.0 / 256.0) * c + (409.0 / 256.0) * e + 0.5), 0.0, 1.0);\n"
-"    color.y = clamp(((298.0 / 256.0) * c - (100.0 / 256.0) * d - (208.0/256.0) * e + 0.5), 0.0, 1.0);\n"
-"    color.z = clamp(((298.0 / 256.0) * c + (516.0 / 256.0) * d + 0.5), 0.0, 1.0);\n"
+"    //color.x = clamp(((298.0 / 256.0) * c + (409.0 / 256.0) * e + 0.5), 0.0, 1.0);\n"
+"    //color.y = clamp(((298.0 / 256.0) * c - (100.0 / 256.0) * d - (208.0/256.0) * e + 0.5), 0.0, 1.0);\n"
+"    //color.z = clamp(((298.0 / 256.0) * c + (516.0 / 256.0) * d + 0.5), 0.0, 1.0);\n"
+"    color.x = clamp((y + 1.40200 * (v - 0.5)), 0.0, 1.0);\n"
+"    color.y = clamp((y - 0.34414 * (u - 0.5) - 0.71414 * (v - 0.5)), 0.0, 1.0);\n"
+"    color.z = clamp((y + 1.77200 * (u - 0.5)), 0.0, 1.0);\n"
 "    gl_FragColor = vec4(color.xyz, opacity);\n"
 "}";
+
+// 3rd party header for writing png files
+#include "stb_image_write.h"
 
 using namespace rs2;
 
@@ -140,11 +149,11 @@ void yuy2rgb::on_frame(frame f, frame_source& src)
     shader.end();
     _viz->draw_texture(_yuy_texture);
 
-    auto res = src.allocate_video_frame(_output_profile, f, 24);
+    auto res = src.allocate_video_frame(_output_profile, f, 3, _width, _height, _width * 3);
 
     glReadBuffer(GL_COLOR_ATTACHMENT0);
 
-    glReadPixels(0, 0, _width, _height, GL_RGB, GL_BYTE, (void*)res.get_data());
+    glReadPixels(0, 0, _width, _height, GL_RGB, GL_UNSIGNED_BYTE, (void*)res.get_data());
     
     _fbo->unbind();
 
@@ -152,7 +161,18 @@ void yuy2rgb::on_frame(frame f, frame_source& src)
     glBindTexture(GL_TEXTURE_2D, 0);
     src.frame_ready(res);
 
+    //auto vf = res.as<rs2::video_frame>();
+
+    //auto fw = vf.get_width();
+    //auto fh = vf.get_height();
+    //auto fbpp = vf.get_bytes_per_pixel();
+    //auto fstride = vf.get_stride_in_bytes();
+
+    //stbi_write_png("1.png", fw, fh,
+    //    fbpp, vf.get_data(), fstride);
+
     auto end = std::chrono::high_resolution_clock::now();
     auto ms = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-    std::cout << ms << std::endl;
+    std::stringstream ss; ss << ms << std::endl;
+    OutputDebugStringA(ss.str().c_str());
 }
