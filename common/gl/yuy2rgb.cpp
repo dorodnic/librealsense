@@ -14,34 +14,37 @@ static const char* fragment_shader_text =
 "uniform sampler2D textureSampler;\n"
 "uniform float opacity;\n"
 "uniform float width;\n"
+"uniform float height;\n"
 "void main(void) {\n"
-"    float pixel_size = 1.0 / width;\n"
+"    float pixel_width = 1.0 / width;\n"
+"    float pixel_height = 1.0 / height;\n"
 "    float y = 0.0;\n"
 "    float u = 0.0;\n"
 "    float v = 0.0;\n"
+"    float tex_y = 1.0 - textCoords.y - pixel_height;\n"
 "    if (mod(floor(gl_FragCoord.x), 2.0) == 0.0){\n"
-"        vec2 tx1 = vec2(textCoords.x, 1.0 - textCoords.y);\n"
+"        vec2 tx1 = vec2(textCoords.x, tex_y);\n"
 "        vec4 px1 = texture2D(textureSampler, tx1);\n"
-"        vec2 tx2 = vec2(textCoords.x + pixel_size, 1.0 - textCoords.y);\n"
+"        vec2 tx2 = vec2(textCoords.x + pixel_width, tex_y);\n"
 "        vec4 px2 = texture2D(textureSampler, tx2);\n"
 "        y = px1.x; u = px1.y; v = px2.y;\n"
 "    }\n"
 "    else\n"
 "    {\n"
-"        vec2 tx1 = vec2(textCoords.x - pixel_size, 1.0 - textCoords.y);\n"
+"        vec2 tx1 = vec2(textCoords.x - pixel_width, tex_y);\n"
 "        vec4 px1 = texture2D(textureSampler, tx1);\n"
-"        vec2 tx2 = vec2(textCoords.x, 1.0 - textCoords.y);\n"
+"        vec2 tx2 = vec2(textCoords.x, tex_y);\n"
 "        vec4 px2 = texture2D(textureSampler, tx2);\n"
 "        y = px2.x; u = px1.y; v = px2.y;\n"
 "    }\n"
-"    y *= 256.0; u *= 256.0; v *= 256.0;\n"
-"    float c = y - 16.0;\n"
-"    float d = u - 128.0;\n"
-"    float e = v - 128.0;\n"
+"    //y *= 256.0; u *= 256.0; v *= 256.0;\n"
+"    float c = y - (16.0 / 256.0);\n"
+"    float d = u - 0.5;\n"
+"    float e = v - 0.5;\n"
 "    vec3 color = vec3(0.0);\n"
-"    color.x = clamp((298.0 * c + 409.0 * e + 128.0) / 65536.0, 0.0, 1.0);\n"
-"    color.y = clamp((298.0 * c - 100.0 * d - 208.0 * e + 128.0) / 65536.0, 0.0, 1.0);\n"
-"    color.z = clamp((298.0 * c + 516.0 * d + 128.0) / 65536.0, 0.0, 1.0);\n"
+"    color.x = clamp(((298.0 / 256.0) * c + (409.0 / 256.0) * e + 0.5), 0.0, 1.0);\n"
+"    color.y = clamp(((298.0 / 256.0) * c - (100.0 / 256.0) * d - (208.0/256.0) * e + 0.5), 0.0, 1.0);\n"
+"    color.z = clamp(((298.0 / 256.0) * c + (516.0 / 256.0) * d + 0.5), 0.0, 1.0);\n"
 "    gl_FragColor = vec4(color.xyz, opacity);\n"
 "}";
 
@@ -54,15 +57,18 @@ public:
         : texture_2d_shader(fragment_shader_text)
     {
         _width_location = _shader->get_uniform_location("width");
+        _height_location = _shader->get_uniform_location("height");
     }
 
-    void set_width(int w) 
+    void set_size(int w, int h) 
     {
         _shader->load_uniform(_width_location, (float)w);
+        _shader->load_uniform(_height_location, (float)h);
     }
 
 private:
     uint32_t _width_location;
+    uint32_t _height_location;
 };
 
 yuy2rgb::yuy2rgb()
@@ -129,7 +135,9 @@ void yuy2rgb::on_frame(frame f, frame_source& src)
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     auto& shader = (yuy2rgb_shader&)_viz->get_shader();
-    shader.set_width(_width);
+    shader.begin();
+    shader.set_size(_width, _height);
+    shader.end();
     _viz->draw_texture(_yuy_texture);
 
     auto res = src.allocate_video_frame(_output_profile, f, 24);
