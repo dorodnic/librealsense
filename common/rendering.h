@@ -23,6 +23,8 @@
 #include <map>
 #include <mutex>
 
+#include <yuy2rgb.h>
+
 #ifdef _MSC_VER
 #ifndef GL_CLAMP_TO_BORDER
 #define GL_CLAMP_TO_BORDER  0x812D
@@ -988,6 +990,7 @@ namespace rs2
         mutable rs2::frame last[2];
     public:
         std::shared_ptr<colorizer> colorize;
+        std::shared_ptr<yuy2rgb> rgbize;
         bool zoom_preview = false;
         rect curr_preview_rect{};
 
@@ -1107,8 +1110,24 @@ namespace rs2
 				case RS2_FORMAT_XYZ32F:
 					glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_FLOAT, data);
 					break;
-				case RS2_FORMAT_YUYV: // Display YUYV by showing the luminance channel and packing chrominance into ignored alpha channel
-					glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_LUMINANCE_ALPHA, GL_UNSIGNED_BYTE, data);
+				case RS2_FORMAT_YUYV:
+					if (auto colorized_frame = rgbize->process(frame).as<video_frame>())
+                    {
+                        glBindTexture(GL_TEXTURE_2D, texture);
+                        data = colorized_frame.get_data();
+
+                        int w = colorized_frame.get_width();
+
+                        // Override the first pixel in the colorized image for occlusion invalidation.
+                        memset((void*)data, 0, colorized_frame.get_bytes_per_pixel());
+                        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
+                                        colorized_frame.get_width(),
+                                        colorized_frame.get_height(),
+                                        0, GL_RGB, GL_UNSIGNED_BYTE,
+                                        colorized_frame.get_data());
+                        
+                        rendered_frame = colorized_frame;
+                    }
 					break;
 				case RS2_FORMAT_UYVY: // Use luminance component only to avoid costly UVUY->RGB conversion
 					glTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE, width, height, 0, GL_LUMINANCE, GL_UNSIGNED_SHORT, data);

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "rendering.h"
+#include <string>
 
 namespace rs2
 {
@@ -9,9 +9,9 @@ namespace rs2
     public:
         fbo(int w, int h);
 
-        void createTextureAttachment(texture_buffer& color_tex);
+        void createTextureAttachment(uint32_t texture);
 
-        void createDepthTextureAttachment(texture_buffer& depth_tex);
+        void createDepthTextureAttachment(uint32_t texture);
 
         void bind();
 

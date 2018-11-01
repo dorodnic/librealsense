@@ -1,6 +1,5 @@
 #pragma once
 
-#include "rendering.h"
 #include "vbo.h"
 #include "loader.h"
 
@@ -8,6 +7,10 @@
 
 namespace rs2
 {
+    struct float3;
+    struct float2;
+    struct int3;
+
     class vao
     {
     public:

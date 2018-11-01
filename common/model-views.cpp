@@ -828,6 +828,7 @@ namespace rs2
         : s(s), dev(dev), ui(), last_valid_ui(),
         streaming(false), _pause(false),
         depth_colorizer(std::make_shared<rs2::colorizer>()),
+        yuy_rgbizer(std::make_shared<rs2::yuy2rgb>()),
         decimation_filter(),
         spatial_filter(),
         temporal_filter(),
@@ -1664,6 +1665,7 @@ namespace rs2
 
         profile = p;
         texture->colorize = d->depth_colorizer;
+        texture->rgbize = d->yuy_rgbizer;
 
         if (auto vd = p.as<video_stream_profile>())
         {
@@ -3847,7 +3849,7 @@ namespace rs2
                 last_texture = texture;
             }
         }
-        glViewport(static_cast<GLint>(viewer_rect.x), 0,
+        glViewport(static_cast<GLint>(viewer_rect.x), static_cast<GLint>(viewer_rect.y),
             static_cast<GLsizei>(viewer_rect.w), static_cast<GLsizei>(viewer_rect.h));
 
         glClearColor(0, 0, 0, 1);

@@ -1,5 +1,7 @@
 #include "fbo.h"
 
+#include <glad/glad.h>
+
 using namespace rs2;
 
 fbo::fbo(int w, int h) : _w(w), _h(h)
@@ -9,18 +11,16 @@ fbo::fbo(int w, int h) : _w(w), _h(h)
     glDrawBuffer(GL_COLOR_ATTACHMENT0);
 }
 
-void fbo::createTextureAttachment(texture_buffer& color_tex)
+void fbo::createTextureAttachment(uint32_t handle)
 {
-    auto handle = color_tex.get_gl_handle();
     glBindTexture(GL_TEXTURE_2D, handle);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, _w, _h, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, _w, _h, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
     glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, handle, 0);
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-void fbo::createDepthTextureAttachment(texture_buffer& depth_tex)
+void fbo::createDepthTextureAttachment(uint32_t handle)
 {
-    auto handle = depth_tex.get_gl_handle();
     glBindTexture(GL_TEXTURE_2D, handle);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32, _w, _h, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
     glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, handle, 0);

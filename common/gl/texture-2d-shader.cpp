@@ -61,6 +61,15 @@ texture_2d_shader::texture_2d_shader(std::unique_ptr<shader_program> shader)
     init();
 }
 
+texture_2d_shader::texture_2d_shader(const char* custom_fragment)
+{
+    _shader = shader_program::load(
+        vertex_shader_text,
+        custom_fragment);
+
+    init();
+}
+
 texture_2d_shader::texture_2d_shader()
 {
     _shader = shader_program::load(

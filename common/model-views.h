@@ -462,6 +462,7 @@ namespace rs2
         std::shared_ptr<processing_block_model> hole_filling_filter;
         std::shared_ptr<processing_block_model> depth_to_disparity;
         std::shared_ptr<processing_block_model> disparity_to_depth;
+        std::shared_ptr<rs2::yuy2rgb> yuy_rgbizer;
 
         std::vector<std::shared_ptr<processing_block_model>> post_processing;
         bool post_processing_enabled = false;
@@ -891,7 +892,7 @@ namespace rs2
         const float panel_y = 50.f;
         const float default_log_h = 110.f;
 
-        float get_output_height() const { return (is_output_collapsed ? default_log_h : 20); }
+        float get_output_height() const { return (is_output_collapsed ? default_log_h : 15); }
 
         rs2::frame handle_ready_frames(const rect& viewer_rect, ux_window& window, int devices, std::string& error_message);
 

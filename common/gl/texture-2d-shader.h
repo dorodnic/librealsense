@@ -22,6 +22,8 @@ namespace rs2
     protected:
         texture_2d_shader(std::unique_ptr<shader_program> shader);
 
+        texture_2d_shader(const char* custom_fragment);
+
         std::unique_ptr<shader_program> _shader;
 
     private:
