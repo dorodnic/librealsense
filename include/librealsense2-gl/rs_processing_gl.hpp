@@ -61,6 +61,42 @@ namespace rs2
                 return block;
             }
         };
+
+        /**
+        * Generating the 3D point cloud base on depth frame also create the mapped texture.
+        */
+        class pointcloud : public rs2::pointcloud
+        {
+        public:
+            /**
+            * create pointcloud instance
+            */
+            pointcloud() : rs2::pointcloud(init()) {}
+
+            pointcloud(rs2_stream stream, int index = 0) : rs2::pointcloud(init())
+            {
+                set_option(RS2_OPTION_STREAM_FILTER, float(stream));
+                set_option(RS2_OPTION_STREAM_INDEX_FILTER, float(index));
+            }
+
+        private:
+            friend class context;
+
+            std::shared_ptr<rs2_processing_block> init()
+            {
+                rs2_error* e = nullptr;
+
+                auto block = std::shared_ptr<rs2_processing_block>(
+                    rs2_gl_create_pointcloud(&e),
+                    rs2_delete_processing_block);
+
+                error::handle(e);
+
+                // Redirect options API to the processing block
+                //options::operator=(pb);
+                return block;
+            }
+        };
     }
 }
 #endif // LIBREALSENSE_RS2_PROCESSING_GL_HPP

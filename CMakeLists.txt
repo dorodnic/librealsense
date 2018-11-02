@@ -178,7 +178,7 @@ set(REALSENSE_CPP
     src/error-handling.cpp
     src/hw-monitor.cpp
     src/image.cpp
-    src/image_avx.cpp
+    src/image-avx.cpp
     src/ivcam/ivcam-private.cpp
     src/log.cpp
     src/rs.cpp
@@ -192,6 +192,7 @@ set(REALSENSE_CPP
     src/proc/align.cpp
     src/proc/colorizer.cpp
     src/proc/pointcloud.cpp
+    src/proc/pointcloud-sse.cpp
     src/proc/occlusion-filter.cpp
     src/proc/synthetic-stream.cpp
     src/proc/syncer-processing-block.cpp
@@ -330,6 +331,7 @@ set(REALSENSE_HPP
     src/proc/align.h
     src/proc/colorizer.h
     src/proc/pointcloud.h
+    src/proc/pointcloud-sse.h
     src/proc/occlusion-filter.h
     src/proc/synthetic-stream.h
     src/proc/decimation-filter.h
@@ -345,7 +347,7 @@ set(REALSENSE_HPP
     src/error-handling.h
     src/hw-monitor.h
     src/image.h
-    src/image_avx.h
+    src/image-avx.h
     src/source.h
     src/ivcam/ivcam-private.h
     src/types.h
@@ -879,7 +881,7 @@ if (BUILD_WITH_TM2)
 endif()
 
 if(LRS_TRY_USE_AVX)
-    set_source_files_properties(src/image_avx.cpp PROPERTIES COMPILE_FLAGS -mavx2)
+    set_source_files_properties(src/image-avx.cpp PROPERTIES COMPILE_FLAGS -mavx2)
 endif()
 
 option(BUILD_SHARED_LIBS "Build shared library" ON)

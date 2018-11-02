@@ -35,6 +35,13 @@ int rs2_gl_is_frame_extendable_to(const rs2_frame* f, rs2_gl_extension extension
 
 unsigned int rs2_gl_frame_get_texture_id(const rs2_frame* f, rs2_error** error);
 
+/**
+* Creates Point-Cloud processing block. This block accepts depth frames and outputs Points frames
+* In addition, given non-depth frame, the block will align texture coordinate to the non-depth stream
+* \param[out] error  if non-null, receives any error that occurs during this call, otherwise, errors are ignored
+*/
+rs2_processing_block* rs2_gl_create_pointcloud(rs2_error** error);
+
 #ifdef __cplusplus
 }
 #endif

@@ -20,6 +20,7 @@
 #include "proc/align.h"
 #include "proc/colorizer.h"
 #include "proc/pointcloud.h"
+#include "proc/pointcloud-sse.h"
 #include "proc/disparity-transform.h"
 #include "proc/syncer-processing-block.h"
 #include "proc/decimation-filter.h"
@@ -1728,7 +1729,11 @@ HANDLE_EXCEPTIONS_AND_RETURN(0, frame)
 
 rs2_processing_block* rs2_create_pointcloud(rs2_error** error) BEGIN_API_CALL
 {
+#ifdef __SSSE3__
+    auto block = std::make_shared<librealsense::pointcloud_sse>();
+#else
     auto block = std::make_shared<librealsense::pointcloud>();
+#endif
 
     return new rs2_processing_block { block };
 }

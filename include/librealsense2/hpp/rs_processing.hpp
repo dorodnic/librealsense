@@ -335,6 +335,9 @@ namespace rs2
             invoke(mapped);
         }
 
+    protected:
+        pointcloud(std::shared_ptr<rs2_processing_block> block) : processing_block(block, 1) {}
+
     private:
         friend class context;
 

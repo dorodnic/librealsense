@@ -4,6 +4,7 @@
 #include "api.h"
 #include "synthetic-stream-gl.h"
 #include "yuy2rgb-gl.h"
+#include "pointcloud-gl.h"
 #include "../include/librealsense2/h/rs_types.h"
 #include "../include/librealsense2-gl/rs_processing_gl.h"
 #include <assert.h>
@@ -65,3 +66,11 @@ int rs2_gl_is_frame_extendable_to(const rs2_frame* f, rs2_gl_extension extension
     }
 }
 HANDLE_EXCEPTIONS_AND_RETURN(0, f, extension_type)
+
+rs2_processing_block* rs2_gl_create_pointcloud(rs2_error** error) BEGIN_API_CALL
+{
+    auto block = std::make_shared<librealsense::pointcloud_gl>();
+
+    return new rs2_processing_block { block };
+}
+NOARGS_HANDLE_EXCEPTIONS_AND_RETURN(nullptr)

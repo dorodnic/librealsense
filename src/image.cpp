@@ -4,7 +4,7 @@
 #define _USE_MATH_DEFINES
 #include <cmath>
 #include "image.h"
-#include "image_avx.h"
+#include "image-avx.h"
 
 #ifdef RS2_USE_CUDA
 #include "cuda/cuda-conversion.cuh"

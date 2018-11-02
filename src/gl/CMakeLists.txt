@@ -7,6 +7,8 @@ add_library(${PROJECT_NAME}
     synthetic-stream-gl.cpp
     yuy2rgb-gl.h
     yuy2rgb-gl.cpp
+    pointcloud-gl.h
+    pointcloud-gl.cpp
     rs-gl.cpp
 )
 
