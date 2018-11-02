@@ -88,7 +88,7 @@ private:
 };
 
 yuy2rgb::yuy2rgb()
-    : _yuy_texture(0)//, _output_rgb(0)
+    : _yuy_texture(0)
 {
     _source.add_extension<gpu_video_frame>(RS2_EXTENSION_VIDEO_FRAME_GL);
 }
@@ -98,7 +98,6 @@ void yuy2rgb::init()
     if (!_yuy_texture)
     {
         glDeleteTextures(1, &_yuy_texture);
-        //glDeleteTextures(1, &_output_rgb);
     }
 
     _viz = std::unique_ptr<visualizer_2d>(new visualizer_2d(
@@ -106,13 +105,11 @@ void yuy2rgb::init()
     ));
 
     glGenTextures(1, &_yuy_texture);
-    //glGenTextures(1, &_output_rgb);
 }
 
 yuy2rgb::~yuy2rgb()
 {
     glDeleteTextures(1, &_yuy_texture);
-    //glDeleteTextures(1, &_output_rgb);
 }
 
 rs2::frame yuy2rgb::process_frame(const rs2::frame_source& src, const rs2::frame& f)
@@ -133,23 +130,12 @@ rs2::frame yuy2rgb::process_frame(const rs2::frame_source& src, const rs2::frame
                                                RS2_FORMAT_RGB8);
         auto vp = _input_profile.as<rs2::video_stream_profile>();
         _width = vp.width(); _height = vp.height();
-        // _fbo = std::unique_ptr<fbo>(new fbo(_width, _height));
-
-        // glGenTextures(1, &_output_rgb);
-        // glBindTexture(GL_TEXTURE_2D, _output_rgb);
-        // glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, _width, _height, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
-        // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        // _fbo->createTextureAttachment(_output_rgb);
-
-        //std::cout << "Allocating1 " << _output_rgb << std::endl;
     }
 
     auto res = src.allocate_video_frame(_output_profile, f, 3, _width, _height, _width * 3, RS2_EXTENSION_VIDEO_FRAME_GL);
 
     auto gf = dynamic_cast<gpu_addon_interface*>((frame_interface*)res.get());
     
-
     glBindTexture(GL_TEXTURE_2D, _yuy_texture);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RG8, _width, _height, 0, GL_RG, GL_UNSIGNED_BYTE, f.get_data());
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -162,10 +148,9 @@ rs2::frame yuy2rgb::process_frame(const rs2::frame_source& src, const rs2::frame
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
-    std::cout << "Allocating " << output_rgb << std::endl;
-
-    gf->get_gpu_section().texture1 = output_rgb;
-    gf->get_gpu_section().texture2 = output_rgb;
+    gf->get_gpu_section().texture = output_rgb;
+    gf->get_gpu_section().width = _width;
+    gf->get_gpu_section().height = _height;
 
     fbo fbo(_width, _height);
     glBindTexture(GL_TEXTURE_2D, output_rgb);
@@ -174,7 +159,6 @@ rs2::frame yuy2rgb::process_frame(const rs2::frame_source& src, const rs2::frame
     fbo.bind();
     glViewport(0, 0, _width, _height);
     glClearColor(1, 0, 0, 1);
-    //glDisable(GL_DEPTH_TEST);
     glClear(GL_COLOR_BUFFER_BIT);
 
     auto& shader = (yuy2rgb_shader&)_viz->get_shader();
@@ -183,33 +167,17 @@ rs2::frame yuy2rgb::process_frame(const rs2::frame_source& src, const rs2::frame
     shader.end();
     _viz->draw_texture(_yuy_texture);
 
-    //int tex = gf.get_texture_id();
-
     //glReadBuffer(GL_COLOR_ATTACHMENT0);
 
     //glReadPixels(0, 0, _width, _height, GL_RGB, GL_UNSIGNED_BYTE, (void*)res.get_data());
     
     fbo.unbind();
-    //glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, 0, 0);
 
-    //glEnable(GL_DEPTH_TEST);
     glBindTexture(GL_TEXTURE_2D, 0);
-    //src.frame_ready(res);
-
-    //auto vf = res.as<rs2::video_frame>();
-
-    //auto fw = vf.get_width();
-    //auto fh = vf.get_height();
-    //auto fbpp = vf.get_bytes_per_pixel();
-    //auto fstride = vf.get_stride_in_bytes();
-
-    //stbi_write_png("1.png", fw, fh,
-    //    fbpp, vf.get_data(), fstride);
 
     auto end = std::chrono::high_resolution_clock::now();
     auto ms = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
     std::cout << ms << std::endl;
-    //OutputDebugStringA(ss.str().c_str());
 
     return res;
 }

@@ -49,7 +49,7 @@ unsigned int rs2_gl_frame_get_texture_id(const rs2_frame* frame_ref, rs2_error**
     auto gpu = dynamic_cast<gl::gpu_addon_interface*>((frame_interface*)frame_ref);
     if (!gpu) throw std::runtime_error("Expected GPU frame!");
 
-    return gpu->get_gpu_section().texture2;
+    return gpu->get_gpu_section().texture;
 }
 HANDLE_EXCEPTIONS_AND_RETURN(0, frame_ref)
 

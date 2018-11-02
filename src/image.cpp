@@ -6,9 +6,6 @@
 #include "image.h"
 #include "image_avx.h"
 
-#include <iostream>
-#include <chrono>
-
 #ifdef RS2_USE_CUDA
 #include "cuda/cuda-conversion.cuh"
 #endif
@@ -315,7 +312,7 @@ namespace librealsense
     // It is expected that all branching outside of the loop control variable will be removed due to constant-folding.
     template<rs2_format FORMAT> void unpack_yuy2(byte * const d[], const byte * s, int width, int height)
     {
-        auto start = std::chrono::high_resolution_clock::now();
+        //auto start = std::chrono::high_resolution_clock::now();
 
 
         auto n = width * height;
@@ -618,9 +615,9 @@ namespace librealsense
     #endif
 
 
-        auto end = std::chrono::high_resolution_clock::now();
-        auto ms = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-        std::cout << ms << std::endl;
+        //auto end = std::chrono::high_resolution_clock::now();
+        //auto ms = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        //std::cout << ms << std::endl;
     }
 
     // This templated function unpacks UYVY into RGB8/RGBA8/BGR8/BGRA8, depending on the compile-time parameter FORMAT.

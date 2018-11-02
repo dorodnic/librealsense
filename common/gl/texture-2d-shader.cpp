@@ -49,7 +49,8 @@ static const char* fragment_shader_text =
 "uniform sampler2D textureSampler;\n"
 "uniform float opacity;\n"
 "void main(void) {\n"
-"    vec4 color = texture2D(textureSampler, textCoords);\n"
+"    vec2 tex = vec2(textCoords.x, 1.0 - textCoords.y);\n"
+"    vec4 color = texture2D(textureSampler, tex);\n"
 "    gl_FragColor = vec4(color.xyz, opacity);\n"
 "}";
 

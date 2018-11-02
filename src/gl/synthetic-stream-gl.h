@@ -20,9 +20,10 @@ namespace librealsense
         public:
             void on_publish();
             void on_unpublish();
+            void fetch_frame(void* to) const;
 
-            uint32_t texture1 = 0;
-            uint32_t texture2 = 0;
+            uint32_t texture = 0;
+            uint32_t width, height;
         };
 
         class gpu_addon_interface
@@ -46,6 +47,12 @@ namespace librealsense
             {
                 _section.on_unpublish();
                 T::unpublish();
+            }
+            const byte* get_frame_data() const override
+            {
+                auto res = T::get_frame_data();
+                _section.fetch_frame((void*)res);
+                return res;
             }
         private:
             gpu_section _section;
