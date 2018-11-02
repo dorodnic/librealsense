@@ -828,7 +828,7 @@ namespace rs2
         : s(s), dev(dev), ui(), last_valid_ui(),
         streaming(false), _pause(false),
         depth_colorizer(std::make_shared<rs2::colorizer>()),
-        yuy_rgbizer(std::make_shared<rs2::yuy2rgb>()),
+        yuy_rgbizer(std::make_shared<rs2::gl::yuy_to_rgb>()),
         decimation_filter(),
         spatial_filter(),
         temporal_filter(),

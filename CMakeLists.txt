@@ -73,6 +73,7 @@ endif()
 # This parameter is meant for disabling graphical examples when building for
 # save-to-disk targets.
 option(BUILD_GRAPHICAL_EXAMPLES "Build graphical examples and tools." ON)
+option(BUILD_GRAPHICAL_PROCESSING "Build OpenGL based processing blocks library" ON)
 
 option(BUILD_WITH_OPENMP "Use OpenMP" OFF)
 
@@ -319,6 +320,7 @@ set(REALSENSE_HPP
     src/pipeline.h
     src/config.h
     src/archive.h
+    src/frame-archive.h
     src/concurrency.h
     src/context.h
     src/sensor.h
@@ -784,6 +786,7 @@ if(UNIX)
     else()
         set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS}   -mssse3")
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mssse3")
+        add_definitions(-D__SSSE3__)
         set(LRS_TRY_USE_AVX true)
     endif(${MACHINE} MATCHES "arm-linux-gnueabihf")
 endif()
@@ -1012,6 +1015,10 @@ SET(DOTNET_VERSION_LIBRARY "3.5" CACHE STRING ".Net Version, defaulting to '3.5'
 SET(DOTNET_VERSION_EXAMPLES "4.0" CACHE STRING ".Net Version, defaulting to '4.0'")
 
 add_subdirectory(wrappers)
+
+if (BUILD_GRAPHICAL_PROCESSING)
+    add_subdirectory(src/gl)
+endif()
 
 if((BUILD_EXAMPLES AND BUILD_GRAPHICAL_EXAMPLES) AND WIN32)
   add_subdirectory(third-party/glfw)

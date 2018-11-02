@@ -44,15 +44,6 @@ struct rs2_stream_profile_list
     std::vector<std::shared_ptr<stream_profile_interface>> list;
 };
 
-struct rs2_options
-{
-    rs2_options(librealsense::options_interface* options) : options(options) { }
-
-    librealsense::options_interface* options;
-
-    virtual ~rs2_options() = default;
-};
-
 struct rs2_sensor : public rs2_options
 {
     rs2_sensor(rs2_device parent,
@@ -105,18 +96,6 @@ struct rs2_frame_queue
     }
 
     single_consumer_frame_queue<librealsense::frame_holder> queue;
-};
-
-struct rs2_processing_block : public rs2_options
-{
-    rs2_processing_block(std::shared_ptr<librealsense::processing_block> block)
-        : rs2_options((librealsense::options_interface*)block.get()),
-        block(block) { }
-
-    std::shared_ptr<librealsense::processing_block_interface> block;
-
-    rs2_processing_block& operator=(const rs2_processing_block&) = delete;
-    rs2_processing_block(const rs2_processing_block&) = delete;
 };
 
 struct rs2_sensor_list

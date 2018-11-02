@@ -84,7 +84,7 @@ public:
 
     bool try_dequeue(T* item)
     {
-        std::unique_lock<std::mutex> lock(_mutex);
+        std::lock_guard<std::mutex> lock(_mutex);
         _accepting = true;
         if (_queue.size() > 0)
         {

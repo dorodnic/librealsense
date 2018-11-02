@@ -14,27 +14,31 @@ namespace librealsense
     class archive_interface;
     class md_attribute_parser_base;
     class frame;
-}
 
-
-namespace librealsense
-{
     typedef std::map<rs2_frame_metadata_value, std::shared_ptr<md_attribute_parser_base>> metadata_parser_map;
 
+    /*
+        Each frame is attached with a static header
+        This is a quick and dirty way to manage things like timestamp,
+        frame-number, metadata, etc... Things shared between all frame extensions
+        The point of this class is to be **fixed-sized**, avoiding per frame allocations
+    */
     struct frame_additional_data
     {
-        rs2_time_t timestamp = 0;
-        unsigned long long frame_number = 0;
+        rs2_time_t          timestamp = 0;
+        unsigned long long  frame_number = 0;
         rs2_timestamp_domain timestamp_domain = RS2_TIMESTAMP_DOMAIN_HARDWARE_CLOCK;
-        rs2_time_t      system_time = 0;
-        rs2_time_t      frame_callback_started = 0;
-        uint32_t        metadata_size = 0;
-        bool            fisheye_ae_mode = false;
+        rs2_time_t          system_time = 0; // sys-clock at the time the frame was received from the backend
+        rs2_time_t          frame_callback_started = 0; // time when the frame was sent to user callback
+        uint32_t            metadata_size = 0;
+        bool                fisheye_ae_mode = false; // TODO: remove in future release
         std::array<uint8_t, MAX_META_DATA_SIZE> metadata_blob;
-        rs2_time_t      backend_timestamp = 0;
-        rs2_time_t last_timestamp = 0;
-        unsigned long long last_frame_number = 0;
-        bool is_blocking = false;
+        rs2_time_t          backend_timestamp = 0; // time when the frame arrived to the backend (OS dependent)
+        rs2_time_t          last_timestamp = 0;
+        unsigned long long  last_frame_number = 0;
+        bool                is_blocking = false; // when running from recording, this bit indicates 
+                                                 // if the recorder was configured to realtime mode or not
+                                                 // if true, this will force any queue receiving this frame not to drop it
 
         frame_additional_data() {};
 
@@ -77,7 +81,6 @@ namespace librealsense
         virtual void unpublish_frame(frame_interface* frame) = 0;
         virtual void keep_frame(frame_interface* frame) = 0;
         virtual ~archive_interface() = default;
-
     };
 
     std::shared_ptr<archive_interface> make_archive(rs2_extension type,
@@ -144,6 +147,7 @@ namespace librealsense
         void keep() override;
 
         frame_interface* publish(std::shared_ptr<archive_interface> new_owner) override;
+        void unpublish() override {}
         void attach_continuation(frame_continuation&& continuation) override { on_release = std::move(continuation); }
         void disable_continuation() override { on_release.reset(); }
 
@@ -489,5 +493,5 @@ namespace librealsense
     };
 
     MAP_EXTENSION(RS2_EXTENSION_POSE_FRAME, librealsense::pose_frame);
-
+ 
 }
