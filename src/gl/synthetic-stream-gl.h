@@ -8,6 +8,7 @@
 #include "source.h"
 #include "../include/librealsense2/hpp/rs_frame.hpp"
 #include "../include/librealsense2/hpp/rs_processing.hpp"
+#include "../include/librealsense2-gl/rs_processing_gl.hpp"
 
 #define RS2_EXTENSION_VIDEO_FRAME_GL (rs2_extension)(RS2_EXTENSION_COUNT + RS2_GL_EXTENSION_VIDEO_FRAME)
 
@@ -59,5 +60,6 @@ namespace librealsense
         };
 
         class gpu_video_frame : public gpu_addon<video_frame> {};
+        class gpu_points_frame : public gpu_addon<points> {};
    }
 }

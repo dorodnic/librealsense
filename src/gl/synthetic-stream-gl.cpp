@@ -32,23 +32,26 @@ namespace librealsense
 
         void gpu_section::fetch_frame(void* to) const
         {
-            rs2::visualizer_2d vis;
-            rs2::fbo fbo(width, height);
-            uint32_t res;
-            glGenTextures(1, &res);
-            fbo.createTextureAttachment(res);
+            if (texture)
+            {
+                rs2::visualizer_2d vis;
+                rs2::fbo fbo(width, height);
+                uint32_t res;
+                glGenTextures(1, &res);
+                fbo.createTextureAttachment(res);
 
-            fbo.bind();
-            glViewport(0, 0, width, height);
-            glClearColor(0, 0, 0, 1);
-            glClear(GL_COLOR_BUFFER_BIT);
-            vis.draw_texture(texture);
-            glReadBuffer(GL_COLOR_ATTACHMENT0);
-            glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, to);
+                fbo.bind();
+                glViewport(0, 0, width, height);
+                glClearColor(0, 0, 0, 1);
+                glClear(GL_COLOR_BUFFER_BIT);
+                vis.draw_texture(texture);
+                glReadBuffer(GL_COLOR_ATTACHMENT0);
+                glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, to);
 
-            glDeleteTextures(1, &res);
-            
-            fbo.unbind();
+                glDeleteTextures(1, &res);
+                
+                fbo.unbind();
+            }
         }
     }
 }

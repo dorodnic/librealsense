@@ -51,7 +51,8 @@ namespace librealsense
         }
     }
 
-    const float3* pointcloud_sse::depth_to_points(uint8_t* points, 
+    const float3* pointcloud_sse::depth_to_points(rs2::points output,
+            uint8_t* points, 
             const rs2_intrinsics &depth_intrinsics, 
             const uint16_t * depth_image, 
             float depth_scale)
@@ -130,7 +131,8 @@ namespace librealsense
         return reinterpret_cast<float3*>(points);
     }
 
-    void pointcloud_sse::get_texture_map(const float3* points,
+    void pointcloud_sse::get_texture_map(rs2::points output,
+        const float3* points,
         const unsigned int width,
         const unsigned int height,
         const rs2_intrinsics &other_intrinsics,

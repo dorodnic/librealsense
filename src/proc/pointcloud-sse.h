@@ -12,11 +12,15 @@ namespace librealsense
         pointcloud_sse();
     private:
         void preprocess() override;
-        const float3 * depth_to_points(uint8_t* image, 
+        const float3 * depth_to_points(
+            rs2::points output,
+            uint8_t* image, 
             const rs2_intrinsics &depth_intrinsics, 
             const uint16_t * depth_image, 
             float depth_scale) override;
-        void get_texture_map(const float3* points,
+        void get_texture_map(
+            rs2::points output,
+            const float3* points,
             const unsigned int width,
             const unsigned int height,
             const rs2_intrinsics &other_intrinsics,

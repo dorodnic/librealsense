@@ -15,8 +15,15 @@ namespace librealsense
         pointcloud();
     protected:
         virtual void preprocess() {}
-        virtual const float3 * depth_to_points(uint8_t* image, const rs2_intrinsics &depth_intrinsics, const uint16_t * depth_image, float depth_scale);
-        virtual void get_texture_map(const float3* points,
+        virtual const float3 * depth_to_points(
+            rs2::points output,
+            uint8_t* image, 
+            const rs2_intrinsics &depth_intrinsics, 
+            const uint16_t * depth_image, 
+            float depth_scale);
+        virtual void get_texture_map(
+            rs2::points output,
+            const float3* points,
             const unsigned int width,
             const unsigned int height,
             const rs2_intrinsics &other_intrinsics,

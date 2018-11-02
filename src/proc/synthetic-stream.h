@@ -29,7 +29,8 @@ namespace librealsense
 
         frame_interface* allocate_composite_frame(std::vector<frame_holder> frames) override;
 
-        frame_interface* allocate_points(std::shared_ptr<stream_profile_interface> stream, frame_interface* original) override;
+        frame_interface* allocate_points(std::shared_ptr<stream_profile_interface> stream, 
+            frame_interface* original, rs2_extension frame_type = RS2_EXTENSION_POINTS) override;
 
         void frame_ready(frame_holder result) override;
 

@@ -37,7 +37,8 @@ namespace librealsense
         }
     }
 
-    const float3 * pointcloud::depth_to_points(uint8_t* image, const rs2_intrinsics &depth_intrinsics, const uint16_t * depth_image, float depth_scale)
+    const float3 * pointcloud::depth_to_points(rs2::points output, uint8_t* image, 
+        const rs2_intrinsics &depth_intrinsics, const uint16_t * depth_image, float depth_scale)
     {
 #ifdef RS2_USE_CUDA
         rscuda::deproject_depth_cuda(reinterpret_cast<float *>(image), depth_intrinsics, depth_image, depth_scale);
@@ -134,7 +135,8 @@ namespace librealsense
         set_extrinsics();
     }
 
-    void pointcloud::get_texture_map(const float3* points,
+    void pointcloud::get_texture_map(rs2::points output, 
+        const float3* points,
         const unsigned int width,
         const unsigned int height,
         const rs2_intrinsics &other_intrinsics,
@@ -182,7 +184,7 @@ namespace librealsense
 
         const float3* points;
 
-        points = depth_to_points((uint8_t*)pframe->get_vertices(), *_depth_intrinsics, depth_data, *_depth_units);
+        points = depth_to_points(res, (uint8_t*)pframe->get_vertices(), *_depth_intrinsics, depth_data, *_depth_units);
 
         auto vid_frame = depth.as<rs2::video_frame>();
         float2* tex_ptr = pframe->get_texture_coordinates();
@@ -205,7 +207,7 @@ namespace librealsense
             auto height = vid_frame.get_height();
             auto width = vid_frame.get_width();
 
-            get_texture_map(points, width, height, mapped_intr, extr, tex_ptr, pixels_ptr);
+            get_texture_map(res, points, width, height, mapped_intr, extr, tex_ptr, pixels_ptr);
 
             if (_occlusion_filter->active())
             {

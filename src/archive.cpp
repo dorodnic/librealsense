@@ -23,6 +23,7 @@ namespace librealsense
 
     float3* points::get_vertices()
     {
+        get_frame_data(); // call GetData to ensure data is in main memory
         auto xyz = (float3*)data.data();
         return xyz;
     }
@@ -142,6 +143,7 @@ namespace librealsense
 
     float2* points::get_texture_coordinates()
     {
+        get_frame_data(); // call GetData to ensure data is in main memory
         auto xyz = (float3*)data.data();
         auto ijs = (float2*)(xyz + get_vertex_count());
         return ijs;
