@@ -114,6 +114,20 @@ namespace librealsense
             std::atomic<bool> _active;
         };
 
+        class context : public std::enable_shared_from_this<context>
+        {
+        public:
+            context(GLFWwindow* share_with);
+
+            std::shared_ptr<void> begin_session();
+
+            ~context();
+
+        private:
+            GLFWwindow* _ctx;
+            std::mutex _lock;
+        };
+
         class gpu_video_frame : public gpu_addon<video_frame> {};
         class gpu_points_frame : public gpu_addon<points> {};
    }

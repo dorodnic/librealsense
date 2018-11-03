@@ -4,6 +4,7 @@
 #pragma once
 #include "texture-2d-shader.h"
 #include "proc/pointcloud.h"
+#include "synthetic-stream-gl.h"
 
 namespace librealsense
 {
@@ -12,7 +13,7 @@ namespace librealsense
         class pointcloud_gl : public pointcloud
         {
         public:
-            pointcloud_gl();
+            pointcloud_gl(std::shared_ptr<gl::context> ctx);
         private:
             const float3 * depth_to_points(
                 rs2::points output,
@@ -34,6 +35,8 @@ namespace librealsense
 
             std::shared_ptr<lazy<rs2::visualizer_2d>> _projection_renderer;
             std::shared_ptr<lazy<rs2::visualizer_2d>> _uvmap_renderer;
+
+            std::shared_ptr<gl::context> _ctx;
         };
     }
 }

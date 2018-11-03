@@ -87,8 +87,8 @@ private:
     uint32_t _height_location;
 };
 
-yuy2rgb::yuy2rgb()
-    : _viz([](){ return visualizer_2d(std::make_shared<yuy2rgb_shader>()); })
+yuy2rgb::yuy2rgb(std::shared_ptr<gl::context> ctx)
+    : _viz([](){ return visualizer_2d(std::make_shared<yuy2rgb_shader>()); }), _ctx(ctx)
 {
     _source.add_extension<gpu_video_frame>(RS2_EXTENSION_VIDEO_FRAME_GL);
 }

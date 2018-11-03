@@ -103,6 +103,8 @@ namespace rs2
                 data->on_file_drop(paths[i]);
             }
         });
+
+        _processing_context = std::make_shared<rs2::gl::context>(_win);
     }
 
     ux_window::ux_window(const char* title) :

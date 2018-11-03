@@ -15,6 +15,11 @@
 
 using namespace librealsense;
 
+struct rs2_gl_context
+{
+    std::shared_ptr<gl::context> ctx;
+};
+
 namespace librealsense
 {
     RS2_ENUM_HELPERS(rs2_gl_extension, GL_EXTENSION)
@@ -31,9 +36,9 @@ namespace librealsense
 
 const char* rs2_frame_metadata_to_string(rs2_gl_extension ex) { return librealsense::get_string(ex); }
 
-rs2_processing_block* rs2_gl_create_yuy_to_rgb(rs2_error** error) BEGIN_API_CALL
+rs2_processing_block* rs2_gl_create_yuy_to_rgb(rs2_gl_context* ctx, rs2_error** error) BEGIN_API_CALL
 {
-    auto block = std::make_shared<librealsense::gl::yuy2rgb>();
+    auto block = std::make_shared<librealsense::gl::yuy2rgb>(ctx->ctx);
 
     auto res = new rs2_processing_block{ block };
 
@@ -72,9 +77,9 @@ int rs2_gl_is_frame_extendable_to(const rs2_frame* f, rs2_gl_extension extension
 }
 HANDLE_EXCEPTIONS_AND_RETURN(0, f, extension_type)
 
-rs2_processing_block* rs2_gl_create_pointcloud(rs2_error** error) BEGIN_API_CALL
+rs2_processing_block* rs2_gl_create_pointcloud(rs2_gl_context* ctx, rs2_error** error) BEGIN_API_CALL
 {
-    auto block = std::make_shared<librealsense::gl::pointcloud_gl>();
+    auto block = std::make_shared<librealsense::gl::pointcloud_gl>(ctx->ctx);
 
     return new rs2_processing_block { block };
 }
@@ -96,3 +101,16 @@ void rs2_gl_stop_all(int api_version, rs2_error** error) BEGIN_API_CALL
 }
 NOEXCEPT_RETURN(, api_version)
 
+rs2_gl_context* rs2_gl_create_context(int api_version, GLFWwindow* share_with, rs2_error** error) BEGIN_API_CALL
+{
+    verify_version_compatibility(api_version);
+    return new rs2_gl_context { std::make_shared<gl::context>(share_with) };
+}
+HANDLE_EXCEPTIONS_AND_RETURN(nullptr, api_version)
+
+void rs2_gl_delete_context(rs2_gl_context* context) BEGIN_API_CALL
+{
+    VALIDATE_NOT_NULL(context);
+    delete context;
+}
+NOEXCEPT_RETURN(, context)

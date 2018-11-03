@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "proc/synthetic-stream.h"
+#include "synthetic-stream-gl.h"
 
 #include <librealsense2/rs.hpp>
 #include "fbo.h"
@@ -28,7 +29,7 @@ namespace librealsense
         class yuy2rgb : public stream_filter_processing_block
         {
         public:
-            yuy2rgb();
+            yuy2rgb(std::shared_ptr<gl::context> ctx);
 
             rs2::frame process_frame(const rs2::frame_source& source, const rs2::frame& f) override;
         private:
@@ -40,6 +41,8 @@ namespace librealsense
             int _width, _height;
 
             lazy<rs2::visualizer_2d> _viz;
+
+            std::shared_ptr<gl::context> _ctx;
         };
     }
 }

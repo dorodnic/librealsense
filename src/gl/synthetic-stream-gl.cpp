@@ -7,6 +7,8 @@
 #include "fbo.h"
 #include "texture-2d-shader.h"
 
+#include <GLFW/glfw3.h>
+
 #define NOMINMAX
 
 #include <glad/glad.h>
@@ -236,6 +238,48 @@ namespace librealsense
             _main_thread = std::this_thread::get_id();
             std::function<void()> act;
             while (_actions.try_dequeue(&act)) act();
+        }
+
+        context::context(GLFWwindow* share_with)
+        {
+            if (!glfwInit())
+                throw std::runtime_error("Could not initialize GLFW!");
+
+            glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+            _ctx = glfwCreateWindow(640, 480, "Offscreen Context", NULL, share_with);
+            if (!_ctx)
+            {
+                throw std::runtime_error("Could not initialize offscreen context!");
+            }
+
+            auto curr = glfwGetCurrentContext();
+            glfwMakeContextCurrent(_ctx);
+
+            if (glShaderSource == nullptr)
+            {
+                gladLoadGLLoader((GLADloadproc) glfwGetProcAddress);
+            }
+
+            glfwSwapInterval(0);
+
+            glfwMakeContextCurrent(curr);
+        }
+
+        std::shared_ptr<void> context::begin_session()
+        {
+            auto curr = glfwGetCurrentContext();
+            _lock.lock();
+            glfwMakeContextCurrent(_ctx);
+            auto me = shared_from_this();
+            return std::shared_ptr<void>(nullptr, [curr, me](void*){
+                glfwMakeContextCurrent(curr);
+                me->_lock.unlock();
+            });
+        }
+
+        context::~context()
+        {
+            glfwDestroyWindow(_ctx);
         }
     }
 }

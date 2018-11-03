@@ -207,8 +207,8 @@ private:
     uint32_t _extrinsics_location;
 };
 
-pointcloud_gl::pointcloud_gl() 
-    : pointcloud(),
+pointcloud_gl::pointcloud_gl(std::shared_ptr<gl::context> ctx) 
+    : pointcloud(), _ctx(ctx),
       _projection_renderer(std::make_shared<lazy<visualizer_2d>>([](){ 
           return visualizer_2d(std::make_shared<project_shader>()); })),
       _uvmap_renderer(std::make_shared<lazy<visualizer_2d>>([](){ 

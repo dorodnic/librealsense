@@ -57,6 +57,8 @@ namespace rs2
 
         void reset();
 
+        gl::context& get_processing_context() { return *_processing_context; }
+
         ImFont* get_large_font() const { return _font_18; }
         ImFont* get_font() const { return _font_14; }
 
@@ -100,5 +102,6 @@ namespace rs2
         std::shared_ptr<visualizer_2d> _2d_vis;
 
         bool                     _is_ui_aligned = false;
+        std::shared_ptr<rs2::gl::context> _processing_context = nullptr;
     };
 }

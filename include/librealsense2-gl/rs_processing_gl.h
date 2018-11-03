@@ -23,12 +23,15 @@ typedef enum rs2_gl_extension
 } rs2_gl_extension;
 const char* rs2_gl_extension_to_string(rs2_extension type);
 
+typedef struct rs2_gl_context rs2_gl_context;
+typedef struct GLFWwindow GLFWwindow;
+
 /**
 * Creates a processing block that can efficiently convert YUY image format to RGB variants
 * This is specifically useful for rendering the RGB frame to the screen (since the output is ready for rendering on the GPU)
 * \param[out] error  if non-null, receives any error that occurs during this call, otherwise, errors are ignored
 */
-rs2_processing_block* rs2_gl_create_yuy_to_rgb(rs2_error** error);
+rs2_processing_block* rs2_gl_create_yuy_to_rgb(rs2_gl_context* context, rs2_error** error);
 
 
 int rs2_gl_is_frame_extendable_to(const rs2_frame* f, rs2_gl_extension extension_type, rs2_error** error);
@@ -40,11 +43,15 @@ unsigned int rs2_gl_frame_get_texture_id(const rs2_frame* f, unsigned int id, rs
 * In addition, given non-depth frame, the block will align texture coordinate to the non-depth stream
 * \param[out] error  if non-null, receives any error that occurs during this call, otherwise, errors are ignored
 */
-rs2_processing_block* rs2_gl_create_pointcloud(rs2_error** error);
+rs2_processing_block* rs2_gl_create_pointcloud(rs2_gl_context* context, rs2_error** error);
 
 void rs2_gl_update_all(int api_version, rs2_error** error);
 
 void rs2_gl_stop_all(int api_version, rs2_error** error);
+
+rs2_gl_context* rs2_gl_create_context(int api_version, GLFWwindow* share_with, rs2_error** error);
+
+void rs2_gl_delete_context(rs2_gl_context* context);
 
 #ifdef __cplusplus
 }

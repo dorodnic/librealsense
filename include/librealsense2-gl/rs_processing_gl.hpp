@@ -7,10 +7,39 @@
 #include <librealsense2/rs.hpp>
 #include "rs_processing_gl.h"
 
+#include <memory>
+
 namespace rs2
 {
     namespace gl
     {
+        class pointcloud;
+        class yuy_to_rgb;
+
+        /**
+        * GL context maps to OpenGL rendering context
+        * Providing one to a processing block allows that processing block
+        * to run in parallel with other OpenGL calls.
+        * includes realsense API version as provided by RS2_API_VERSION macro
+        */
+        class context
+        {
+        public:
+            context(GLFWwindow* share_with = nullptr)
+            {
+                rs2_error* e = nullptr;
+                _context = std::shared_ptr<rs2_gl_context>(
+                    rs2_gl_create_context(RS2_API_VERSION, share_with, &e),
+                    rs2_gl_delete_context);
+                error::handle(e);
+            }
+        protected:
+            friend class rs2::gl::pointcloud;
+            friend class rs2::gl::yuy_to_rgb;
+
+            std::shared_ptr<rs2_gl_context> _context;
+        };
+
         class gpu_frame : public frame
         {
         public:
@@ -44,14 +73,14 @@ namespace rs2
             /**
             * 
             */
-            yuy_to_rgb() : processing_block(init(), 1) { }
+            yuy_to_rgb(context ctx = context()) : processing_block(init(ctx), 1) { }
 
         private:
-            std::shared_ptr<rs2_processing_block> init()
+            std::shared_ptr<rs2_processing_block> init(context ctx)
             {
                 rs2_error* e = nullptr;
                 auto block = std::shared_ptr<rs2_processing_block>(
-                    rs2_gl_create_yuy_to_rgb(&e),
+                    rs2_gl_create_yuy_to_rgb(ctx._context.get(), &e),
                     rs2_delete_processing_block);
                 error::handle(e);
 
@@ -71,9 +100,10 @@ namespace rs2
             /**
             * create pointcloud instance
             */
-            pointcloud() : rs2::pointcloud(init()) {}
+            pointcloud(context ctx = context()) : rs2::pointcloud(init(ctx)) {}
 
-            pointcloud(rs2_stream stream, int index = 0) : rs2::pointcloud(init())
+            pointcloud(rs2_stream stream, int index = 0, context ctx = context()) 
+                : rs2::pointcloud(init(ctx))
             {
                 set_option(RS2_OPTION_STREAM_FILTER, float(stream));
                 set_option(RS2_OPTION_STREAM_INDEX_FILTER, float(index));
@@ -82,12 +112,12 @@ namespace rs2
         private:
             friend class context;
 
-            std::shared_ptr<rs2_processing_block> init()
+            std::shared_ptr<rs2_processing_block> init(context ctx)
             {
                 rs2_error* e = nullptr;
 
                 auto block = std::shared_ptr<rs2_processing_block>(
-                    rs2_gl_create_pointcloud(&e),
+                    rs2_gl_create_pointcloud(ctx._context.get(), &e),
                     rs2_delete_processing_block);
 
                 error::handle(e);
