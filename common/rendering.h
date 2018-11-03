@@ -993,6 +993,7 @@ namespace rs2
         std::shared_ptr<gl::yuy_to_rgb> rgbize;
         bool zoom_preview = false;
         rect curr_preview_rect{};
+        int texture_id = 0;
 
         texture_buffer(const texture_buffer& other)
         {
@@ -1017,7 +1018,7 @@ namespace rs2
         GLuint get_gl_handle() const { 
             if (auto gf = get_last_frame(true).as<gl::gpu_frame>()) 
             {
-                auto tex = gf.get_texture_id();
+                auto tex = gf.get_texture_id(texture_id);
                 return tex;
             }
             else return texture;
@@ -1049,7 +1050,7 @@ namespace rs2
             int height = 0;
             int stride = 0;
             auto format = frame.get_profile().format();
-            auto data = frame.get_data();
+            auto data = !frame.is<gl::gpu_frame>() ? frame.get_data() : nullptr;
 
 
             auto rendered_frame = frame;
@@ -1074,16 +1075,24 @@ namespace rs2
             
             if (auto pc = frame.as<points>())
 			{
-				if (prefered_format == RS2_FORMAT_XYZ32F)
-				{
-					data = pc.get_vertices();
-					glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, data);
-				}
-				else
-				{
-					data = pc.get_texture_coordinates();
-					glTexImage2D(GL_TEXTURE_2D, 0, GL_RG32F, width, height, 0, GL_RG, GL_FLOAT, data);
-				}
+                if (!frame.is<gl::gpu_frame>())
+                {
+                    if (prefered_format == RS2_FORMAT_XYZ32F)
+                    {
+                        data = pc.get_vertices();
+                        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, data);
+                    }
+                    else
+                    {
+                        data = pc.get_texture_coordinates();
+                        glTexImage2D(GL_TEXTURE_2D, 0, GL_RG32F, width, height, 0, GL_RG, GL_FLOAT, data);
+                    }
+                }
+                else
+                {
+                    if (prefered_format == RS2_FORMAT_XYZ32F) texture_id = 0;
+                    else texture_id = 1;
+                }
 			}
 			else
 			{

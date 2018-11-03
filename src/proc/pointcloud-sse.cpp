@@ -58,7 +58,7 @@ namespace librealsense
             float depth_scale)
     {
         float* pre_compute_x = _pre_compute_map_x.data();
-        float* pre_compute_y = _pre_compute_map_x.data();
+        float* pre_compute_y = _pre_compute_map_y.data();
 
         uint32_t size = depth_intrinsics.height * depth_intrinsics.width;
 

@@ -10,21 +10,50 @@
 #include "../include/librealsense2/hpp/rs_processing.hpp"
 #include "../include/librealsense2-gl/rs_processing_gl.hpp"
 
+#include "concurrency.h"
+#include <functional>
+#include <thread>
+#include <deque>
+
 #define RS2_EXTENSION_VIDEO_FRAME_GL (rs2_extension)(RS2_EXTENSION_COUNT + RS2_GL_EXTENSION_VIDEO_FRAME)
+#define MAX_TEXTURES 2
 
 namespace librealsense
 { 
     namespace gl
     {
+        enum class texture_type
+        {
+            RGB,
+            XYZ,
+            UV
+        };
+
         class gpu_section
         {
         public:
+            gpu_section();
+            ~gpu_section();
+
             void on_publish();
             void on_unpublish();
-            void fetch_frame(void* to) const;
+            void fetch_frame(void* to);
 
-            uint32_t texture = 0;
+            void catch_up();
+            void delay(std::function<void()> action);
+
+            bool input_texture(int id, uint32_t* tex);
+            void output_texture(int id, uint32_t* tex, texture_type type, bool helper = false);
+
+            void set_size(uint32_t width, uint32_t height);
+
+        private:
+            uint32_t textures[MAX_TEXTURES];
+            texture_type types[MAX_TEXTURES];
+            bool helpers[MAX_TEXTURES];
+            bool loaded[MAX_TEXTURES];
             uint32_t width, height;
+            std::deque<std::function<void()>> _delayed_actions;
         };
 
         class gpu_addon_interface
@@ -55,8 +84,34 @@ namespace librealsense
                 _section.fetch_frame((void*)res);
                 return res;
             }
+            gpu_addon() : T(), _section() {}
+            gpu_addon(gpu_addon&& other)
+                :T((T&&)std::move(other))
+            {
+            }
+            gpu_addon& operator=(gpu_addon&& other)
+            {
+                return (gpu_addon&)T::operator=((T&&)std::move(other));
+            }
         private:
-            gpu_section _section;
+            mutable gpu_section _section;
+        };
+
+        class main_thread_dispatcher
+        {
+        public:
+            main_thread_dispatcher();
+            void update();
+            void invoke(std::function<void()> action);
+            void stop();
+            bool require_dispatch() const;
+
+            static main_thread_dispatcher& instance();
+
+        private:
+            single_consumer_queue<std::function<void()>> _actions;
+            std::thread::id _main_thread;
+            std::atomic<bool> _active;
         };
 
         class gpu_video_frame : public gpu_addon<video_frame> {};

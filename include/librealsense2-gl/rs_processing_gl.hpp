@@ -29,10 +29,10 @@ namespace rs2
                 error::handle(e);
             }
 
-            uint32_t get_texture_id() const
+            uint32_t get_texture_id(unsigned int id = 0) const
             {
                 rs2_error * e = nullptr;
-                auto r = rs2_gl_frame_get_texture_id(get(), &e);
+                auto r = rs2_gl_frame_get_texture_id(get(), id, &e);
                 error::handle(e);
                 return r;
             }
@@ -97,6 +97,20 @@ namespace rs2
                 return block;
             }
         };
+
+        inline void update_all()
+        {
+            rs2_error* e = nullptr;
+            rs2_gl_update_all(RS2_API_VERSION, &e);
+            error::handle(e);
+        }
+
+        inline void stop_all()
+        {
+            rs2_error* e = nullptr;
+            rs2_gl_stop_all(RS2_API_VERSION, &e);
+            error::handle(e);
+        }
     }
 }
 #endif // LIBREALSENSE_RS2_PROCESSING_GL_HPP

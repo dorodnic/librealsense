@@ -181,13 +181,14 @@ namespace librealsense
         auto pframe = (librealsense::points*)(res.get());
 
         auto depth_data = (const uint16_t*)depth.get_data();
+        float2* tex_ptr = pframe->get_texture_coordinates();
 
         const float3* points;
 
         points = depth_to_points(res, (uint8_t*)pframe->get_vertices(), *_depth_intrinsics, depth_data, *_depth_units);
 
         auto vid_frame = depth.as<rs2::video_frame>();
-        float2* tex_ptr = pframe->get_texture_coordinates();
+
         // Pixels calculated in the mapped texture. Used in post-processing filters
         float2* pixels_ptr = _pixels_map.data();
         rs2_intrinsics mapped_intr;

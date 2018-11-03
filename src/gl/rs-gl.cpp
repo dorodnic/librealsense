@@ -43,14 +43,19 @@ rs2_processing_block* rs2_gl_create_yuy_to_rgb(rs2_error** error) BEGIN_API_CALL
 }
 NOARGS_HANDLE_EXCEPTIONS_AND_RETURN(nullptr)
 
-unsigned int rs2_gl_frame_get_texture_id(const rs2_frame* frame_ref, rs2_error** error) BEGIN_API_CALL
+unsigned int rs2_gl_frame_get_texture_id(const rs2_frame* frame_ref, unsigned int id, rs2_error** error) BEGIN_API_CALL
 {
     VALIDATE_NOT_NULL(frame_ref);
+    VALIDATE_RANGE(id, 0, MAX_TEXTURES - 1);
     
     auto gpu = dynamic_cast<gl::gpu_addon_interface*>((frame_interface*)frame_ref);
     if (!gpu) throw std::runtime_error("Expected GPU frame!");
 
-    return gpu->get_gpu_section().texture;
+    uint32_t res;
+    if (!gpu->get_gpu_section().input_texture(id, &res)) 
+        throw std::runtime_error("Texture not ready!");
+
+    return res;
 }
 HANDLE_EXCEPTIONS_AND_RETURN(0, frame_ref)
 
@@ -69,8 +74,25 @@ HANDLE_EXCEPTIONS_AND_RETURN(0, f, extension_type)
 
 rs2_processing_block* rs2_gl_create_pointcloud(rs2_error** error) BEGIN_API_CALL
 {
-    auto block = std::make_shared<librealsense::pointcloud_gl>();
+    auto block = std::make_shared<librealsense::gl::pointcloud_gl>();
 
     return new rs2_processing_block { block };
 }
 NOARGS_HANDLE_EXCEPTIONS_AND_RETURN(nullptr)
+
+void rs2_gl_update_all(int api_version, rs2_error** error) BEGIN_API_CALL
+{
+    verify_version_compatibility(api_version);
+
+    gl::main_thread_dispatcher::instance().update();
+}
+NOEXCEPT_RETURN(, api_version)
+
+void rs2_gl_stop_all(int api_version, rs2_error** error) BEGIN_API_CALL
+{
+    verify_version_compatibility(api_version);
+
+    gl::main_thread_dispatcher::instance().stop();
+}
+NOEXCEPT_RETURN(, api_version)
+

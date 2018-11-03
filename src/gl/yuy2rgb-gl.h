@@ -13,6 +13,8 @@
 
 #include <memory>
 
+#include "texture-2d-shader.h"
+
 namespace rs2
 {
     class stream_profile;
@@ -29,10 +31,6 @@ namespace librealsense
             yuy2rgb();
 
             rs2::frame process_frame(const rs2::frame_source& source, const rs2::frame& f) override;
-
-            void init();
-
-            ~yuy2rgb();
         private:
             void on_frame(frame f, frame_source& src);
 
@@ -41,11 +39,7 @@ namespace librealsense
 
             int _width, _height;
 
-            uint32_t _yuy_texture;
-            uint32_t _output_rgb;
-            //std::unique_ptr<rs2::fbo> _fbo;
-            std::unique_ptr<rs2::visualizer_2d> _viz;
-            bool _was_init = false;
+            lazy<rs2::visualizer_2d> _viz;
         };
     }
 }

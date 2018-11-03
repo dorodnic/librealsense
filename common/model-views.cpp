@@ -3849,6 +3849,17 @@ namespace rs2
                 last_texture = texture;
             }
         }
+
+        static std::unique_ptr<texture_buffer> uvs = nullptr;
+        static std::unique_ptr<texture_buffer> positions = nullptr;
+        static int last_fn = -1;
+        if (last_points && uvs && last_points.get_frame_number() != last_fn)
+        {
+            positions->upload(last_points, RS2_FORMAT_XYZ32F);
+            uvs->upload(last_points, RS2_FORMAT_Z16);
+            last_fn = last_points.get_frame_number();
+        }
+
         glViewport(static_cast<GLint>(viewer_rect.x), static_cast<GLint>(viewer_rect.y),
             static_cast<GLsizei>(viewer_rect.w), static_cast<GLsizei>(viewer_rect.h));
 
@@ -4005,12 +4016,12 @@ namespace rs2
 
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, texture_border_mode);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, texture_border_mode);
-
-            auto vertices = last_points.get_vertices();
-            auto tex_coords = last_points.get_texture_coordinates();
             
             if (!render_quads)
             {
+                auto vertices = last_points.get_vertices();
+                auto tex_coords = last_points.get_texture_coordinates();
+
                 glBegin(GL_POINTS);
                 for (int i = 0; i < last_points.size(); i++)
                 {
@@ -4028,11 +4039,10 @@ namespace rs2
 				
 				static int last_w = 0;
 				static int last_h = 0;
-				static std::unique_ptr<texture_buffer> uvs;
-                static std::unique_ptr<texture_buffer> positions;
+				
 				static std::unique_ptr<vao> model;
                 static std::unique_ptr<vao> camera;
-                static int last_fn = -1;
+                
 				if (width != last_w || height != last_h)
 				{
                     obj_mesh camera_mesh;
@@ -4052,13 +4062,6 @@ namespace rs2
 					positions = std::unique_ptr<texture_buffer>(new texture_buffer());
                     uvs = std::unique_ptr<texture_buffer>(new texture_buffer());
 				}
-				
-                if (last_points.get_frame_number() != last_fn)
-                {
-                    positions->upload(last_points, RS2_FORMAT_XYZ32F);
-                    uvs->upload(last_points, RS2_FORMAT_Z16);
-                    last_fn = last_points.get_frame_number();
-                }
 
                 pc_shader.begin();
                 pc_shader.set_mvp(identity_matrix(), view_mat, perspective_mat);
@@ -4069,7 +4072,8 @@ namespace rs2
                 glBindTexture(GL_TEXTURE_2D, tex);
 
                 glActiveTexture(GL_TEXTURE0 + pc_shader.geometry_slot());
-                glBindTexture(GL_TEXTURE_2D, positions->get_gl_handle());
+                auto pos_tex = positions->get_gl_handle();
+                glBindTexture(GL_TEXTURE_2D, pos_tex);
 
                 glActiveTexture(GL_TEXTURE0 + pc_shader.uvs_slot());
                 glBindTexture(GL_TEXTURE_2D, uvs->get_gl_handle());
@@ -4087,6 +4091,8 @@ namespace rs2
                 cam_shader.end();
                 glDisable(GL_BLEND);
                 glEnable(GL_DEPTH_TEST);
+
+                //positions->show(rect{ 0.f, 0.f, 1.f, 1.f }, 1.f);
             }
         }
 

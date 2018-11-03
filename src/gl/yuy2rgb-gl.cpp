@@ -88,96 +88,70 @@ private:
 };
 
 yuy2rgb::yuy2rgb()
-    : _yuy_texture(0)
+    : _viz([](){ return visualizer_2d(std::make_shared<yuy2rgb_shader>()); })
 {
     _source.add_extension<gpu_video_frame>(RS2_EXTENSION_VIDEO_FRAME_GL);
 }
 
-void yuy2rgb::init()
-{
-    if (!_yuy_texture)
-    {
-        glDeleteTextures(1, &_yuy_texture);
-    }
-
-    _viz = std::unique_ptr<visualizer_2d>(new visualizer_2d(
-        std::make_shared<yuy2rgb_shader>()
-    ));
-
-    glGenTextures(1, &_yuy_texture);
-}
-
-yuy2rgb::~yuy2rgb()
-{
-    glDeleteTextures(1, &_yuy_texture);
-}
-
 rs2::frame yuy2rgb::process_frame(const rs2::frame_source& src, const rs2::frame& f)
 {
-    auto start = std::chrono::high_resolution_clock::now();
-
-    if (!_was_init)
-    {
-        init();
-        _was_init = true;
-    }
-
     if (f.get_profile().get() != _input_profile.get())
     {
         _input_profile = f.get_profile();
         _output_profile = _input_profile.clone(_input_profile.stream_type(), 
-                                               _input_profile.stream_index(), 
-                                               RS2_FORMAT_RGB8);
+                                            _input_profile.stream_index(), 
+                                            RS2_FORMAT_RGB8);
         auto vp = _input_profile.as<rs2::video_stream_profile>();
         _width = vp.width(); _height = vp.height();
     }
 
+    auto start = std::chrono::high_resolution_clock::now();
+
     auto res = src.allocate_video_frame(_output_profile, f, 3, _width, _height, _width * 3, RS2_EXTENSION_VIDEO_FRAME_GL);
 
-    auto gf = dynamic_cast<gpu_addon_interface*>((frame_interface*)res.get());
-    
-    glBindTexture(GL_TEXTURE_2D, _yuy_texture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RG8, _width, _height, 0, GL_RG, GL_UNSIGNED_BYTE, f.get_data());
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    main_thread_dispatcher::instance().invoke([&]()
+    {
+        auto gf = dynamic_cast<gpu_addon_interface*>((frame_interface*)res.get());
+        
+        uint32_t yuy_texture;
+        glGenTextures(1, &yuy_texture);
+        glBindTexture(GL_TEXTURE_2D, yuy_texture);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RG8, _width, _height, 0, GL_RG, GL_UNSIGNED_BYTE, f.get_data());
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
-    uint32_t output_rgb;
-    glGenTextures(1, &output_rgb);
-    glBindTexture(GL_TEXTURE_2D, output_rgb);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, _width, _height, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        uint32_t output_rgb;
+        gf->get_gpu_section().output_texture(0, &output_rgb, texture_type::RGB);
+        glBindTexture(GL_TEXTURE_2D, output_rgb);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, _width, _height, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
-    gf->get_gpu_section().texture = output_rgb;
-    gf->get_gpu_section().width = _width;
-    gf->get_gpu_section().height = _height;
+        gf->get_gpu_section().set_size(_width, _height);
 
-    fbo fbo(_width, _height);
-    glBindTexture(GL_TEXTURE_2D, output_rgb);
-    fbo.createTextureAttachment(output_rgb);
+        fbo fbo(_width, _height);
+        glBindTexture(GL_TEXTURE_2D, output_rgb);
+        fbo.createTextureAttachment(output_rgb);
 
-    fbo.bind();
-    glViewport(0, 0, _width, _height);
-    glClearColor(1, 0, 0, 1);
-    glClear(GL_COLOR_BUFFER_BIT);
+        fbo.bind();
+        glClearColor(1, 0, 0, 1);
+        glClear(GL_COLOR_BUFFER_BIT);
 
-    auto& shader = (yuy2rgb_shader&)_viz->get_shader();
-    shader.begin();
-    shader.set_size(_width, _height);
-    shader.end();
-    _viz->draw_texture(_yuy_texture);
+        auto& shader = (yuy2rgb_shader&)_viz->get_shader();
+        shader.begin();
+        shader.set_size(_width, _height);
+        shader.end();
+        _viz->draw_texture(yuy_texture);
 
-    //glReadBuffer(GL_COLOR_ATTACHMENT0);
+        fbo.unbind();
 
-    //glReadPixels(0, 0, _width, _height, GL_RGB, GL_UNSIGNED_BYTE, (void*)res.get_data());
-    
-    fbo.unbind();
-
-    glBindTexture(GL_TEXTURE_2D, 0);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glDeleteTextures(1, &yuy_texture);
+    });
 
     auto end = std::chrono::high_resolution_clock::now();
     auto ms = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-    std::cout << ms << std::endl;
+    //std::cout << ms << std::endl;
 
     return res;
 }
