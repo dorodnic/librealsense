@@ -364,7 +364,7 @@ namespace rs2
             bool* options_invalidated,
             std::string& error_message);
 
-        subdevice_model(device& dev, std::shared_ptr<sensor> s, std::string& error_message);
+        subdevice_model(device& dev, std::shared_ptr<sensor> s, std::string& error_message, gl::context* glctx);
         bool is_there_common_fps() ;
         bool draw_stream_selection();
         bool is_selected_combination_supported();
@@ -550,7 +550,7 @@ namespace rs2
         typedef std::function<void(std::function<void()> load)> json_loading_func;
 
         void reset();
-        explicit device_model(device& dev, std::string& error_message, viewer_model& viewer);
+        explicit device_model(device& dev, std::string& error_message, viewer_model& viewer, gl::context* glctx);
         void start_recording(const std::string& path, std::string& error_message);
         void stop_recording(viewer_model& viewer);
         void pause_record();

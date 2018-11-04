@@ -824,11 +824,11 @@ namespace rs2
 
     subdevice_model::subdevice_model(
         device& dev,
-        std::shared_ptr<sensor> s, std::string& error_message)
+        std::shared_ptr<sensor> s, std::string& error_message, gl::context* glctx)
         : s(s), dev(dev), ui(), last_valid_ui(),
         streaming(false), _pause(false),
         depth_colorizer(std::make_shared<rs2::colorizer>()),
-        yuy_decoder(std::make_shared<rs2::gl::yuy_to_rgb>(gl::context(glfwGetCurrentContext()))),
+        yuy_decoder(std::make_shared<rs2::gl::yuy_to_rgb>(*glctx)),
         decimation_filter(),
         spatial_filter(),
         temporal_filter(),
@@ -2824,13 +2824,13 @@ namespace rs2
         return std::make_pair(s.str(), serial);        // push name and sn to list
     }
 
-    device_model::device_model(device& dev, std::string& error_message, viewer_model& viewer)
+    device_model::device_model(device& dev, std::string& error_message, viewer_model& viewer, gl::context* glctx)
         : dev(dev),
           syncer(viewer.syncer)
     {
         for (auto&& sub : dev.query_sensors())
         {
-            auto model = std::make_shared<subdevice_model>(dev, std::make_shared<sensor>(sub), error_message);
+            auto model = std::make_shared<subdevice_model>(dev, std::make_shared<sensor>(sub), error_message, glctx);
             subdevices.push_back(model);
         }
 
