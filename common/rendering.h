@@ -4,6 +4,7 @@
 #pragma once
 
 #include <librealsense2/rs.hpp>
+#include <librealsense2-gl/rs_processing_gl.hpp>
 
 #define NOMINMAX
 #include <glad/glad.h>
@@ -23,8 +24,6 @@
 #include <map>
 #include <mutex>
 #include <algorithm>
-
-#include <yuy2rgb.h>
 
 #ifdef _MSC_VER
 #ifndef GL_CLAMP_TO_BORDER
@@ -991,9 +990,10 @@ namespace rs2
         mutable rs2::frame last[2];
     public:
         std::shared_ptr<colorizer> colorize;
-        std::shared_ptr<yuy2rgb> rgbize;
+        std::shared_ptr<gl::yuy_to_rgb> yuy_decoder;
         bool zoom_preview = false;
         rect curr_preview_rect{};
+        int texture_id = 0;
 
         texture_buffer(const texture_buffer& other)
         {
@@ -1015,7 +1015,14 @@ namespace rs2
         texture_buffer() : last_queue(), texture(),
             colorize(std::make_shared<colorizer>()) {}
 
-        GLuint get_gl_handle() const { return texture; }
+        GLuint get_gl_handle() const { 
+            if (auto gf = get_last_frame(true).as<gl::gpu_frame>()) 
+            {
+                auto tex = gf.get_texture_id(texture_id);
+                return tex;
+            }
+            else return texture;
+        }
 
         // Simplified version of upload that lets us load basic RGBA textures
         // This is used for the splash screen
@@ -1043,7 +1050,7 @@ namespace rs2
             int height = 0;
             int stride = 0;
             auto format = frame.get_profile().format();
-            auto data = frame.get_data();
+            auto data = !frame.is<gl::gpu_frame>() ? frame.get_data() : nullptr;
 
 
             auto rendered_frame = frame;
@@ -1068,16 +1075,24 @@ namespace rs2
             
             if (auto pc = frame.as<points>())
 			{
-				if (prefered_format == RS2_FORMAT_XYZ32F)
-				{
-					data = pc.get_vertices();
-					glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, data);
-				}
-				else
-				{
-					data = pc.get_texture_coordinates();
-					glTexImage2D(GL_TEXTURE_2D, 0, GL_RG32F, width, height, 0, GL_RG, GL_FLOAT, data);
-				}
+                if (!frame.is<gl::gpu_frame>())
+                {
+                    if (prefered_format == RS2_FORMAT_XYZ32F)
+                    {
+                        data = pc.get_vertices();
+                        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, data);
+                    }
+                    else
+                    {
+                        data = pc.get_texture_coordinates();
+                        glTexImage2D(GL_TEXTURE_2D, 0, GL_RG32F, width, height, 0, GL_RG, GL_FLOAT, data);
+                    }
+                }
+                else
+                {
+                    if (prefered_format == RS2_FORMAT_XYZ32F) texture_id = 0;
+                    else texture_id = 1;
+                }
 			}
 			else
 			{
@@ -1112,22 +1127,23 @@ namespace rs2
 					glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_FLOAT, data);
 					break;
 				case RS2_FORMAT_YUYV:
-					if (auto colorized_frame = rgbize->process(frame).as<video_frame>())
+					if (auto colorized_frame = yuy_decoder->process(frame).as<video_frame>())
                     {
-                        glBindTexture(GL_TEXTURE_2D, texture);
-                        data = colorized_frame.get_data();
+                        if (!colorized_frame.is<gl::gpu_frame>())
+                        {
+                            glBindTexture(GL_TEXTURE_2D, texture);
+                            data = colorized_frame.get_data();
 
-                        int w = colorized_frame.get_width();
+                            int w = colorized_frame.get_width();
 
-                        // Override the first pixel in the colorized image for occlusion invalidation.
-                        memset((void*)data, 0, colorized_frame.get_bytes_per_pixel());
-                        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
-                                        colorized_frame.get_width(),
-                                        colorized_frame.get_height(),
-                                        0, GL_RGB, GL_UNSIGNED_BYTE,
-                                        colorized_frame.get_data());
-
-
+                            // Override the first pixel in the colorized image for occlusion invalidation.
+                            memset((void*)data, 0, colorized_frame.get_bytes_per_pixel());
+                            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
+                                            colorized_frame.get_width(),
+                                            colorized_frame.get_height(),
+                                            0, GL_RGB, GL_UNSIGNED_BYTE,
+                                            colorized_frame.get_data());
+                        }
                         
                         rendered_frame = colorized_frame;
                     }
@@ -1539,7 +1555,8 @@ namespace rs2
             glColor4f(1.0f, 1.0f, 1.0f, 1 - alpha);
             glEnd();
 
-            glBindTexture(GL_TEXTURE_2D, texture);
+            glBindTexture(GL_TEXTURE_2D, get_gl_handle());
+
             glEnable(GL_TEXTURE_2D);
             draw_texture(normalized_zoom, r);
 
@@ -1551,7 +1568,8 @@ namespace rs2
 
         void show_preview(const rect& r, const rect& normalized_zoom = rect{0, 0, 1, 1})
         {
-            glBindTexture(GL_TEXTURE_2D, texture);
+            glBindTexture(GL_TEXTURE_2D, get_gl_handle());
+
             glEnable(GL_TEXTURE_2D);
 
             // Show stream thumbnail

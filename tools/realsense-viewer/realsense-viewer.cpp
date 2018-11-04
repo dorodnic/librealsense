@@ -32,7 +32,8 @@ void add_playback_device(context& ctx, std::shared_ptr<std::vector<device_model>
     {
         auto dev = ctx.load_device(file);
         was_loaded = true;
-        device_models->emplace_back(dev, error_message, viewer_model); //Will cause the new device to appear in the left panel
+        // TODO: Pass proper context
+        device_models->emplace_back(dev, error_message, viewer_model, nullptr); //Will cause the new device to appear in the left panel
         if (auto p = dev.as<playback>())
         {
             auto filename = p.file_name();
@@ -110,7 +111,8 @@ void refresh_devices(std::mutex& m,
     std::vector<std::pair<std::string, std::string>>& device_names,
     std::shared_ptr<std::vector<device_model>> device_models,
     viewer_model& viewer_model,
-    std::string& error_message)
+    std::string& error_message,
+    gl::context* glctx = nullptr)
 {
     event_information info({}, {});
     if (devices_connection_changes.try_get_next_changes(info))
@@ -196,7 +198,7 @@ void refresh_devices(std::mutex& m,
                 if (device_models->size() == 0 &&
                     dev.supports(RS2_CAMERA_INFO_NAME) && std::string(dev.get_info(RS2_CAMERA_INFO_NAME)) != "Platform Camera")
                 {
-                    device_models->emplace_back(dev, error_message, viewer_model);
+                    device_models->emplace_back(dev, error_message, viewer_model, glctx);
                     viewer_model.not_model.add_log(to_string() << device_models->rbegin()->dev.get_info(RS2_CAMERA_INFO_NAME) << " was selected as a default device");
                 }
             }
@@ -275,7 +277,8 @@ int main(int argv, const char** argc) try
 
     window.on_load = [&]()
     {
-        refresh_devices(m, ctx, devices_connection_changes, connected_devs, device_names, device_models, viewer_model, error_message);
+        refresh_devices(m, ctx, devices_connection_changes, connected_devs, 
+            device_names, device_models, viewer_model, error_message, &window.get_processing_context());
         return true;
     };
 
@@ -286,7 +289,8 @@ int main(int argv, const char** argc) try
 		{
 			viewer_model.popup_if_ui_not_aligned(window.get_font());
 		}
-        refresh_devices(m, ctx, devices_connection_changes, connected_devs, device_names, device_models, viewer_model, error_message);
+        refresh_devices(m, ctx, devices_connection_changes, connected_devs, 
+            device_names, device_models, viewer_model, error_message, &window.get_processing_context());
 
         bool update_read_only_options = update_readonly_options_timer;
 
@@ -348,7 +352,7 @@ int main(int argv, const char** argc) try
                     try
                     {
                         auto dev = connected_devs[i];
-                        device_models->emplace_back(dev, error_message, viewer_model);
+                        device_models->emplace_back(dev, error_message, viewer_model, &window.get_processing_context());
                     }
                     catch (const error& e)
                     {
@@ -504,7 +508,7 @@ int main(int argv, const char** argc) try
     }
 
     // Stopping post processing filter rendering thread
-
+    gl::stop_all();
     viewer_model.ppf.stop();
 
     // Stop all subdevices

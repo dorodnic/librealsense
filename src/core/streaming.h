@@ -101,6 +101,7 @@ namespace librealsense
         virtual void acquire() = 0;
         virtual void release() = 0;
         virtual frame_interface* publish(std::shared_ptr<archive_interface> new_owner) = 0;
+        virtual void unpublish() = 0;
         virtual void attach_continuation(frame_continuation&& continuation) = 0;
         virtual void disable_continuation() = 0;
 

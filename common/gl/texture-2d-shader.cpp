@@ -49,7 +49,8 @@ static const char* fragment_shader_text =
 "uniform sampler2D textureSampler;\n"
 "uniform float opacity;\n"
 "void main(void) {\n"
-"    vec4 color = texture2D(textureSampler, textCoords);\n"
+"    vec2 tex = vec2(textCoords.x, 1.0 - textCoords.y);\n"
+"    vec4 color = texture2D(textureSampler, tex);\n"
 "    gl_FragColor = vec4(color.xyz, opacity);\n"
 "}";
 
@@ -158,16 +159,19 @@ obj_mesh texture_visualizer::create_mesh()
 {
     obj_mesh res;
 
+    res.positions.reserve(4);
     res.positions.emplace_back(float3{-1.f, -1.f, 0.f});
     res.positions.emplace_back(float3{1.f, -1.f, 0.f});
     res.positions.emplace_back(float3{1.f, 1.f, 0.f});
     res.positions.emplace_back(float3{-1.f, 1.f, 0.f});
 
+    res.uvs.reserve(4);
     res.uvs.emplace_back(float2{0.f, 1.f});
     res.uvs.emplace_back(float2{1.f, 1.f});
     res.uvs.emplace_back(float2{1.f, 0.f});
     res.uvs.emplace_back(float2{0.f, 0.f});
     
+    res.indexes.reserve(2);
     res.indexes.emplace_back(int3{0, 1, 2});
     res.indexes.emplace_back(int3{2, 3, 0});
 

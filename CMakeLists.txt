@@ -73,6 +73,7 @@ endif()
 # This parameter is meant for disabling graphical examples when building for
 # save-to-disk targets.
 option(BUILD_GRAPHICAL_EXAMPLES "Build graphical examples and tools." ON)
+option(BUILD_GRAPHICAL_PROCESSING "Build OpenGL based processing blocks library" ON)
 
 option(BUILD_WITH_OPENMP "Use OpenMP" OFF)
 
@@ -177,7 +178,7 @@ set(REALSENSE_CPP
     src/error-handling.cpp
     src/hw-monitor.cpp
     src/image.cpp
-    src/image_avx.cpp
+    src/image-avx.cpp
     src/ivcam/ivcam-private.cpp
     src/log.cpp
     src/rs.cpp
@@ -191,6 +192,7 @@ set(REALSENSE_CPP
     src/proc/align.cpp
     src/proc/colorizer.cpp
     src/proc/pointcloud.cpp
+    src/proc/pointcloud-sse.cpp
     src/proc/occlusion-filter.cpp
     src/proc/synthetic-stream.cpp
     src/proc/syncer-processing-block.cpp
@@ -319,6 +321,7 @@ set(REALSENSE_HPP
     src/pipeline.h
     src/config.h
     src/archive.h
+    src/frame-archive.h
     src/concurrency.h
     src/context.h
     src/sensor.h
@@ -328,6 +331,7 @@ set(REALSENSE_HPP
     src/proc/align.h
     src/proc/colorizer.h
     src/proc/pointcloud.h
+    src/proc/pointcloud-sse.h
     src/proc/occlusion-filter.h
     src/proc/synthetic-stream.h
     src/proc/decimation-filter.h
@@ -343,7 +347,7 @@ set(REALSENSE_HPP
     src/error-handling.h
     src/hw-monitor.h
     src/image.h
-    src/image_avx.h
+    src/image-avx.h
     src/source.h
     src/ivcam/ivcam-private.h
     src/types.h
@@ -784,6 +788,7 @@ if(UNIX)
     else()
         set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS}   -mssse3")
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mssse3")
+        add_definitions(-D__SSSE3__)
         set(LRS_TRY_USE_AVX true)
     endif(${MACHINE} MATCHES "arm-linux-gnueabihf")
 endif()
@@ -876,7 +881,7 @@ if (BUILD_WITH_TM2)
 endif()
 
 if(LRS_TRY_USE_AVX)
-    set_source_files_properties(src/image_avx.cpp PROPERTIES COMPILE_FLAGS -mavx2)
+    set_source_files_properties(src/image-avx.cpp PROPERTIES COMPILE_FLAGS -mavx2)
 endif()
 
 option(BUILD_SHARED_LIBS "Build shared library" ON)
@@ -1012,6 +1017,10 @@ SET(DOTNET_VERSION_LIBRARY "3.5" CACHE STRING ".Net Version, defaulting to '3.5'
 SET(DOTNET_VERSION_EXAMPLES "4.0" CACHE STRING ".Net Version, defaulting to '4.0'")
 
 add_subdirectory(wrappers)
+
+if (BUILD_GRAPHICAL_PROCESSING)
+    add_subdirectory(src/gl)
+endif()
 
 if((BUILD_EXAMPLES AND BUILD_GRAPHICAL_EXAMPLES) AND WIN32)
   add_subdirectory(third-party/glfw)

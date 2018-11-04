@@ -28,7 +28,7 @@ if(BUILD_GRAPHICAL_EXAMPLES)
         message(FATAL_ERROR "\n\n OpenGL package is missing!\n\n")
     endif()
 
-    set(DEPENDENCIES realsense2 ${OPENGL_LIBRARIES})
+    set(DEPENDENCIES realsense2 realsense2-gl ${OPENGL_LIBRARIES})
 
     if(WIN32)
         list(APPEND DEPENDENCIES glfw3)

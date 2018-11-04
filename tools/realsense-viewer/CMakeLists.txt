@@ -63,8 +63,6 @@ endif()
             ../../common/gl/fbo.cpp
             ../../common/gl/camera-shader.h
             ../../common/gl/camera-shader.cpp
-            ../../common/gl/yuy2rgb.h
-            ../../common/gl/yuy2rgb.cpp
             ${LZ4_DIR}/lz4.h
             ${LZ4_DIR}/lz4.c
         )

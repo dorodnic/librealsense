@@ -103,6 +103,8 @@ namespace rs2
                 data->on_file_drop(paths[i]);
             }
         });
+
+        _processing_context = std::make_shared<rs2::gl::context>(_win);
     }
 
     ux_window::ux_window(const char* title) :
@@ -194,7 +196,7 @@ namespace rs2
             auto opacity = smoothstep(float(_splash_timer.elapsed_ms()), 100.f, 2500.f);
             auto ox = 0.7f - smoothstep(float(_splash_timer.elapsed_ms()), 200.f, 1900.f) * 0.4f;
 
-            auto oy = 0.5f + std::sin(smoothstep(float(_splash_timer.elapsed_ms()), 100.f, 1600.f) * 3.14f) * 0.07f;
+            auto oy = 0.5f;// + std::sin(smoothstep(float(_splash_timer.elapsed_ms()), 100.f, 1600.f) * 3.14f) * 0.07f;
 
             auto power = std::sin(smoothstep(float(_splash_timer.elapsed_ms()), 150.f, 2200.f) * 3.14f) * 0.96f;
 
@@ -222,7 +224,7 @@ namespace rs2
             }
 
             hourglass[2] += _hourglass_index;
-            
+
             auto flags = ImGuiWindowFlags_NoResize |
                 ImGuiWindowFlags_NoMove |
                 ImGuiWindowFlags_NoCollapse |
@@ -292,6 +294,8 @@ namespace rs2
         }
 
         end_frame();
+
+        gl::stop_all();
 
         ImGui::GetIO().Fonts->ClearFonts();  // To be refactored into Viewer theme object
         ImGui_ImplGlfw_Shutdown();
@@ -379,6 +383,8 @@ namespace rs2
     {
         if (!_first_frame)
         {
+            rs2::gl::update_all(); // Give any pending graphic operations an opportunity to finish
+
             ImGui::Render();
 
             glfwSwapBuffers(_win);

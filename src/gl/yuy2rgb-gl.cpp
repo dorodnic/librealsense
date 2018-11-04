@@ -1,4 +1,12 @@
-#include "yuy2rgb.h"
+// License: Apache 2.0. See LICENSE file in root directory.
+// Copyright(c) 2017 Intel Corporation. All Rights Reserved.
+
+#include "../include/librealsense2/hpp/rs_sensor.hpp"
+#include "../include/librealsense2/hpp/rs_processing.hpp"
+#include "../include/librealsense2-gl/rs_processing_gl.hpp"
+
+#include "proc/synthetic-stream.h"
+#include "yuy2rgb-gl.h"
 
 #define NOMINMAX
 
@@ -10,6 +18,7 @@
 #include <strstream>
 
 #include "texture-2d-shader.h"
+#include "synthetic-stream-gl.h"
 
 static const char* fragment_shader_text =
 "#version 110\n"
@@ -54,10 +63,8 @@ static const char* fragment_shader_text =
 "    gl_FragColor = vec4(color.xyz, opacity);\n"
 "}";
 
-// 3rd party header for writing png files
-#include "stb_image_write.h"
-
 using namespace rs2;
+using namespace librealsense::gl;
 
 class yuy2rgb_shader : public texture_2d_shader
 {
@@ -69,7 +76,7 @@ public:
         _height_location = _shader->get_uniform_location("height");
     }
 
-    void set_size(int w, int h) 
+    void set_size(int w, int h)
     {
         _shader->load_uniform(_width_location, (float)w);
         _shader->load_uniform(_height_location, (float)h);
@@ -80,99 +87,73 @@ private:
     uint32_t _height_location;
 };
 
-yuy2rgb::yuy2rgb()
-    : processing_block([this](frame f, frame_source& src){
-        on_frame(f, src);
-    }), _yuy_texture(0), _output_rgb(0)
+yuy2rgb::yuy2rgb(std::shared_ptr<gl::context> ctx)
+    : _viz([](){ return visualizer_2d(std::make_shared<yuy2rgb_shader>()); }), _ctx(ctx)
 {
-    start(_queue);
+    _source.add_extension<gpu_video_frame>(RS2_EXTENSION_VIDEO_FRAME_GL);
 }
 
-void yuy2rgb::init()
+rs2::frame yuy2rgb::process_frame(const rs2::frame_source& src, const rs2::frame& f)
 {
-    if (!_yuy_texture)
-    {
-        glDeleteTextures(1, &_yuy_texture);
-        glDeleteTextures(1, &_output_rgb);
-    }
-
-    _viz = std::unique_ptr<visualizer_2d>(new visualizer_2d(
-        std::make_shared<yuy2rgb_shader>()
-    ));
-
-    glGenTextures(1, &_yuy_texture);
-    glGenTextures(1, &_output_rgb);
-}
-
-yuy2rgb::~yuy2rgb()
-{
-    glDeleteTextures(1, &_yuy_texture);
-    glDeleteTextures(1, &_output_rgb);
-}
-
-void yuy2rgb::on_frame(frame f, frame_source& src)
-{
-    auto start = std::chrono::high_resolution_clock::now();
-
-    if (!_was_init)
-    {
-        init();
-        _was_init = true;
-    }
-
     if (f.get_profile().get() != _input_profile.get())
     {
         _input_profile = f.get_profile();
         _output_profile = _input_profile.clone(_input_profile.stream_type(), 
-                                               _input_profile.stream_index(), 
-                                               RS2_FORMAT_RGB8);
+                                            _input_profile.stream_index(), 
+                                            RS2_FORMAT_RGB8);
         auto vp = _input_profile.as<rs2::video_stream_profile>();
         _width = vp.width(); _height = vp.height();
-        _fbo = std::unique_ptr<fbo>(new fbo(_width, _height));
-        _fbo->createTextureAttachment(_output_rgb);
     }
 
-    glBindTexture(GL_TEXTURE_2D, _yuy_texture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RG8, _width, _height, 0, GL_RG, GL_UNSIGNED_BYTE, f.get_data());
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    auto start = std::chrono::high_resolution_clock::now();
 
-    _fbo->bind();
-    glViewport(0, 0, _width, _height);
-    glClearColor(1, 0, 0, 1);
-    glDisable(GL_DEPTH_TEST);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    auto res = src.allocate_video_frame(_output_profile, f, 3, _width, _height, _width * 3, RS2_EXTENSION_VIDEO_FRAME_GL);
 
-    auto& shader = (yuy2rgb_shader&)_viz->get_shader();
-    shader.begin();
-    shader.set_size(_width, _height);
-    shader.end();
-    _viz->draw_texture(_yuy_texture);
+    auto session = _ctx->begin_session();
 
-    auto res = src.allocate_video_frame(_output_profile, f, 3, _width, _height, _width * 3);
+    // main_thread_dispatcher::instance().invoke([&]()
+    // {
+        auto gf = dynamic_cast<gpu_addon_interface*>((frame_interface*)res.get());
+        
+        uint32_t yuy_texture;
+        glGenTextures(1, &yuy_texture);
+        glBindTexture(GL_TEXTURE_2D, yuy_texture);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RG8, _width, _height, 0, GL_RG, GL_UNSIGNED_BYTE, f.get_data());
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
-    glReadBuffer(GL_COLOR_ATTACHMENT0);
+        uint32_t output_rgb;
+        gf->get_gpu_section().output_texture(0, &output_rgb, texture_type::RGB, _ctx);
+        glBindTexture(GL_TEXTURE_2D, output_rgb);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, _width, _height, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 
-    glReadPixels(0, 0, _width, _height, GL_RGB, GL_UNSIGNED_BYTE, (void*)res.get_data());
-    
-    _fbo->unbind();
+        gf->get_gpu_section().set_size(_width, _height);
 
-    //glEnable(GL_DEPTH_TEST);
-    glBindTexture(GL_TEXTURE_2D, 0);
-    src.frame_ready(res);
+        fbo fbo(_width, _height);
+        glBindTexture(GL_TEXTURE_2D, output_rgb);
+        fbo.createTextureAttachment(output_rgb);
 
-    //auto vf = res.as<rs2::video_frame>();
+        fbo.bind();
+        glClearColor(1, 0, 0, 1);
+        glClear(GL_COLOR_BUFFER_BIT);
 
-    //auto fw = vf.get_width();
-    //auto fh = vf.get_height();
-    //auto fbpp = vf.get_bytes_per_pixel();
-    //auto fstride = vf.get_stride_in_bytes();
+        auto& shader = (yuy2rgb_shader&)_viz->get_shader();
+        shader.begin();
+        shader.set_size(_width, _height);
+        shader.end();
+        _viz->draw_texture(yuy_texture);
 
-    //stbi_write_png("1.png", fw, fh,
-    //    fbpp, vf.get_data(), fstride);
+        fbo.unbind();
+
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glDeleteTextures(1, &yuy_texture);
+    //});
 
     auto end = std::chrono::high_resolution_clock::now();
     auto ms = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-    std::stringstream ss; ss << ms << std::endl;
-    OutputDebugStringA(ss.str().c_str());
+    //std::cout << ms << std::endl;
+
+    return res;
 }

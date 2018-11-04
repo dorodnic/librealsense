@@ -364,7 +364,7 @@ namespace rs2
             bool* options_invalidated,
             std::string& error_message);
 
-        subdevice_model(device& dev, std::shared_ptr<sensor> s, std::string& error_message);
+        subdevice_model(device& dev, std::shared_ptr<sensor> s, std::string& error_message, gl::context* glctx);
         bool is_there_common_fps() ;
         bool draw_stream_selection();
         bool is_selected_combination_supported();
@@ -462,7 +462,7 @@ namespace rs2
         std::shared_ptr<processing_block_model> hole_filling_filter;
         std::shared_ptr<processing_block_model> depth_to_disparity;
         std::shared_ptr<processing_block_model> disparity_to_depth;
-        std::shared_ptr<rs2::yuy2rgb> yuy_rgbizer;
+        std::shared_ptr<rs2::gl::yuy_to_rgb> yuy_decoder;
 
         std::vector<std::shared_ptr<processing_block_model>> post_processing;
         bool post_processing_enabled = false;
@@ -550,7 +550,7 @@ namespace rs2
         typedef std::function<void(std::function<void()> load)> json_loading_func;
 
         void reset();
-        explicit device_model(device& dev, std::string& error_message, viewer_model& viewer);
+        explicit device_model(device& dev, std::string& error_message, viewer_model& viewer, gl::context* glctx);
         void start_recording(const std::string& path, std::string& error_message);
         void stop_recording(viewer_model& viewer);
         void pause_record();
@@ -720,7 +720,7 @@ namespace rs2
             resulting_queue(static_cast<unsigned int>(resulting_queue_max_size)),
             render_thread(),
             render_thread_active(false),
-            pc(new pointcloud())
+            pc(new gl::pointcloud(gl::context(glfwGetCurrentContext())))
         {
             std::string s;
             pc_gen = std::make_shared<processing_block_model>(nullptr, "Pointcloud Engine", pc, [=](rs2::frame f) { return pc->calculate(f); }, s);
@@ -777,7 +777,7 @@ namespace rs2
         rs2::frame apply_filters(rs2::frame f);
         rs2::frame last_tex_frame;
         rs2::processing_block processing_block;
-        std::shared_ptr<pointcloud> pc;
+        std::shared_ptr<gl::pointcloud> pc;
         rs2::frameset model;
         std::shared_ptr<processing_block_model> pc_gen;
 
