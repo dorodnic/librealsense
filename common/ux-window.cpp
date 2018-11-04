@@ -51,7 +51,7 @@ namespace rs2
             }
         }
         
-        glfwWindowHint(GLFW_SAMPLES, 4);
+        glfwWindowHint(GLFW_SAMPLES, 1);
 
         // Create GUI Windows
         _win = glfwCreateWindow(_width, _height, _title_str.c_str(),
@@ -370,7 +370,7 @@ namespace rs2
         glViewport(0, 0,
             static_cast<int>(ImGui::GetIO().DisplaySize.x * _scale_factor),
             static_cast<int>(ImGui::GetIO().DisplaySize.y * _scale_factor));
-        glEnable(GL_MULTISAMPLE);
+        //glEnable(GL_MULTISAMPLE);
         glClearColor(0, 0, 0, 1);
         glClear(GL_COLOR_BUFFER_BIT);
     }
