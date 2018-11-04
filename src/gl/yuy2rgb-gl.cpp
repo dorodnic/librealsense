@@ -109,8 +109,10 @@ rs2::frame yuy2rgb::process_frame(const rs2::frame_source& src, const rs2::frame
 
     auto res = src.allocate_video_frame(_output_profile, f, 3, _width, _height, _width * 3, RS2_EXTENSION_VIDEO_FRAME_GL);
 
-    main_thread_dispatcher::instance().invoke([&]()
-    {
+    auto session = _ctx->begin_session();
+
+    // main_thread_dispatcher::instance().invoke([&]()
+    // {
         auto gf = dynamic_cast<gpu_addon_interface*>((frame_interface*)res.get());
         
         uint32_t yuy_texture;
@@ -121,7 +123,7 @@ rs2::frame yuy2rgb::process_frame(const rs2::frame_source& src, const rs2::frame
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
         uint32_t output_rgb;
-        gf->get_gpu_section().output_texture(0, &output_rgb, texture_type::RGB);
+        gf->get_gpu_section().output_texture(0, &output_rgb, texture_type::RGB, _ctx);
         glBindTexture(GL_TEXTURE_2D, output_rgb);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, _width, _height, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -147,7 +149,7 @@ rs2::frame yuy2rgb::process_frame(const rs2::frame_source& src, const rs2::frame
 
         glBindTexture(GL_TEXTURE_2D, 0);
         glDeleteTextures(1, &yuy_texture);
-    });
+    //});
 
     auto end = std::chrono::high_resolution_clock::now();
     auto ms = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();

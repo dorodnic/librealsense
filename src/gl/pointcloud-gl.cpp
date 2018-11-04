@@ -224,28 +224,30 @@ const librealsense::float3* pointcloud_gl::depth_to_points(
         const uint16_t * depth_image, 
         float depth_scale)
 {
+    auto session = _ctx->begin_session();
+
     auto start = std::chrono::high_resolution_clock::now();
 
     auto width = depth_intrinsics.width;
     auto height = depth_intrinsics.height;
 
-    std::shared_ptr<uint16_t> depth_data;
+    // std::shared_ptr<uint16_t> depth_data;
 
-    if (main_thread_dispatcher::instance().require_dispatch())
-    {
-        depth_data = std::shared_ptr<uint16_t>(new uint16_t[width*height], 
-            [](uint16_t* ptr) { delete[] ptr; });
-        memcpy(depth_data.get(), depth_image, width * height * sizeof(uint16_t));
-        depth_image = depth_data.get();
-    }
+    // if (main_thread_dispatcher::instance().require_dispatch())
+    // {
+    //     depth_data = std::shared_ptr<uint16_t>(new uint16_t[width*height], 
+    //         [](uint16_t* ptr) { delete[] ptr; });
+    //     memcpy(depth_data.get(), depth_image, width * height * sizeof(uint16_t));
+    //     depth_image = depth_data.get();
+    // }
 
     auto viz = _projection_renderer;
     auto frame_ref = output.get();
 
-    auto action = [depth_data, frame_ref, width, height,
-        depth_intrinsics, depth_scale, depth_image, viz]()
-    {
-        auto start_gl = std::chrono::high_resolution_clock::now();
+    // auto action = [depth_data, frame_ref, width, height,
+    //     depth_intrinsics, depth_scale, depth_image, viz]()
+    // {
+        //auto start_gl = std::chrono::high_resolution_clock::now();
 
         auto gf = dynamic_cast<gpu_addon_interface*>((frame_interface*)frame_ref);
 
@@ -258,7 +260,7 @@ const librealsense::float3* pointcloud_gl::depth_to_points(
 
         fbo fbo(width, height);
         uint32_t output_xyz;
-        gf->get_gpu_section().output_texture(0, &output_xyz, texture_type::XYZ);
+        gf->get_gpu_section().output_texture(0, &output_xyz, texture_type::XYZ, _ctx);
         glBindTexture(GL_TEXTURE_2D, output_xyz);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, nullptr);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -287,20 +289,20 @@ const librealsense::float3* pointcloud_gl::depth_to_points(
         glBindTexture(GL_TEXTURE_2D, 0);
         glDeleteTextures(1, &depth_texture);
 
-        auto end_gl = std::chrono::high_resolution_clock::now();
-        auto ms_gl = std::chrono::duration_cast<std::chrono::microseconds>(end_gl - start_gl).count();
-        std::cout << "GL " << ms_gl << std::endl;
-    };
+        // auto end_gl = std::chrono::high_resolution_clock::now();
+        // auto ms_gl = std::chrono::duration_cast<std::chrono::microseconds>(end_gl - start_gl).count();
+        // std::cout << "GL " << ms_gl << std::endl;
+    //};
 
-    if (main_thread_dispatcher::instance().require_dispatch())
-    {
-        auto gf = dynamic_cast<gpu_addon_interface*>((frame_interface*)frame_ref);
-        gf->get_gpu_section().delay(action);
-    }
-    else
-    {
-        action();
-    }
+    // if (main_thread_dispatcher::instance().require_dispatch())
+    // {
+    //     auto gf = dynamic_cast<gpu_addon_interface*>((frame_interface*)frame_ref);
+    //     gf->get_gpu_section().delay(action);
+    // }
+    // else
+    // {
+    //     action();
+    // }
 
     auto end = std::chrono::high_resolution_clock::now();
     auto ms = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -320,9 +322,11 @@ void pointcloud_gl::get_texture_map(
     auto viz = _uvmap_renderer;
     auto frame_ref = output.get();
 
-    auto action = [frame_ref, width, height,
-        other_intrinsics, extr, viz]()
-    {
+    auto session = _ctx->begin_session();
+
+    // auto action = [frame_ref, width, height,
+    //     other_intrinsics, extr, viz]()
+    // {
         auto start_gl = std::chrono::high_resolution_clock::now();
 
         auto gf = dynamic_cast<gpu_addon_interface*>((frame_interface*)frame_ref);
@@ -332,7 +336,7 @@ void pointcloud_gl::get_texture_map(
 
         fbo fbo(width, height);
         uint32_t output_uv;
-        gf->get_gpu_section().output_texture(1, &output_uv, texture_type::UV);
+        gf->get_gpu_section().output_texture(1, &output_uv, texture_type::UV, _ctx);
         glBindTexture(GL_TEXTURE_2D, output_uv);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RG32F, width, height, 0, GL_RG, GL_FLOAT, nullptr);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -361,17 +365,17 @@ void pointcloud_gl::get_texture_map(
         auto end_gl = std::chrono::high_resolution_clock::now();
         auto ms_gl = std::chrono::duration_cast<std::chrono::microseconds>(end_gl - start_gl).count();
         std::cout << "TM GL " << ms_gl << std::endl;
-    };
+    //};
 
-    if (main_thread_dispatcher::instance().require_dispatch())
-    {
-        auto gf = dynamic_cast<gpu_addon_interface*>((frame_interface*)frame_ref);
-        gf->get_gpu_section().delay(action);
-    }
-    else
-    {
-        action();
-    }
+    // if (main_thread_dispatcher::instance().require_dispatch())
+    // {
+    //     auto gf = dynamic_cast<gpu_addon_interface*>((frame_interface*)frame_ref);
+    //     gf->get_gpu_section().delay(action);
+    // }
+    // else
+    // {
+    //     action();
+    // }
 }
 
 rs2::points pointcloud_gl::allocate_points(

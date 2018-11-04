@@ -26,21 +26,29 @@ namespace librealsense
             {
                 textures[i] = 0;
                 loaded[i] = false;
-                helpers[i] = false;
+                contexts[i] = nullptr;
             }
         }
 
         gpu_section::~gpu_section()
         {
-            bool need_to_delete = false;
-            for (int i = 0; i < MAX_TEXTURES; i++)
-                if (textures[i]) need_to_delete = true;
+            // bool need_to_delete = false;
+            // for (int i = 0; i < MAX_TEXTURES; i++)
+            //     if (textures[i]) need_to_delete = true;
 
-            if (need_to_delete)
-                main_thread_dispatcher::instance().invoke([&]()
+            // if (need_to_delete)
+            //     main_thread_dispatcher::instance().invoke([&]()
+            //     {
+            //         glDeleteTextures(MAX_TEXTURES, textures);
+            //     });
+            for (int i = 0; i < MAX_TEXTURES; i++)
+            {
+                if (textures[i])
                 {
-                    glDeleteTextures(MAX_TEXTURES, textures);
-                });
+                    auto session = contexts[i]->begin_session();
+                    glDeleteTextures(1, &textures[i]);
+                }
+            }
         }
 
         void gpu_section::on_publish()
@@ -48,43 +56,41 @@ namespace librealsense
             for (int i = 0; i < MAX_TEXTURES; i++)
             {
                 loaded[i] = false;
-                helpers[i] = false;
+                contexts[i] = nullptr;
             }
         }
 
         void gpu_section::on_unpublish()
         {
-            if (!main_thread_dispatcher::instance().require_dispatch())
-            {
-                glDeleteTextures(MAX_TEXTURES, textures);
-                for (int i = 0; i < MAX_TEXTURES; i++)
-                {
-                    textures[i] = 0;
-                }
-            }
-            
             for (int i = 0; i < MAX_TEXTURES; i++)
             {
+                if (textures[i])
+                {
+                    auto session = contexts[i]->begin_session();
+                    glDeleteTextures(1, &textures[i]);
+                    contexts[i] = nullptr;
+                    textures[i] = 0;
+                }
+
                 loaded[i] = false;
-                helpers[i] = false;
             }
 
             _delayed_actions.clear();
         }
 
-        void gpu_section::output_texture(int id, uint32_t* tex, texture_type type, bool helper)
+        void gpu_section::output_texture(int id, uint32_t* tex, texture_type type, std::shared_ptr<gl::context> ctx)
         {
             auto existing_tex = textures[id];
             if (existing_tex)
                 *tex = existing_tex;
             else
             {
+                contexts[id] = ctx;
                 glGenTextures(1, tex);
                 textures[id] = *tex;
             }
             loaded[id] = true;
             types[id] = type;
-            helpers[id] = helper;
         }
 
         void gpu_section::set_size(uint32_t width, uint32_t height)
@@ -126,14 +132,16 @@ namespace librealsense
 
             if (need_to_fetch)
             {
-                main_thread_dispatcher::instance().invoke([&]()
-                {
-                    catch_up();
+                // main_thread_dispatcher::instance().invoke([&]()
+                // {
+                //     catch_up();
                     
                     auto ptr = (uint8_t*)to;
                     for (int i = 0; i < MAX_TEXTURES; i++)
-                        if (textures[i] && loaded[i] && !helpers[i])
+                        if (textures[i] && loaded[i])
                         {
+                            auto session = contexts[i]->begin_session();
+
                             rs2::visualizer_2d vis;
                             rs2::fbo fbo(width, height);
                             uint32_t res;
@@ -167,7 +175,7 @@ namespace librealsense
                             
                             fbo.unbind();
                         }
-                });
+                //});
             }
         }
 

@@ -29,6 +29,21 @@ namespace librealsense
             UV
         };
 
+
+        class context : public std::enable_shared_from_this<context>
+        {
+        public:
+            context(GLFWwindow* share_with);
+
+            std::shared_ptr<void> begin_session();
+
+            ~context();
+
+        private:
+            GLFWwindow* _ctx;
+            std::mutex _lock;
+        };
+
         class gpu_section
         {
         public:
@@ -43,15 +58,15 @@ namespace librealsense
             void delay(std::function<void()> action);
 
             bool input_texture(int id, uint32_t* tex);
-            void output_texture(int id, uint32_t* tex, texture_type type, bool helper = false);
+            void output_texture(int id, uint32_t* tex, texture_type type, std::shared_ptr<gl::context> ctx);
 
             void set_size(uint32_t width, uint32_t height);
 
         private:
             uint32_t textures[MAX_TEXTURES];
             texture_type types[MAX_TEXTURES];
-            bool helpers[MAX_TEXTURES];
             bool loaded[MAX_TEXTURES];
+            std::shared_ptr<gl::context> contexts[MAX_TEXTURES];
             uint32_t width, height;
             std::deque<std::function<void()>> _delayed_actions;
         };
@@ -112,20 +127,6 @@ namespace librealsense
             single_consumer_queue<std::function<void()>> _actions;
             std::thread::id _main_thread;
             std::atomic<bool> _active;
-        };
-
-        class context : public std::enable_shared_from_this<context>
-        {
-        public:
-            context(GLFWwindow* share_with);
-
-            std::shared_ptr<void> begin_session();
-
-            ~context();
-
-        private:
-            GLFWwindow* _ctx;
-            std::mutex _lock;
         };
 
         class gpu_video_frame : public gpu_addon<video_frame> {};
