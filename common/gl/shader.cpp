@@ -164,13 +164,19 @@ void shader_program::end() const
 
 std::unique_ptr<shader_program> shader_program::load(
                                 const std::string& vertex_shader,
-                                const std::string& fragment_shader)
+                                const std::string& fragment_shader,
+                                const char* output0,
+                                const char* output1)
 {
     std::unique_ptr<shader_program> res(new shader_program());
     shader vertex(vertex_shader, shader_type::vertex);
     shader fragment(fragment_shader, shader_type::fragment);
     res->attach(vertex);
     res->attach(fragment);
+
+    if (output0) glBindFragDataLocation(res->get_id(), 0, output0);
+    if (output1) glBindFragDataLocation(res->get_id(), 1, output1);
+
     res->link();
     return std::move(res);
 }

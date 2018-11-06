@@ -4093,6 +4093,7 @@ namespace rs2
                 glEnable(GL_DEPTH_TEST);
 
                 //positions->show(rect{ 0.f, 0.f, 1.f, 1.f }, 1.f);
+                //uvs->show(rect{ 1.f, 0.f, 1.f, 1.f }, 1.f);
             }
         }
 

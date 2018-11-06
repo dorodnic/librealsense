@@ -22,7 +22,7 @@ namespace librealsense
         _source_wrapper(_source)
     {
         register_option(RS2_OPTION_FRAMES_QUEUE_SIZE, _source.get_published_size_option());
-        _source.init(std::shared_ptr<metadata_parser_map>());
+            _source.init(std::shared_ptr<metadata_parser_map>());
     }
 
     void processing_block::invoke(frame_holder f)

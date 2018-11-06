@@ -24,67 +24,60 @@ using namespace librealsense::gl;
 static const char* project_fragment_text =
 "#version 130\n"
 "in vec2 textCoords;\n"
-"out vec4 output;\n"
+"out vec4 output_xyz;\n"
+"out vec4 output_uv;\n"
 "uniform sampler2D textureSampler;\n"
 "uniform float opacity;\n"
-"uniform vec2 focal;\n"
-"uniform vec2 principal;\n"
-"uniform float is_bc;\n"
-"uniform float coeffs[5];\n"
+"uniform mat4 extrinsics;\n"
+""
+"uniform vec2 focal1;\n"
+"uniform vec2 principal1;\n"
+"uniform float is_bc1;\n"
+"uniform float coeffs1[5];\n"
+""
+"uniform vec2 focal2;\n"
+"uniform vec2 principal2;\n"
+"uniform float is_bc2;\n"
+"uniform float coeffs2[5];\n"
+""
 "uniform float depth_scale;\n"
-"uniform float width;\n"
-"uniform float height;\n"
+"uniform float width1;\n"
+"uniform float height1;\n"
+"uniform float width2;\n"
+"uniform float height2;\n"
 "\n"
 "void main(void) {\n"
-"    float px = textCoords.x * width;\n"
-"    float py = (1.0 - textCoords.y) * height;\n"
-"    float x = (px - principal.x) / focal.x;\n"
-"    float y = (py - principal.y) / focal.y;\n"
-"    if(is_bc > 0.0)\n"
+"    float px = textCoords.x * width1;\n"
+"    float py = (1.0 - textCoords.y) * height1;\n"
+"    float x = (px - principal1.x) / focal1.x;\n"
+"    float y = (py - principal1.y) / focal1.y;\n"
+"    if(is_bc1 > 0.0)\n"
 "    {\n"
 "        float r2  = x*x + y*y;\n"
-"        float f = 1.0 + coeffs[0]*r2 + coeffs[1]*r2*r2 + coeffs[4]*r2*r2*r2;\n"
-"        float ux = x*f + 2.0*coeffs[2]*x*y + coeffs[3]*(r2 + 2.0*x*x);\n"
-"        float uy = y*f + 2.0*coeffs[3]*x*y + coeffs[2]*(r2 + 2.0*y*y);\n"
+"        float f = 1.0 + coeffs1[0]*r2 + coeffs1[1]*r2*r2 + coeffs1[4]*r2*r2*r2;\n"
+"        float ux = x*f + 2.0*coeffs1[2]*x*y + coeffs1[3]*(r2 + 2.0*x*x);\n"
+"        float uy = y*f + 2.0*coeffs1[3]*x*y + coeffs1[2]*(r2 + 2.0*y*y);\n"
 "        x = ux;\n"
 "        y = uy;\n"
 "    }\n"
 "    vec2 tex = vec2(textCoords.x, 1.0 - textCoords.y);\n"
 "    float d = texture(textureSampler, tex).x;\n"
 "    float depth = depth_scale * d * 65535;\n"
-"    output = vec4(x * depth, y * depth, depth, opacity);\n"
-"}";
-
-
-static const char* uv_fragment_text =
-"#version 130\n"
-"in vec2 textCoords;\n"
-"out vec4 output;\n"
-"uniform sampler2D textureSampler;\n"
-"uniform float opacity;\n"
-"uniform mat4 extrinsics;\n"
-"uniform vec2 focal;\n"
-"uniform vec2 principal;\n"
-"uniform float is_bc;\n"
-"uniform float coeffs[5];\n"
-"uniform float width;\n"
-"uniform float height;\n"
-"\n"
-"void main(void) {\n"
-"    vec2 tex = vec2(textCoords.x, 1.0 - textCoords.y);\n"
-"    vec4 xyz = texture(textureSampler, tex);\n"
+"    vec4 xyz = vec4(x * depth, y * depth, depth, 1.0);\n"
+"    output_xyz = xyz;\n"
+""
 "    vec4 trans = extrinsics * xyz;\n"
-"    float x = trans.x / trans.z;\n"
-"    float y = trans.y / trans.z;\n"
+"    x = trans.x / trans.z;\n"
+"    y = trans.y / trans.z;\n"
 "\n"
-"    if(is_bc > 0.0)\n"
+"    if(is_bc2 > 0.0)\n"
 "    {\n"
 "        float r2  = x*x + y*y;\n"
-"        float f = 1.0 + coeffs[0]*r2 + coeffs[1]*r2*r2 + coeffs[4]*r2*r2*r2;\n"
+"        float f = 1.0 + coeffs2[0]*r2 + coeffs2[1]*r2*r2 + coeffs2[4]*r2*r2*r2;\n"
 "        x *= f;\n"
 "        y *= f;\n"
-"        float dx = x + 2.0*coeffs[2]*x*y + coeffs[3]*(r2 + 2.0*x*x);\n"
-"        float dy = y + 2.0*coeffs[3]*x*y + coeffs[2]*(r2 + 2.0*y*y);\n"
+"        float dx = x + 2.0*coeffs2[2]*x*y + coeffs2[3]*(r2 + 2.0*x*x);\n"
+"        float dy = y + 2.0*coeffs2[3]*x*y + coeffs2[2]*(r2 + 2.0*y*y);\n"
 "        x = dx;\n"
 "        y = dy;\n"
 "    }\n"
@@ -97,88 +90,57 @@ static const char* uv_fragment_text =
 "    //    y *= rd / r;\n"
 "    //}\n"
 "\n"
-"    float u = (x * focal.x + principal.x) / width;\n"
-"    float v = (y * focal.y + principal.y) / height;\n"
-"    output = vec4(u, v, 0.0, 1.0);\n"
+"    float u = (x * focal2.x + principal2.x) / width2;\n"
+"    float v = (y * focal2.y + principal2.y) / height2;\n"
+"    output_uv = vec4(u, v, 0.0, 1.0);\n"
 "}";
 
 class project_shader : public texture_2d_shader
 {
 public:
     project_shader()
-        : texture_2d_shader(project_fragment_text)
+        : texture_2d_shader(shader_program::load(
+            texture_2d_shader::default_vertex_shader(), 
+            project_fragment_text, "output_xyz", "output_uv"))
     {
-        _focal_location = _shader->get_uniform_location("focal");
-        _principal_location = _shader->get_uniform_location("principal");
-        _is_bc_location = _shader->get_uniform_location("is_bc");
-        _coeffs_location = _shader->get_uniform_location("coeffs");
+        _focal_location[0] = _shader->get_uniform_location("focal1");
+        _principal_location[0] = _shader->get_uniform_location("principal1");
+        _is_bc_location[0] = _shader->get_uniform_location("is_bc1");
+        _coeffs_location[0] = _shader->get_uniform_location("coeffs1");
+
+        _focal_location[1] = _shader->get_uniform_location("focal2");
+        _principal_location[1] = _shader->get_uniform_location("principal2");
+        _is_bc_location[1] = _shader->get_uniform_location("is_bc2");
+        _coeffs_location[1] = _shader->get_uniform_location("coeffs2");
+
         _depth_scale_location = _shader->get_uniform_location("depth_scale");
-        _width_location = _shader->get_uniform_location("width");
-        _height_location = _shader->get_uniform_location("height");
+        _width_location[0] = _shader->get_uniform_location("width1");
+        _height_location[0] = _shader->get_uniform_location("height1");
+        _width_location[1] = _shader->get_uniform_location("width2");
+        _height_location[1] = _shader->get_uniform_location("height2");
+        _extrinsics_location = _shader->get_uniform_location("extrinsics");
     }
 
-    void set_size(int w, int h)
+    void set_size(int id, int w, int h)
     {
-        _shader->load_uniform(_width_location, (float)w);
-        _shader->load_uniform(_height_location, (float)h);
+        _shader->load_uniform(_width_location[id], (float)w);
+        _shader->load_uniform(_height_location[id], (float)h);
     }
 
-    void set_intrinsics(const rs2_intrinsics& intr)
+    void set_intrinsics(int idx, const rs2_intrinsics& intr)
     {
         rs2::float2 focal{ intr.fx, intr.fy };
         rs2::float2 principal{ intr.ppx, intr.ppy };
         float is_bc = (intr.model == RS2_DISTORTION_INVERSE_BROWN_CONRADY ? 1.f : 0.f);
-        _shader->load_uniform(_focal_location, focal);
-        _shader->load_uniform(_principal_location, principal);
-        _shader->load_uniform(_is_bc_location, is_bc);
+        _shader->load_uniform(_focal_location[idx], focal);
+        _shader->load_uniform(_principal_location[idx], principal);
+        _shader->load_uniform(_is_bc_location[idx], is_bc);
         glUniform1fv(_shader->get_id(), 5, intr.coeffs);
     }
 
     void set_depth_scale(float depth_scale)
     {
         _shader->load_uniform(_depth_scale_location, depth_scale);
-    }
-private:
-    uint32_t _focal_location;
-    uint32_t _principal_location;
-    uint32_t _is_bc_location;
-    uint32_t _coeffs_location;
-    uint32_t _depth_scale_location;
-
-    uint32_t _width_location;
-    uint32_t _height_location;
-};
-
-class uvmap_shader : public texture_2d_shader
-{
-public:
-    uvmap_shader()
-        : texture_2d_shader(uv_fragment_text)
-    {
-        _focal_location = _shader->get_uniform_location("focal");
-        _principal_location = _shader->get_uniform_location("principal");
-        _is_bc_location = _shader->get_uniform_location("is_bc");
-        _coeffs_location = _shader->get_uniform_location("coeffs");
-        _width_location = _shader->get_uniform_location("width");
-        _height_location = _shader->get_uniform_location("height");
-        _extrinsics_location = _shader->get_uniform_location("extrinsics");
-    }
-
-    void set_size(int w, int h)
-    {
-        _shader->load_uniform(_width_location, (float)w);
-        _shader->load_uniform(_height_location, (float)h);
-    }
-
-    void set_intrinsics(const rs2_intrinsics& intr)
-    {
-        rs2::float2 focal{ intr.fx, intr.fy };
-        rs2::float2 principal{ intr.ppx, intr.ppy };
-        float is_bc = (intr.model == RS2_DISTORTION_INVERSE_BROWN_CONRADY ? 1.f : 0.f);
-        _shader->load_uniform(_focal_location, focal);
-        _shader->load_uniform(_principal_location, principal);
-        _shader->load_uniform(_is_bc_location, is_bc);
-        glUniform1fv(_shader->get_id(), 5, intr.coeffs);
     }
 
     void set_extrinsics(const rs2_extrinsics& extr)
@@ -194,15 +156,15 @@ public:
         }
         _shader->load_uniform(_extrinsics_location, m);
     }
-
 private:
-    uint32_t _focal_location;
-    uint32_t _principal_location;
-    uint32_t _is_bc_location;
-    uint32_t _coeffs_location;
+    uint32_t _focal_location[2];
+    uint32_t _principal_location[2];
+    uint32_t _is_bc_location[2];
+    uint32_t _coeffs_location[2];
+    uint32_t _depth_scale_location;
 
-    uint32_t _width_location;
-    uint32_t _height_location;
+    uint32_t _width_location[2];
+    uint32_t _height_location[2];
 
     uint32_t _extrinsics_location;
 };
@@ -210,9 +172,7 @@ private:
 pointcloud_gl::pointcloud_gl(std::shared_ptr<gl::context> ctx) 
     : pointcloud(), _ctx(ctx),
       _projection_renderer(std::make_shared<lazy<visualizer_2d>>([](){ 
-          return visualizer_2d(std::make_shared<project_shader>()); })),
-      _uvmap_renderer(std::make_shared<lazy<visualizer_2d>>([](){ 
-          return visualizer_2d(std::make_shared<uvmap_shader>()); }))
+          return visualizer_2d(std::make_shared<project_shader>()); }))
 {
     _source.add_extension<gl::gpu_points_frame>(RS2_EXTENSION_VIDEO_FRAME_GL);
 }
@@ -224,89 +184,9 @@ const librealsense::float3* pointcloud_gl::depth_to_points(
         const uint16_t * depth_image, 
         float depth_scale)
 {
-    auto session = _ctx->begin_session();
-
-    auto start = std::chrono::high_resolution_clock::now();
-
-    auto width = depth_intrinsics.width;
-    auto height = depth_intrinsics.height;
-
-    // std::shared_ptr<uint16_t> depth_data;
-
-    // if (main_thread_dispatcher::instance().require_dispatch())
-    // {
-    //     depth_data = std::shared_ptr<uint16_t>(new uint16_t[width*height], 
-    //         [](uint16_t* ptr) { delete[] ptr; });
-    //     memcpy(depth_data.get(), depth_image, width * height * sizeof(uint16_t));
-    //     depth_image = depth_data.get();
-    // }
-
-    auto viz = _projection_renderer;
-    auto frame_ref = output.get();
-
-    // auto action = [depth_data, frame_ref, width, height,
-    //     depth_intrinsics, depth_scale, depth_image, viz]()
-    // {
-        //auto start_gl = std::chrono::high_resolution_clock::now();
-
-        auto gf = dynamic_cast<gpu_addon_interface*>((frame_interface*)frame_ref);
-
-        uint32_t depth_texture;
-        glGenTextures(1, &depth_texture);
-        glBindTexture(GL_TEXTURE_2D, depth_texture);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_R16, width, height, 0, GL_RED, GL_UNSIGNED_SHORT, depth_image);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-
-        fbo fbo(width, height);
-        uint32_t output_xyz;
-        gf->get_gpu_section().output_texture(0, &output_xyz, texture_type::XYZ, _ctx);
-        glBindTexture(GL_TEXTURE_2D, output_xyz);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, nullptr);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-
-        gf->get_gpu_section().set_size(width, height);
-
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, output_xyz, 0);
-        glBindTexture(GL_TEXTURE_2D, 0);
-
-        fbo.bind();
-        glViewport(0, 0, width, height);
-        glClearColor(1, 0, 0, 1);
-        glClear(GL_COLOR_BUFFER_BIT);
-
-        auto& shader = (project_shader&)(*viz)->get_shader();
-        shader.begin();
-        shader.set_depth_scale(depth_scale);
-        shader.set_intrinsics(depth_intrinsics);
-        shader.set_size(width, height);
-        shader.end();
-        (*viz)->draw_texture(depth_texture);
-
-        fbo.unbind();
-
-        glBindTexture(GL_TEXTURE_2D, 0);
-        glDeleteTextures(1, &depth_texture);
-
-        // auto end_gl = std::chrono::high_resolution_clock::now();
-        // auto ms_gl = std::chrono::duration_cast<std::chrono::microseconds>(end_gl - start_gl).count();
-        // std::cout << "GL " << ms_gl << std::endl;
-    //};
-
-    // if (main_thread_dispatcher::instance().require_dispatch())
-    // {
-    //     auto gf = dynamic_cast<gpu_addon_interface*>((frame_interface*)frame_ref);
-    //     gf->get_gpu_section().delay(action);
-    // }
-    // else
-    // {
-    //     action();
-    // }
-
-    auto end = std::chrono::high_resolution_clock::now();
-    auto ms = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-    std::cout << ms << std::endl;
+    _depth_data = depth_image;
+    _depth_scale = depth_scale;
+    _depth_intr = depth_intrinsics;
 }
 
 void pointcloud_gl::get_texture_map(
@@ -319,63 +199,73 @@ void pointcloud_gl::get_texture_map(
     librealsense::float2* tex_ptr,
     librealsense::float2* pixels_ptr)
 {
-    auto viz = _uvmap_renderer;
-    auto frame_ref = output.get();
-
     auto session = _ctx->begin_session();
 
-    // auto action = [frame_ref, width, height,
-    //     other_intrinsics, extr, viz]()
-    // {
-        auto start_gl = std::chrono::high_resolution_clock::now();
+    auto start = std::chrono::high_resolution_clock::now();
 
-        auto gf = dynamic_cast<gpu_addon_interface*>((frame_interface*)frame_ref);
+    auto viz = _projection_renderer;
+    auto frame_ref = output.get();
 
-        uint32_t input_xyz;
-        gf->get_gpu_section().input_texture(0, &input_xyz);
+    auto gf = dynamic_cast<gpu_addon_interface*>((frame_interface*)frame_ref);
 
-        fbo fbo(width, height);
-        uint32_t output_uv;
-        gf->get_gpu_section().output_texture(1, &output_uv, texture_type::UV, _ctx);
-        glBindTexture(GL_TEXTURE_2D, output_uv);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RG32F, width, height, 0, GL_RG, GL_FLOAT, nullptr);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    uint32_t depth_texture;
+    glGenTextures(1, &depth_texture);
+    glBindTexture(GL_TEXTURE_2D, depth_texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_R16, width, height, 0, GL_RED, GL_UNSIGNED_SHORT, _depth_data);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, output_uv, 0);
-        glBindTexture(GL_TEXTURE_2D, 0);
+    fbo fbo(width, height);
 
-        fbo.bind();
-        glViewport(0, 0, width, height);
-        glClearColor(1, 0, 0, 1);
-        glClear(GL_COLOR_BUFFER_BIT);
+    uint32_t output_xyz;
+    gf->get_gpu_section().output_texture(0, &output_xyz, texture_type::XYZ, _ctx);
+    glBindTexture(GL_TEXTURE_2D, output_xyz);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
-        auto& shader = (uvmap_shader&)(*viz)->get_shader();
-        shader.begin();
-        shader.set_extrinsics(extr);
-        shader.set_intrinsics(other_intrinsics);
-        shader.set_size(width, height);
-        shader.end();
-        (*viz)->draw_texture(input_xyz);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, output_xyz, 0);
+    glBindTexture(GL_TEXTURE_2D, 0);
 
-        fbo.unbind();
+    uint32_t output_uv;
+    gf->get_gpu_section().output_texture(1, &output_uv, texture_type::UV, _ctx);
+    glBindTexture(GL_TEXTURE_2D, output_uv);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RG32F, width, height, 0, GL_RG, GL_FLOAT, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
-        glBindTexture(GL_TEXTURE_2D, 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, output_uv, 0);
+    glBindTexture(GL_TEXTURE_2D, 0);
 
-        auto end_gl = std::chrono::high_resolution_clock::now();
-        auto ms_gl = std::chrono::duration_cast<std::chrono::microseconds>(end_gl - start_gl).count();
-        std::cout << "TM GL " << ms_gl << std::endl;
-    //};
+    gf->get_gpu_section().set_size(width, height);
 
-    // if (main_thread_dispatcher::instance().require_dispatch())
-    // {
-    //     auto gf = dynamic_cast<gpu_addon_interface*>((frame_interface*)frame_ref);
-    //     gf->get_gpu_section().delay(action);
-    // }
-    // else
-    // {
-    //     action();
-    // }
+    fbo.bind();
+    
+    GLuint attachments[2] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
+    glDrawBuffers(2, attachments);
+
+    glClearColor(0, 0, 0, 1);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    auto& shader = (project_shader&)(*viz)->get_shader();
+    shader.begin();
+    shader.set_depth_scale(_depth_scale);
+    shader.set_intrinsics(0, _depth_intr);
+    shader.set_intrinsics(1, other_intrinsics);
+    shader.set_extrinsics(extr);
+    shader.set_size(0, width, height);
+    shader.set_size(1, other_intrinsics.width, other_intrinsics.height);
+    shader.end();
+    (*viz)->draw_texture(depth_texture);
+
+    fbo.unbind();
+
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glDeleteTextures(1, &depth_texture);
+
+    auto end = std::chrono::high_resolution_clock::now();
+    auto ms = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    std::cout << ms << std::endl;
 }
 
 rs2::points pointcloud_gl::allocate_points(

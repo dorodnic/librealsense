@@ -41,7 +41,9 @@ namespace rs2
         
         static std::unique_ptr<shader_program> load(
                                 const std::string& vertex_shader,
-                                const std::string& fragment_shader);
+                                const std::string& fragment_shader,
+                                const char* output0 = nullptr,
+                                const char* output1 = nullptr);
                                 
         unsigned int get_id() const { return _id; }
 

@@ -70,7 +70,9 @@ class yuy2rgb_shader : public texture_2d_shader
 {
 public:
     yuy2rgb_shader()
-        : texture_2d_shader(fragment_shader_text)
+        : texture_2d_shader(shader_program::load(
+            texture_2d_shader::default_vertex_shader(), 
+            fragment_shader_text))
     {
         _width_location = _shader->get_uniform_location("width");
         _height_location = _shader->get_uniform_location("height");

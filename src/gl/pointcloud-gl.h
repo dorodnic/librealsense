@@ -34,9 +34,12 @@ namespace librealsense
                 const rs2::frame& f) override;
 
             std::shared_ptr<lazy<rs2::visualizer_2d>> _projection_renderer;
-            std::shared_ptr<lazy<rs2::visualizer_2d>> _uvmap_renderer;
 
             std::shared_ptr<gl::context> _ctx;
+
+            const uint16_t* _depth_data;
+            float _depth_scale;
+            rs2_intrinsics _depth_intr;
         };
     }
 }

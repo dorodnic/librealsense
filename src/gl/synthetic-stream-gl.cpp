@@ -56,7 +56,6 @@ namespace librealsense
             for (int i = 0; i < MAX_TEXTURES; i++)
             {
                 loaded[i] = false;
-                contexts[i] = nullptr;
             }
         }
 
@@ -64,13 +63,13 @@ namespace librealsense
         {
             for (int i = 0; i < MAX_TEXTURES; i++)
             {
-                if (textures[i])
-                {
-                    auto session = contexts[i]->begin_session();
-                    glDeleteTextures(1, &textures[i]);
-                    contexts[i] = nullptr;
-                    textures[i] = 0;
-                }
+                // if (textures[i])
+                // {
+                //     auto session = contexts[i]->begin_session();
+                //     glDeleteTextures(1, &textures[i]);
+                //     contexts[i] = nullptr;
+                //     textures[i] = 0;
+                // }
 
                 loaded[i] = false;
             }
