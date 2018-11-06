@@ -8,6 +8,9 @@
 #include "ux-window.h"
 #include "parser.hpp"
 
+#include <gl/pc-shader.h>
+#include <gl/camera-shader.h>
+
 #define GLFW_INCLUDE_GLU
 #include <GLFW/glfw3.h>
 #include <imgui.h>
@@ -361,7 +364,7 @@ namespace rs2
             bool* options_invalidated,
             std::string& error_message);
 
-        subdevice_model(device& dev, std::shared_ptr<sensor> s, std::string& error_message);
+        subdevice_model(device& dev, std::shared_ptr<sensor> s, std::string& error_message, gl::context* glctx);
         bool is_there_common_fps() ;
         bool draw_stream_selection();
         bool is_selected_combination_supported();
@@ -459,6 +462,7 @@ namespace rs2
         std::shared_ptr<processing_block_model> hole_filling_filter;
         std::shared_ptr<processing_block_model> depth_to_disparity;
         std::shared_ptr<processing_block_model> disparity_to_depth;
+        std::shared_ptr<rs2::gl::yuy_to_rgb> yuy_decoder;
 
         std::vector<std::shared_ptr<processing_block_model>> post_processing;
         bool post_processing_enabled = false;
@@ -473,6 +477,14 @@ namespace rs2
         for (; i != s.rend() && j != suffix.rend() && *i == *j;
             i++, j++);
         return j == suffix.rend();
+    }
+
+    inline bool starts_with(const std::string& s, const std::string& prefix)
+    {
+        auto i = s.begin(), j = prefix.begin();
+        for (; i != s.end() && j != prefix.end() && *i == *j;
+            i++, j++);
+        return j == prefix.end();
     }
 
     void outline_rect(const rect& r);
@@ -538,7 +550,7 @@ namespace rs2
         typedef std::function<void(std::function<void()> load)> json_loading_func;
 
         void reset();
-        explicit device_model(device& dev, std::string& error_message, viewer_model& viewer);
+        explicit device_model(device& dev, std::string& error_message, viewer_model& viewer, gl::context* glctx);
         void start_recording(const std::string& path, std::string& error_message);
         void stop_recording(viewer_model& viewer);
         void pause_record();
@@ -581,7 +593,7 @@ namespace rs2
         std::set<std::string> advanced_mode_settings_file_names;
         std::string selected_file_preset;
     private:
-        void draw_info_icon(const ImVec2& size);
+        void draw_info_icon(ImFont* font, const ImVec2& size);
         int draw_seek_bar();
         int draw_playback_controls(ImFont* font, viewer_model& view);
         advanced_mode_control amc;
@@ -708,7 +720,7 @@ namespace rs2
             resulting_queue(static_cast<unsigned int>(resulting_queue_max_size)),
             render_thread(),
             render_thread_active(false),
-            pc(new pointcloud())
+            pc(new gl::pointcloud(gl::context(glfwGetCurrentContext())))
         {
             std::string s;
             pc_gen = std::make_shared<processing_block_model>(nullptr, "Pointcloud Engine", pc, [=](rs2::frame f) { return pc->calculate(f); }, s);
@@ -765,7 +777,7 @@ namespace rs2
         rs2::frame apply_filters(rs2::frame f);
         rs2::frame last_tex_frame;
         rs2::processing_block processing_block;
-        std::shared_ptr<pointcloud> pc;
+        std::shared_ptr<gl::pointcloud> pc;
         rs2::frameset model;
         std::shared_ptr<processing_block_model> pc_gen;
 
@@ -880,7 +892,7 @@ namespace rs2
         const float panel_y = 50.f;
         const float default_log_h = 110.f;
 
-        float get_output_height() const { return (is_output_collapsed ? default_log_h : 20); }
+        float get_output_height() const { return (is_output_collapsed ? default_log_h : 15); }
 
         rs2::frame handle_ready_frames(const rect& viewer_rect, ux_window& window, int devices, std::string& error_message);
 
@@ -968,7 +980,6 @@ namespace rs2
 
         float dim_level = 1.f;
 
-
         bool continue_with_ui_not_aligned = false;
     private:
         struct rgb {
@@ -1010,7 +1021,8 @@ namespace rs2
         rs2::points last_points;
         texture_buffer* last_texture;
         texture_buffer texture;
-
+        pointcloud_shader pc_shader;
+        camera_shader cam_shader;
     };
 
     void export_to_ply(const std::string& file_name, notifications_model& ns, frameset points, video_frame texture, bool notify = true);
