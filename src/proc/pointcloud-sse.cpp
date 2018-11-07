@@ -14,7 +14,11 @@
 
 #include <iostream>
 
+#ifdef __SSE3__
+
 #include <tmmintrin.h> // For SSSE3 intrinsics
+
+#endif
 
 namespace librealsense
 {
@@ -57,6 +61,8 @@ namespace librealsense
             const uint16_t * depth_image, 
             float depth_scale)
     {
+#ifdef __SSE3__
+
         float* pre_compute_x = _pre_compute_map_x.data();
         float* pre_compute_y = _pre_compute_map_y.data();
 
@@ -128,6 +134,7 @@ namespace librealsense
             _mm_stream_ps(&point[20], xyz13);
             point += 24;
         }
+#endif
         return reinterpret_cast<float3*>(points);
     }
 
@@ -140,6 +147,7 @@ namespace librealsense
         float2* tex_ptr,
         float2* pixels_ptr)
     {
+#ifdef __SSE3__
         auto point = reinterpret_cast<const float*>(points);
         auto res = reinterpret_cast<float*>(tex_ptr);
         auto res1 = reinterpret_cast<float*>(pixels_ptr);
@@ -249,5 +257,7 @@ namespace librealsense
             _mm_stream_ps(res + 4, xyxy2);
             res += 8;
         }
+#endif
+
     }
 }
