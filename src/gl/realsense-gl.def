@@ -1,0 +1,10 @@
+LIBRARY
+
+EXPORTS
+    rs2_gl_create_yuy_to_rgb
+    rs2_gl_is_frame_extendable_to
+    rs2_gl_frame_get_texture_id
+    rs2_gl_create_pointcloud
+    rs2_gl_create_context
+    rs2_gl_create_shared_context
+    rs2_gl_delete_context

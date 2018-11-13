@@ -892,8 +892,8 @@ if(BUILD_SHARED_LIBS)
             src/res/resource.h
             src/res/librealsense.rc)
         source_group("Resources" FILES
-        src/res/resource.h
-        src/res/librealsense.rc
+            src/res/resource.h
+            src/res/librealsense.rc
         )
     else()
         add_library(realsense2 SHARED ${REALSENSE_CPP} ${REALSENSE_HPP} ${REALSENSE_CU} ${REALSENSE_CUH} ${REALSENSE_DEF})

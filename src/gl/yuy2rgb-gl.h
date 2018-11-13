@@ -29,7 +29,7 @@ namespace librealsense
         class yuy2rgb : public stream_filter_processing_block
         {
         public:
-            yuy2rgb(std::shared_ptr<gl::context> ctx);
+            yuy2rgb(std::shared_ptr<librealsense::gl::context> ctx);
 
             rs2::frame process_frame(const rs2::frame_source& source, const rs2::frame& f) override;
         private:

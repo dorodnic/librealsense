@@ -207,7 +207,7 @@ private:
     uint32_t _extrinsics_location;
 };
 
-pointcloud_gl::pointcloud_gl(std::shared_ptr<gl::context> ctx) 
+pointcloud_gl::pointcloud_gl(std::shared_ptr<librealsense::gl::context> ctx)
     : pointcloud(), _ctx(ctx),
       _projection_renderer(std::make_shared<lazy<visualizer_2d>>([](){ 
           return visualizer_2d(std::make_shared<project_shader>()); })),
@@ -307,6 +307,8 @@ const librealsense::float3* pointcloud_gl::depth_to_points(
     auto end = std::chrono::high_resolution_clock::now();
     auto ms = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
     std::cout << ms << std::endl;
+
+    return nullptr;
 }
 
 void pointcloud_gl::get_texture_map(

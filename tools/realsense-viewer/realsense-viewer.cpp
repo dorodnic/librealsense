@@ -508,7 +508,6 @@ int main(int argv, const char** argc) try
     }
 
     // Stopping post processing filter rendering thread
-    gl::stop_all();
     viewer_model.ppf.stop();
 
     // Stop all subdevices

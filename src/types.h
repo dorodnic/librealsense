@@ -9,6 +9,12 @@
 #ifndef LIBREALSENSE_TYPES_H
 #define LIBREALSENSE_TYPES_H
 
+#ifdef WIN32
+#define EXTENSION_API __declspec(dllexport)
+#else
+#define EXTENSION_API
+#endif
+
 #include "../include/librealsense2/hpp/rs_types.hpp"
 
 #include <stdint.h>
@@ -162,7 +168,7 @@ namespace librealsense
         rs2_exception_type _exception_type;
     };
 
-    class recoverable_exception : public librealsense_exception
+    class EXTENSION_API recoverable_exception : public librealsense_exception
     {
     public:
         recoverable_exception(const std::string& msg,

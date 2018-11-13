@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 2.8.9)
 
 project(realsense2-gl)
 
-add_library(${PROJECT_NAME} 
+set(REALSENSE_GL_CPP
     synthetic-stream-gl.h
     synthetic-stream-gl.cpp
     yuy2rgb-gl.h
@@ -10,14 +10,37 @@ add_library(${PROJECT_NAME}
     pointcloud-gl.h
     pointcloud-gl.cpp
     rs-gl.cpp
+    realsense-gl.def
+    ../../include/librealsense2-gl/rs_processing_gl.h
+    ../../include/librealsense2-gl/rs_processing_gl.hpp
+    ../../third-party/glad/glad.c
+    ../../common/gl/shader.cpp
+    ../../common/gl/shader.h
+    ../../common/gl/vao.h
+    ../../common/gl/vao.cpp
+    ../../common/gl/vbo.h
+    ../../common/gl/vbo.cpp
+    ../../common/gl/texture-2d-shader.cpp
+    ../../common/gl/texture-2d-shader.h
+    ../../common/gl/pc-shader.cpp
+    ../../common/gl/pc-shader.h
+    ../../common/gl/loader.h
+    ../../common/gl/fbo.h
+    ../../common/gl/fbo.cpp
 )
+
+if(BUILD_EASYLOGGINGPP)
+    list(APPEND REALSENSE_GL_CPP ../../third-party/easyloggingpp/src/easylogging++.cc)
+endif()
+
+add_library(${PROJECT_NAME} ${REALSENSE_GL_CPP})
 
 find_package(OpenGL)
 if(NOT OPENGL_FOUND)
     message(FATAL_ERROR "\n\n OpenGL package is missing!\n\n")
 endif()
 
-set(DEPENDENCIES realsense2 realsense2-gl ${OPENGL_LIBRARIES})
+set(DEPENDENCIES realsense2 ${OPENGL_LIBRARIES})
 
 if(WIN32)
     list(APPEND DEPENDENCIES glfw3)

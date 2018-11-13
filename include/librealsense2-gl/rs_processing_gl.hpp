@@ -25,14 +25,37 @@ namespace rs2
         class context
         {
         public:
-            context(GLFWwindow* share_with = nullptr)
+            context()
             {
                 rs2_error* e = nullptr;
                 _context = std::shared_ptr<rs2_gl_context>(
-                    rs2_gl_create_context(RS2_API_VERSION, share_with, &e),
+                    rs2_gl_create_context(RS2_API_VERSION, &e),
                     rs2_gl_delete_context);
                 error::handle(e);
             }
+
+#ifdef _glfw3_h_
+            context(GLFWwindow* share_with)
+            {
+                rs2_error* e = nullptr;
+
+                glfw_binding binding{
+                    nullptr,
+                    &glfwWindowHint,
+                    &glfwCreateWindow,
+                    &glfwDestroyWindow,
+                    &glfwMakeContextCurrent,
+                    &glfwGetCurrentContext,
+                    &glfwSwapInterval,
+                    &glfwGetProcAddress
+                };
+
+                _context = std::shared_ptr<rs2_gl_context>(
+                    rs2_gl_create_shared_context(RS2_API_VERSION, share_with, binding, &e),
+                    rs2_gl_delete_context);
+                error::handle(e);
+            }
+#endif
         protected:
             friend class rs2::gl::pointcloud;
             friend class rs2::gl::yuy_to_rgb;

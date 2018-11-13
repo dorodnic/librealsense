@@ -33,7 +33,7 @@ namespace librealsense
         class context : public std::enable_shared_from_this<context>
         {
         public:
-            context(GLFWwindow* share_with);
+            context(GLFWwindow* share_with, glfw_binding binding);
 
             std::shared_ptr<void> begin_session();
 
@@ -41,6 +41,7 @@ namespace librealsense
 
         private:
             GLFWwindow* _ctx;
+            glfw_binding _binding;
             std::mutex _lock;
         };
 
