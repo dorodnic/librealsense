@@ -264,6 +264,7 @@ namespace librealsense
             CASE(STREAM_FILTER)
             CASE(STREAM_FORMAT_FILTER)
             CASE(STREAM_INDEX_FILTER)
+            CASE(HARDWARE_PRESET)
         default: assert(!is_valid(value)); return UNKNOWN_VALUE;
         }
 #undef CASE

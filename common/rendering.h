@@ -1128,6 +1128,9 @@ namespace rs2
                 }
                 break;
             }
+            case RS2_FORMAT_RAW10:
+                glTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE, width, height, 0, GL_LUMINANCE, GL_UNSIGNED_SHORT, data);
+                break;
             //case RS2_FORMAT_RAW10:
             //{
             //    // Visualize Raw10 by performing a naive down sample. Each 2x2 block contains one red pixel, two green pixels, and one blue pixel, so combine them into a single RGB triple.

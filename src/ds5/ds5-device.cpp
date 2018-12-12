@@ -404,6 +404,15 @@ namespace librealsense
 
         auto pid_hex_str = hexify(pid >> 8) + hexify(static_cast<uint8_t>(pid));
 
+        // Evgeni. TODO - do not upstream this code - Development only
+        if ((pid == RS460_PID || pid == RS415_PID ) && _fw_version >= firmware_version("5.9.13.0"))
+        {
+            depth_ep.register_pixel_format(pf_w10);
+            depth_ep.register_option(RS2_OPTION_HARDWARE_PRESET,
+                std::make_shared<uvc_xu_option<uint8_t>>(depth_ep, depth_xu, DS5_HARDWARE_PRESET,
+                    "Hardware pipe configuration"));
+        }
+
         std::string is_camera_locked{ "" };
         if (_fw_version >= firmware_version("5.6.3.0"))
         {

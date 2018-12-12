@@ -55,8 +55,9 @@ namespace rs2
             {
                 rs2::config cfg_default;
                 // Preferred configuration Depth + Synthetic Color
-                cfg_default.enable_stream(RS2_STREAM_DEPTH, -1, 0, 0, RS2_FORMAT_Z16, requested_fps);
-                cfg_default.enable_stream(RS2_STREAM_INFRARED, -1, 0, 0, RS2_FORMAT_RGB8, requested_fps);
+                // Evgeni - TODO Development for Android - Do not upstream sthis code !!!!!!
+                cfg_default.enable_stream(RS2_STREAM_DEPTH, 0, 1280, 720, RS2_FORMAT_Z16, requested_fps);
+                cfg_default.enable_stream(RS2_STREAM_INFRARED, 1, 1920, 1080, RS2_FORMAT_RAW10, requested_fps);
                 cfgs.emplace_back(cfg_default);
             }
             // Use Infrared luminocity as a secondary video in case synthetic chroma is not supported

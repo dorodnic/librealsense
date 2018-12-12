@@ -214,6 +214,7 @@ namespace Intel.RealSense
         StreamFilter = 43,
         StreamFormatFilter = 44,
         StreamIndexFilter = 45
+        HardwarePreset = 46
     }
 
     public enum Sr300VisualPreset

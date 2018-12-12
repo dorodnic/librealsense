@@ -133,6 +133,15 @@ namespace librealsense
 
             static bool contradicts(stream_profile_interface* a, const std::vector<request_type>& others)
             {
+                for (auto request : others)
+                {
+                    if (a->get_framerate() != 0 && request.fps != 0 && (a->get_framerate() != request.fps))
+                        return true;
+                }
+
+                // Evgeni - do not upstream this code . For Android dev only!!!!!!
+                return false;
+
                 if (auto vid_a = dynamic_cast<video_stream_profile_interface*>(a))
                 {
                     for (auto request : others)
