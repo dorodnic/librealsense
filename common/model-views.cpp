@@ -127,7 +127,7 @@ namespace rs2
 
         ImGuiIO& io = ImGui::GetIO();
 
-        const auto OVERSAMPLE = 4;
+        const auto OVERSAMPLE = config_file::instance().get(configurations::performance::font_oversample, 4);
 
         static const ImWchar icons_ranges[] = { 0xf000, 0xf3ff, 0 }; // will not be copied by AddFont* so keep in scope.
 
@@ -1450,7 +1450,10 @@ namespace rs2
                 {
                     auto id = f.get_profile().unique_id();
                     viewer.ppf.frames_queue[id].enqueue(f);
+
+                    on_frame();
                 }
+                
             });
             }
 
@@ -2366,6 +2369,7 @@ namespace rs2
                     p.resume();
                 }
                 dev->resume();
+                viewer.paused = false;
             }
             if (ImGui::IsItemHovered())
             {
@@ -2383,6 +2387,7 @@ namespace rs2
                     p.pause();
                 }
                 dev->pause();
+                viewer.paused = true;
             }
             if (ImGui::IsItemHovered())
             {
@@ -3547,7 +3552,7 @@ namespace rs2
                 {
                     for (auto&& frame : frames)
                     {
-                        if (frame.is<points>())  // find and store the 3d points frame for later use
+                        if (frame.is<points>() && !paused)  // find and store the 3d points frame for later use
                         {
                             p = frame.as<points>();
                             continue;
@@ -3927,7 +3932,7 @@ namespace rs2
 
     void viewer_model::render_3d_view(const rect& viewer_rect, texture_buffer* texture, rs2::points points)
     {
-        if(!paused)
+        //if(!paused)
         {
             if(points)
             {
@@ -4421,6 +4426,16 @@ namespace rs2
 
                 if (tab == 1)
                 {
+                    int font_samples = temp_cfg.get(configurations::performance::font_oversample, 4);
+                    ImGui::Text("Font Samples: "); ImGui::SameLine();
+                    ImGui::PushItemWidth(80);
+                    if (ImGui::SliderInt("##font_samples", &font_samples, 1, 8))
+                    {
+                        reload_required = true;
+                        temp_cfg.set(configurations::performance::font_oversample, font_samples);
+                    }
+                    ImGui::PopItemWidth();
+                    
                     bool gpu_rendering = temp_cfg.get(configurations::performance::glsl_for_rendering, true);
                     if (ImGui::Checkbox("Use GLSL for Rendering", &gpu_rendering))
                     {
@@ -4904,7 +4919,7 @@ namespace rs2
         float space_width = std::max(line_width - required_row_width, 0.f) / num_spaces_in_line;
         ImVec2 button_dim = { icon_width, icon_width };
 
-        const bool supports_playback_step = false;
+        const bool supports_playback_step = current_playback_status == RS2_PLAYBACK_STATUS_PAUSED;
 
         ImGui::PushFont(font);
 
@@ -4913,11 +4928,21 @@ namespace rs2
 
         std::string label = to_string() << textual_icons::step_backward << "##Step Backwards " << id;
 
-        if (ImGui::ButtonEx(label.c_str(), button_dim, supports_playback_step ? 0 : ImGuiButtonFlags_Disabled))
+        if (pause_required) 
         {
-            //p.skip_frames(1);
+            p.pause();
+            for (auto&& s : subdevices)
+            {
+                if (s->streaming)
+                    s->pause();
+                s->on_frame = []{};
+            }
+            syncer->on_frame = []{};
+            pause_required = false;
         }
 
+        // TODO: Figure out how to properly step-back
+        ImGui::ButtonEx(label.c_str(), button_dim, ImGuiButtonFlags_Disabled);
 
         if (ImGui::IsItemHovered())
         {
@@ -4962,12 +4987,15 @@ namespace rs2
                 }
                 else
                 {
-                    p.resume();
+                    syncer->on_frame = []{};
                     for (auto&& s : subdevices)
                     {
+                        s->on_frame = []{};
                         if (s->streaming)
                             s->resume();
                     }
+                    
+                    p.resume();
                 }
 
             }
@@ -4987,6 +5015,7 @@ namespace rs2
                     if (s->streaming)
                         s->pause();
                 }
+                viewer.paused = true;
             }
             if (ImGui::IsItemHovered())
             {
@@ -5005,7 +5034,23 @@ namespace rs2
         label = to_string() << textual_icons::step_forward << "##Step Forward " << id;
         if (ImGui::ButtonEx(label.c_str(), button_dim, supports_playback_step ? 0 : ImGuiButtonFlags_Disabled))
         {
-            //p.skip_frames(-1);
+            pause_required = false;
+            auto action = [this]() {
+                    pause_required = true;
+                };
+            for (auto& s : subdevices)
+            {
+                s->on_frame = action;
+            }
+            syncer->on_frame = action;
+
+            p.resume();
+            for (auto&& s : subdevices)
+            {
+                if (s->streaming)
+                    s->resume();
+            }
+            viewer.paused = false;
         }
         if (ImGui::IsItemHovered())
         {
@@ -6944,9 +6989,8 @@ namespace rs2
                     if (s.second.dev)
                     {
                         s.second.dev->resume();
-                        if (s.second.dev->dev.is<playback>())
+                        if (auto p = s.second.dev->dev.as<playback>())
                         {
-                            auto p = s.second.dev->dev.as<playback>();
                             p.resume();
                         }
                     }

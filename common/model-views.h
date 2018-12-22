@@ -117,6 +117,7 @@ namespace rs2
             static const char* msaa_samples        { "performance.msaa_samples" };
             static const char* show_fps            { "performance.show_fps" };
             static const char* vsync               { "performance.vsync" };
+            static const char* font_oversample     { "performance.font_oversample" };
         }
     }
 
@@ -328,7 +329,11 @@ namespace rs2
             rs2::frame_queue q;
 
            _syncers.push_back({shared_syncer,q});
-           shared_syncer->start(q);
+           shared_syncer->start([this, q](rs2::frame f)
+           {
+               q.enqueue(f);
+               on_frame();
+           });
            start();
            return shared_syncer;
         }
@@ -372,11 +377,11 @@ namespace rs2
             _active.exchange(true);
         }
 
+        std::function<void()> on_frame = []{};
     private:
         std::vector<std::pair<std::shared_ptr<rs2::asynchronous_syncer>, rs2::frame_queue>> _syncers;
         std::mutex _mutex;
         std::atomic<bool> _active;
-
     };
 
 
@@ -436,6 +441,7 @@ namespace rs2
             return false;
         }
 
+        std::function<void()> on_frame = []{};
         std::shared_ptr<sensor> s;
         device dev;
 
@@ -646,6 +652,8 @@ namespace rs2
 
         std::shared_ptr<recorder> _recorder;
         std::vector<std::shared_ptr<subdevice_model>> live_subdevices;
+
+        bool pause_required = false;
     };
 
     struct notification_data

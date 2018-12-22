@@ -24,7 +24,8 @@
 using namespace rs2;
 using namespace rs400;
 
-void add_playback_device(context& ctx, std::shared_ptr<std::vector<device_model>> device_models, std::string& error_message, viewer_model& viewer_model, const std::string& file)
+void add_playback_device(context& ctx, std::shared_ptr<std::vector<device_model>> device_models, 
+    std::string& error_message, viewer_model& viewer_model, const std::string& file, gl::context* glctx)
 {
     bool was_loaded = false;
     bool failed = false;
@@ -33,7 +34,7 @@ void add_playback_device(context& ctx, std::shared_ptr<std::vector<device_model>
         auto dev = ctx.load_device(file);
         was_loaded = true;
         // TODO: Pass proper context
-        device_models->emplace_back(dev, error_message, viewer_model, nullptr); //Will cause the new device to appear in the left panel
+        device_models->emplace_back(dev, error_message, viewer_model, glctx); //Will cause the new device to appear in the left panel
         if (auto p = dev.as<playback>())
         {
             auto filename = p.file_name();
@@ -246,7 +247,7 @@ int main(int argv, const char** argc) try
     window.on_file_drop = [&](std::string filename)
     {
         std::string error_message{};
-        add_playback_device(ctx, device_models, error_message, viewer_model, filename);
+        add_playback_device(ctx, device_models, error_message, viewer_model, filename, &window.get_processing_context());
         if (!error_message.empty())
         {
             viewer_model.not_model.add_notification({ error_message,
@@ -263,7 +264,7 @@ int main(int argv, const char** argc) try
             if (!file.good())
                 continue;
 
-            add_playback_device(ctx, device_models, error_message, viewer_model, arg);
+            add_playback_device(ctx, device_models, error_message, viewer_model, arg, &window.get_processing_context());
         }
         catch (const rs2::error& e)
         {
@@ -387,7 +388,7 @@ int main(int argv, const char** argc) try
             {
                 if (auto ret = file_dialog_open(open_file, "ROS-bag\0*.bag\0", NULL, NULL))
                 {
-                    add_playback_device(ctx, device_models, error_message, viewer_model, ret);
+                    add_playback_device(ctx, device_models, error_message, viewer_model, ret, &window.get_processing_context());
                 }
             }
             ImGui::NextColumn();
