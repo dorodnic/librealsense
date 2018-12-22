@@ -4839,8 +4839,12 @@ namespace rs2
 
         try
         {
-            // TODO: Use compression settings
-            _recorder = std::make_shared<recorder>(path, dev);
+            auto compression_mode = config_file::instance().get(configurations::record::compression_mode, 2);
+            if (compression_mode == 2)
+                _recorder = std::make_shared<recorder>(path, dev);
+            else
+                _recorder = std::make_shared<recorder>(path, dev, compression_mode == 0);
+
             for (auto&& sub_dev_model : subdevices)
             {
                 sub_dev_model->_is_being_recorded = true;
