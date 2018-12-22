@@ -4141,9 +4141,20 @@ namespace rs2
                 
 				if (width != last_w || height != last_h)
 				{
-					obj_mesh mesh = make_grid(height, width, 1.f / height, 1.f / height);
-                    uncompress_d435_obj(camera_mesh.positions, camera_mesh.normals, camera_mesh.indexes);
+                    std::string dev_name = "";
+                    auto dev = streams[selected_depth_source_uid].dev->dev;
+                    if (dev.supports(RS2_CAMERA_INFO_NAME)) dev_name = dev.get_info(RS2_CAMERA_INFO_NAME);
 
+                    if (starts_with(dev_name, "Intel RealSense D435"))
+                    {
+                        uncompress_d435_obj(camera_mesh.positions, camera_mesh.normals, camera_mesh.indexes);
+                    }
+                    if (starts_with(dev_name, "Intel RealSense D415"))
+                    {
+                        uncompress_d415_obj(camera_mesh.positions, camera_mesh.normals, camera_mesh.indexes);
+                    }
+
+					obj_mesh mesh = make_grid(height, width, 1.f / height, 1.f / height);
                     for (auto& xyz : camera_mesh.positions)
                     {
                         xyz = xyz / 1000.f;
@@ -4180,6 +4191,8 @@ namespace rs2
                 glDisable(GL_DEPTH_TEST);
                 glEnable(GL_BLEND);
                 glBlendFunc(GL_ONE, GL_ONE);
+
+
 
                 if (config_file::instance().get(configurations::performance::glsl_for_rendering, false))
                 {
