@@ -71,6 +71,8 @@ namespace rs2
 
         texture_buffer& get_splash() { return _splash_tex; }
 
+        void reload();
+
     private:
         void open_window();
 
@@ -100,6 +102,12 @@ namespace rs2
         std::string              _dev_stat_message;
         bool                     _fullscreen_pressed = false;
         bool                     _fullscreen = false;
+        bool                     _reload = false;
+        bool                     _show_fps = false;
+        bool                     _vsync = true;
+        bool                     _use_glsl = false;
+        bool                     _enable_msaa = false;
+        int                      _msaa_samples = 0;
         std::string              _title;
         std::shared_ptr<visualizer_2d> _2d_vis;
 

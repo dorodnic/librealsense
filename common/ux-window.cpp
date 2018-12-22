@@ -19,14 +19,29 @@
 
 namespace rs2
 {
+    void ux_window::reload()
+    {
+        _reload = true;
+    }
+
     void ux_window::open_window()
     {
+        _use_glsl = config_file::instance().get(configurations::performance::glsl_for_rendering, false);
+
+        _enable_msaa = config_file::instance().get(configurations::performance::enable_msaa, false);
+        _msaa_samples = config_file::instance().get(configurations::performance::msaa_samples, 4);
+
         if (_win)
         {
+            _processing_context.reset();
             ImGui::GetIO().Fonts->ClearFonts();  // To be refactored into Viewer theme object
             ImGui_ImplGlfw_Shutdown();
             glfwDestroyWindow(_win);
+            glfwTerminate();
         }
+
+        if (!glfwInit())
+            exit(1);
 
         rs2_error* e = nullptr;
         _title_str = to_string() << _title << " v" << api_version_to_string(rs2_get_api_version(&e));
@@ -51,7 +66,8 @@ namespace rs2
             }
         }
         
-        glfwWindowHint(GLFW_SAMPLES, 1);
+        if (_enable_msaa)
+            glfwWindowHint(GLFW_SAMPLES, _msaa_samples);
 
         // Create GUI Windows
         _win = glfwCreateWindow(_width, _height, _title_str.c_str(),
@@ -65,7 +81,8 @@ namespace rs2
 
         ImGui_ImplGlfw_Init(_win, true);
 
-        _2d_vis = std::make_shared<visualizer_2d>(std::make_shared<splash_screen_shader>());
+        if (_use_glsl)
+            _2d_vis = std::make_shared<visualizer_2d>(std::make_shared<splash_screen_shader>());
 
         // Load fonts to be used with the ImGui - TODO move to RAII
         imgui_easy_theming(_font_14, _font_18);
@@ -105,6 +122,15 @@ namespace rs2
         });
 
         _processing_context = std::make_shared<rs2::gl::context>(_win);
+
+        _show_fps = config_file::instance().get(configurations::performance::show_fps, false);
+        _vsync = config_file::instance().get(configurations::performance::vsync, true);
+
+        // Prepare the splash screen and do some initialization in the background
+        int x, y, comp;
+        auto r = stbi_load_from_memory(splash, (int)splash_size, &x, &y, &comp, false);
+        _splash_tex.upload_image(x, y, r);
+        stbi_image_free(r);
     }
 
     ux_window::ux_window(const char* title) :
@@ -113,20 +139,10 @@ namespace rs2
         _first_frame(true), _query_devices(true), _missing_device(false),
         _hourglass_index(0), _dev_stat_message{}, _keep_alive(true), _title(title)
     {
-        if (!glfwInit())
-            exit(1);
-
         open_window();
-
-        // Prepare the splash screen and do some initialization in the background
-        int x, y, comp;
-        auto r = stbi_load_from_memory(splash, (int)splash_size, &x, &y, &comp, false);
-        _splash_tex.upload_image(x, y, r);
-        stbi_image_free(r);
 
         // Apply initial UI state
         reset();
-
     }
 
     void ux_window::add_on_load_message(const std::string& msg)
@@ -141,12 +157,21 @@ namespace rs2
         end_frame();
 
         std::stringstream temp_title;
-        temp_title << _title_str << " FPS: " << ImGui::GetIO().Framerate;
+        temp_title << _title_str;
+
+#ifndef NDEBUG
+        temp_title << ", DEBUG";
+#endif
+
+        if (_show_fps)
+        {
+            temp_title << ", FPS: " << ImGui::GetIO().Framerate;
+        }
         glfwSetWindowTitle(_win, temp_title.str().c_str());
 
         // Yield the CPU
         std::this_thread::yield();
-        glfwSwapInterval(0);
+        if (!_vsync) glfwSwapInterval(0);
 
         auto res = !glfwWindowShouldClose(_win);
 
@@ -195,18 +220,22 @@ namespace rs2
             // Fade-in the logo
             auto opacity = smoothstep(float(_splash_timer.elapsed_ms()), 100.f, 2500.f);
             auto ox = 0.7f - smoothstep(float(_splash_timer.elapsed_ms()), 200.f, 1900.f) * 0.4f;
-
-            auto oy = 0.5f;// + std::sin(smoothstep(float(_splash_timer.elapsed_ms()), 100.f, 1600.f) * 3.14f) * 0.07f;
-
+            auto oy = 0.5f;
             auto power = std::sin(smoothstep(float(_splash_timer.elapsed_ms()), 150.f, 2200.f) * 3.14f) * 0.96f;
 
-            auto shader = ((splash_screen_shader*)&_2d_vis->get_shader());
-            shader->begin();
-            shader->set_power(power);
-            shader->set_ray_center(float2{ox, oy});
-            shader->end();
-            _2d_vis->draw_texture(_splash_tex.get_gl_handle(), opacity);
-            //_splash_tex.show({ 0.f,0.f,float(_width),float(_height) }, opacity);
+            if (_use_glsl)
+            {
+                auto shader = ((splash_screen_shader*)&_2d_vis->get_shader());
+                shader->begin();
+                shader->set_power(power);
+                shader->set_ray_center(float2{ox, oy});
+                shader->end();
+                _2d_vis->draw_texture(_splash_tex.get_gl_handle(), opacity);
+            }
+            else
+            {
+                _splash_tex.show({ 0.f,0.f,float(_width),float(_height) }, opacity);
+            }
 
             std::string hourglass = u8"\uf250";
             static periodic_timer every_200ms(std::chrono::milliseconds(200));
@@ -295,6 +324,8 @@ namespace rs2
 
         end_frame();
 
+        _processing_context.reset();
+
         ImGui::GetIO().Fonts->ClearFonts();  // To be refactored into Viewer theme object
         ImGui_ImplGlfw_Shutdown();
         glfwDestroyWindow(_win);
@@ -318,6 +349,12 @@ namespace rs2
                 open_window();
             }
             _fullscreen_pressed = false;
+        }
+
+        if (_reload)
+        {
+            open_window();
+            _reload = false;
         }
 
         int w = _width; int h = _height;
@@ -372,7 +409,10 @@ namespace rs2
         glViewport(0, 0,
             static_cast<int>(ImGui::GetIO().DisplaySize.x * _scale_factor),
             static_cast<int>(ImGui::GetIO().DisplaySize.y * _scale_factor));
-        //glEnable(GL_MULTISAMPLE);
+
+        if (_enable_msaa) glEnable(GL_MULTISAMPLE);
+        else glDisable(GL_MULTISAMPLE);
+
         glClearColor(0, 0, 0, 1);
         glClear(GL_COLOR_BUFFER_BIT);
     }

@@ -107,13 +107,16 @@ namespace rs2
         {
             static const char* is_3d_view          { "viewer_model.is_3d_view" };
             static const char* continue_with_ui_not_aligned { "viewer_model.continue_with_ui_not_aligned" };
+            static const char* settings_tab        { "viewer_model.settings_tab" };
         }
         namespace performance
         {
             static const char* glsl_for_rendering  { "performance.glsl_for_rendering" };
             static const char* glsl_for_processing { "performance.glsl_for_processing" };
             static const char* enable_msaa         { "performance.msaa" };
-            static const char* enable_msaa_samples { "performance.msaa_samples" };
+            static const char* msaa_samples        { "performance.msaa_samples" };
+            static const char* show_fps            { "performance.show_fps" };
+            static const char* vsync               { "performance.vsync" };
         }
     }
 

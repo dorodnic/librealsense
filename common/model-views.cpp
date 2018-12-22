@@ -2243,7 +2243,9 @@ namespace rs2
         auto flags = ImGuiWindowFlags_NoResize |
             ImGuiWindowFlags_NoMove |
             ImGuiWindowFlags_NoCollapse |
-            ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoBringToFrontOnFocus;
+            ImGuiWindowFlags_NoTitleBar | 
+            ImGuiWindowFlags_NoFocusOnAppearing | 
+            ImGuiWindowFlags_NoBringToFrontOnFocus;
 
         ImGui_ScopePushFont(font);
         ImGui::PushStyleColor(ImGuiCol_Text, light_grey);
@@ -2597,6 +2599,7 @@ namespace rs2
                 ImGuiWindowFlags_NoMove |
                 ImGuiWindowFlags_NoCollapse |
                 ImGuiWindowFlags_NoTitleBar |
+                ImGuiWindowFlags_NoFocusOnAppearing |
                 ImGuiWindowFlags_NoInputs;
 
             ImGui_ScopePushFont(font);
@@ -4196,7 +4199,7 @@ namespace rs2
         bool open_about_popup = false;
 
         ImGui::SetNextWindowPos({ window.width() - 100, panel_y });
-        ImGui::SetNextWindowSize({ 100, 50 });
+        ImGui::SetNextWindowSize({ 100, 47 });
 
         if (ImGui::BeginPopup("More Options"))
         {
@@ -4218,11 +4221,15 @@ namespace rs2
         }
 
         static config_file temp_cfg;
+        static bool reload_required = false;
+        static int tab = 0;
 
         if (open_settings_popup) 
         {
             temp_cfg = config_file::instance();
-            ImGui::OpenPopup(settings);                    
+            ImGui::OpenPopup(settings);   
+            reload_required = false;    
+            tab = config_file::instance().get(configurations::viewer::settings_tab, 0);             
         }
 
         {
@@ -4245,8 +4252,6 @@ namespace rs2
 
             if (ImGui::BeginPopupModal(settings, nullptr, flags))
             {
-                static int tab = 0;
-
                 ImGui::SetCursorScreenPos({ x0 + w / 2 - 225, y0 + 27 });
                 ImGui::PushStyleColor(ImGuiCol_Button, sensor_bg);
                 ImGui::PushStyleColor(ImGuiCol_ButtonHovered, sensor_bg);
@@ -4254,19 +4259,34 @@ namespace rs2
 
                 ImGui::PushStyleColor(ImGuiCol_Text, tab != 0 ? light_grey : light_blue);
                 ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, tab != 0 ? light_grey : light_blue);
-                if (ImGui::Button("Playback & Record", { 170, 30})) tab = 0;
+                if (ImGui::Button("Playback & Record", { 170, 30})) 
+                {
+                    tab = 0;
+                    config_file::instance().set(configurations::viewer::settings_tab, tab);
+                    temp_cfg.set(configurations::viewer::settings_tab, tab);
+                }
                 ImGui::PopStyleColor(2);
                 ImGui::SameLine();
 
                 ImGui::PushStyleColor(ImGuiCol_Text, tab != 1 ? light_grey : light_blue);
                 ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, tab != 1 ? light_grey : light_blue);
-                if (ImGui::Button("Performance", { 150, 30})) tab = 1;
+                if (ImGui::Button("Performance", { 150, 30})) 
+                {
+                    tab = 1;
+                    config_file::instance().set(configurations::viewer::settings_tab, tab);
+                    temp_cfg.set(configurations::viewer::settings_tab, tab);
+                }
                 ImGui::PopStyleColor(2);
                 ImGui::SameLine();
 
                 ImGui::PushStyleColor(ImGuiCol_Text, tab != 2 ? light_grey : light_blue);
                 ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, tab != 2 ? light_grey : light_blue);
-                if (ImGui::Button("General", { 110, 30})) tab = 2;
+                if (ImGui::Button("General", { 110, 30})) 
+                {
+                    tab = 2;
+                    config_file::instance().set(configurations::viewer::settings_tab, tab);
+                    temp_cfg.set(configurations::viewer::settings_tab, tab);
+                }
                 ImGui::PopStyleColor(2);
                 //ImGui::SameLine();
 
@@ -4330,31 +4350,49 @@ namespace rs2
                     bool gpu_rendering = temp_cfg.get(configurations::performance::glsl_for_rendering, true);
                     if (ImGui::Checkbox("Use GLSL for Rendering", &gpu_rendering))
                     {
+                        reload_required = true;
                         temp_cfg.set(configurations::performance::glsl_for_rendering, gpu_rendering);
                     }
 
                     bool gpu_processing = temp_cfg.get(configurations::performance::glsl_for_processing, true);
                     if (ImGui::Checkbox("Use GLSL for Processing", &gpu_processing))
                     {
+                        reload_required = true;
                         temp_cfg.set(configurations::performance::glsl_for_processing, gpu_processing);
                     }
 
-                    bool msaa = temp_cfg.get(configurations::performance::enable_msaa, true);
+                    bool msaa = temp_cfg.get(configurations::performance::enable_msaa, false);
                     if (ImGui::Checkbox("Enable Multisample Anti-Aliasing (MSAA)", &msaa))
                     {
+                        reload_required = true;
                         temp_cfg.set(configurations::performance::enable_msaa, msaa);
                     }
 
                     if (msaa)
                     {
-                        int samples = temp_cfg.get(configurations::performance::enable_msaa_samples, 4);
+                        int samples = temp_cfg.get(configurations::performance::msaa_samples, 4);
                         ImGui::Text("MSAA Samples: "); ImGui::SameLine();
                         ImGui::PushItemWidth(160);
                         if (ImGui::SliderInt("##samples", &samples, 2, 16))
                         {
-                            temp_cfg.set(configurations::performance::enable_msaa_samples, samples);
+                            reload_required = true;
+                            temp_cfg.set(configurations::performance::msaa_samples, samples);
                         }
                         ImGui::PopItemWidth();
+                    }
+
+                    bool show_fps = temp_cfg.get(configurations::performance::show_fps, false);
+                    if (ImGui::Checkbox("Show Application FPS (rendering FPS)", &show_fps))
+                    {
+                        reload_required = true;
+                        temp_cfg.set(configurations::performance::show_fps, show_fps);
+                    }
+
+                    bool vsync = temp_cfg.get(configurations::performance::vsync, true);
+                    if (ImGui::Checkbox("Enable VSync", &vsync))
+                    {
+                        reload_required = true;
+                        temp_cfg.set(configurations::performance::vsync, vsync);
                     }
                 }
 
@@ -4364,6 +4402,7 @@ namespace rs2
 
                     if (ImGui::Button(" Restore Defaults "))
                     {
+                        reload_required = true;
                         temp_cfg = config_file();
                     }
                     ImGui::SameLine();
@@ -4392,6 +4431,7 @@ namespace rs2
                             {
                                 config_file file(ret);
                                 temp_cfg = file;
+                                reload_required = true;
                             }
                             catch (...){}
                         }
@@ -4400,14 +4440,23 @@ namespace rs2
 
                 ImGui::Separator();
 
-                ImGui::GetWindowDrawList()->AddRectFilled({ x0, y0 + h - 40 }, 
+                ImGui::GetWindowDrawList()->AddRectFilled({ x0, y0 + h - 60 }, 
                     { x0 + w, y0 + h }, ImColor(sensor_bg));
+
+                ImGui::SetCursorScreenPos({ x0 + 15, y0 + h - 60 });
+                if (reload_required)
+                {
+                    ImGui::PushStyleColor(ImGuiCol_Text, light_grey);
+                    ImGui::Text("* The application will be restarted in order for new settings to take effect");
+                    ImGui::PopStyleColor();
+                }
         
                 ImGui::SetCursorScreenPos({ x0 + w / 2 - 190, y0 + h - 30 });
                 if (ImGui::Button("OK", ImVec2(120, 0)))
                 {
                     config_file::instance() = temp_cfg;
                     ImGui::CloseCurrentPopup();
+                    if (reload_required) window.reload();
                 }
                 if (ImGui::IsItemHovered())
                 {
@@ -4421,6 +4470,7 @@ namespace rs2
                 if (ImGui::Button("Apply", ImVec2(120, 0)))
                 {
                     config_file::instance() = temp_cfg;
+                    if (reload_required) window.reload();
                 }
                 ImGui::PopStyleColor(2);
                 if (ImGui::IsItemHovered())
@@ -4494,19 +4544,19 @@ namespace rs2
                 ImGui::PushStyleColor(ImGuiCol_ButtonActive, sensor_bg);
                 ImGui::PushStyleColor(ImGuiCol_Text, light_blue);
 
-                ImGui::SetCursorPos({ realsense_pos.x - 3, realsense_pos.y - 3 });
+                ImGui::SetCursorPos({ realsense_pos.x - 4, realsense_pos.y - 3 });
                 if (ImGui::Button("Intel RealSense Technology"))
                 {
                     open_url("https://realsense.intel.com/");
                 }
 
-                ImGui::SetCursorPos({ github_pos.x - 3, github_pos.y - 3 });
+                ImGui::SetCursorPos({ github_pos.x - 4, github_pos.y - 3 });
                 if (ImGui::Button("github.com/IntelRealSense/librealsense"))
                 {
                     open_url("https://github.com/IntelRealSense/librealsense/");
                 }
 
-                ImGui::SetCursorPos({ license_pos.x - 3, license_pos.y - 3 });
+                ImGui::SetCursorPos({ license_pos.x - 4, license_pos.y - 3 });
                 if (ImGui::Button("Apache License, Version 2.0"))
                 {
                     open_url("https://raw.githubusercontent.com/IntelRealSense/librealsense/master/LICENSE");
@@ -4603,11 +4653,13 @@ namespace rs2
 
         if (viewer_rect.contains(mouse.cursor) || force)
         {
+            auto dir = target - pos;
+
             arcball_camera_update(
                 (float*)&pos, (float*)&target, (float*)&up, view,
                 sec_since_update,
                 0.2f, // zoom per tick
-                -0.1f, // pan speed
+                -0.7f * dir.length(), // pan speed
                 3.0f, // rotation multiplier
                 static_cast<int>(viewer_rect.w), static_cast<int>(viewer_rect.h), // screen (window) size
                 static_cast<int>(mouse.prev_cursor.x), static_cast<int>(mouse.cursor.x),
@@ -4675,6 +4727,7 @@ namespace rs2
 
         try
         {
+            // TODO: Use compression settings
             _recorder = std::make_shared<recorder>(path, dev);
             for (auto&& sub_dev_model : subdevices)
             {
@@ -5278,8 +5331,27 @@ namespace rs2
             }
             else
             {
-                auto path = rs2::get_folder_path(rs2::special_folder::user_documents) + rs2::get_timestamped_file_name() + ".bag";
-                start_recording(path, error_message);
+                auto recording_setting = config_file::instance().get(configurations::record::file_save_mode, 0);
+                std::string path = "";
+                std::string default_path = config_file::instance().get(configurations::record::default_path, 
+                                            rs2::get_folder_path(rs2::special_folder::user_documents));
+                if (!ends_with(default_path, "/") && !ends_with(default_path, "\\")) default_path += "/";
+                std::string default_filename = rs2::get_timestamped_file_name() + ".bag";
+                if (recording_setting == 0)
+                {
+                    path = default_path + default_filename;
+                }
+                else
+                {
+                    if (const char* ret = file_dialog_open(file_dialog_mode::save_file, "ROS-bag\0*.bag\0", 
+                                            default_path.c_str(), default_filename.c_str()))
+                    {
+                        path = ret;
+                        if (!ends_with(to_lower(path), ".bag")) path += ".bag";
+                    }
+                }
+                
+                if (path != "") start_recording(path, error_message);
             }
         }
         if (ImGui::IsItemHovered())
@@ -5429,9 +5501,20 @@ namespace rs2
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImColor(0, 0, 0, 0));
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImColor(0,0,0,0));
         const ImVec2 device_panel_icons_text_size = { icons_width, 5 };
+
+        ImGui::PushStyleColor(ImGuiCol_Text, record_button_color);
+        ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, record_button_color);
         ImGui::ButtonEx(is_recording ? "Stop" : "Record", device_panel_icons_size, (!is_streaming ? ImGuiButtonFlags_Disabled : 0));
+        ImGui::PopStyleColor(2);
+        
         ImGui::SameLine();  ImGui::ButtonEx("Sync", device_panel_icons_size, ImGuiButtonFlags_Disabled);
+
+        auto info_button_color = show_device_info ? light_blue : light_grey;
+        ImGui::PushStyleColor(ImGuiCol_Text, info_button_color);
+        ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, info_button_color);
         ImGui::SameLine(); ImGui::ButtonEx("Info", device_panel_icons_size);
+        ImGui::PopStyleColor(2);
+
         ImGui::SameLine(); ImGui::ButtonEx("More", device_panel_icons_size);
         ImGui::PopStyleColor(3);
 
