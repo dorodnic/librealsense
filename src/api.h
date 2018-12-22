@@ -15,13 +15,7 @@ struct rs2_raw_data_buffer
     std::vector<uint8_t> buffer;
 };
 
-struct rs2_error
-{
-    std::string message;
-    const char* function;
-    std::string args;
-    rs2_exception_type exception_type;
-};
+typedef struct rs2_error rs2_error;
 
 struct rs2_notification
 {
@@ -37,6 +31,8 @@ struct rs2_device
     std::shared_ptr<librealsense::device_info> info;
     std::shared_ptr<librealsense::device_interface> device;
 };
+
+rs2_error * rs2_create_error(const char* what, const char* name, const char* args, rs2_exception_type type);
 
 namespace librealsense
 {
@@ -107,12 +103,14 @@ namespace librealsense
         stream_args(out, names, rest...);
     }
 
+
+
     static void translate_exception(const char * name, std::string args, rs2_error ** error)
     {
         try { throw; }
-        catch (const librealsense_exception& e) { if (error) *error = new rs2_error{ e.what(), name, move(args), e.get_exception_type() }; }
-        catch (const std::exception& e) { if (error) *error = new rs2_error{ e.what(), name, move(args) }; }
-        catch (...) { if (error) *error = new rs2_error{ "unknown error", name, move(args) }; }
+        catch (const librealsense_exception& e) { if (error) *error = rs2_create_error(e.what(), name, args.c_str(), e.get_exception_type() ); }
+        catch (const std::exception& e) { if (error) *error = rs2_create_error(e.what(), name, args.c_str(), RS2_EXCEPTION_TYPE_COUNT); }
+        catch (...) { if (error) *error = rs2_create_error("unknown error", name, args.c_str(), RS2_EXCEPTION_TYPE_COUNT); }
     }
 
 #ifdef TRACE_API

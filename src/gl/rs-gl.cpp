@@ -9,6 +9,9 @@
 #include "../include/librealsense2-gl/rs_processing_gl.h"
 #include <assert.h>
 
+#include <GLFW/glfw3.h>
+
+
 ////////////////////////
 // API implementation //
 ////////////////////////
@@ -101,12 +104,29 @@ void rs2_gl_stop_all(int api_version, rs2_error** error) BEGIN_API_CALL
 }
 NOEXCEPT_RETURN(, api_version)
 
-rs2_gl_context* rs2_gl_create_context(int api_version, GLFWwindow* share_with, rs2_error** error) BEGIN_API_CALL
+rs2_gl_context* rs2_gl_create_context(int api_version, rs2_error** error) BEGIN_API_CALL
 {
     verify_version_compatibility(api_version);
-    return new rs2_gl_context { std::make_shared<gl::context>(share_with) };
+    glfw_binding binding{
+        &glfwInit,
+        &glfwWindowHint,
+        &glfwCreateWindow,
+        &glfwDestroyWindow,
+        &glfwMakeContextCurrent,
+        &glfwGetCurrentContext,
+        &glfwSwapInterval,
+        &glfwGetProcAddress
+    };
+    return new rs2_gl_context { std::make_shared<gl::context>(nullptr, binding) };
 }
 HANDLE_EXCEPTIONS_AND_RETURN(nullptr, api_version)
+
+rs2_gl_context* rs2_gl_create_shared_context(int api_version, GLFWwindow* share_with, glfw_binding binding, rs2_error** error) BEGIN_API_CALL
+{
+    verify_version_compatibility(api_version);
+    return new rs2_gl_context{ std::make_shared<gl::context>(share_with, binding) };
+}
+HANDLE_EXCEPTIONS_AND_RETURN(nullptr, api_version, share_with)
 
 void rs2_gl_delete_context(rs2_gl_context* context) BEGIN_API_CALL
 {

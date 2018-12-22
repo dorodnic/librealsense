@@ -104,6 +104,19 @@ struct rs2_sensor_list
     rs2_device dev;
 };
 
+struct rs2_error
+{
+    std::string message;
+    std::string function;
+    std::string args;
+    rs2_exception_type exception_type;
+};
+
+rs2_error * rs2_create_error(const char* what, const char* name, const char* args, rs2_exception_type type)
+{
+    return new rs2_error{ what, name, args, type };
+}
+
 void notifications_processor::raise_notification(const notification n)
 {
     _dispatcher.invoke([this, n](dispatcher::cancellable_timer ct)
@@ -988,7 +1001,7 @@ void rs2_get_region_of_interest(const rs2_sensor* sensor, int* min_x, int* min_y
 HANDLE_EXCEPTIONS_AND_RETURN(, sensor, min_x, min_y, max_x, max_y)
 
 void rs2_free_error(rs2_error* error) { if (error) delete error; }
-const char* rs2_get_failed_function(const rs2_error* error) { return error ? error->function : nullptr; }
+const char* rs2_get_failed_function(const rs2_error* error) { return error ? error->function.c_str() : nullptr; }
 const char* rs2_get_failed_args(const rs2_error* error) { return error ? error->args.c_str() : nullptr; }
 const char* rs2_get_error_message(const rs2_error* error) { return error ? error->message.c_str() : nullptr; }
 rs2_exception_type rs2_get_librealsense_exception_type(const rs2_error* error) { return error ? error->exception_type : RS2_EXCEPTION_TYPE_UNKNOWN; }

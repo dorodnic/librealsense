@@ -16,6 +16,10 @@
 #include <iostream>
 #include <future>
 
+#ifdef BUILD_EASYLOGGINGPP
+INITIALIZE_EASYLOGGINGPP
+#endif
+
 namespace librealsense
 {
     namespace gl
@@ -247,46 +251,45 @@ namespace librealsense
             while (_actions.try_dequeue(&act)) act();
         }
 
-        context::context(GLFWwindow* share_with)
+        context::context(GLFWwindow* share_with, glfw_binding binding) : _binding(binding)
         {
-            if (!glfwInit())
-                throw std::runtime_error("Could not initialize GLFW!");
+            if (binding.glfwInit) binding.glfwInit();
 
-            glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
-            _ctx = glfwCreateWindow(640, 480, "Offscreen Context", NULL, share_with);
+            binding.glfwWindowHint(GLFW_VISIBLE, 0);
+            _ctx = binding.glfwCreateWindow(640, 480, "Offscreen Context", NULL, share_with);
             if (!_ctx)
             {
                 throw std::runtime_error("Could not initialize offscreen context!");
             }
 
-            auto curr = glfwGetCurrentContext();
-            glfwMakeContextCurrent(_ctx);
+            auto curr = binding.glfwGetCurrentContext();
+            binding.glfwMakeContextCurrent(_ctx);
 
             if (glShaderSource == nullptr)
             {
-                gladLoadGLLoader((GLADloadproc) glfwGetProcAddress);
+                gladLoadGLLoader((GLADloadproc)binding.glfwGetProcAddress);
             }
 
-            glfwSwapInterval(0);
+            binding.glfwSwapInterval(0);
 
-            glfwMakeContextCurrent(curr);
+            binding.glfwMakeContextCurrent(curr);
         }
 
         std::shared_ptr<void> context::begin_session()
         {
-            auto curr = glfwGetCurrentContext();
+            auto curr = _binding.glfwGetCurrentContext();
             _lock.lock();
-            glfwMakeContextCurrent(_ctx);
+            _binding.glfwMakeContextCurrent(_ctx);
             auto me = shared_from_this();
             return std::shared_ptr<void>(nullptr, [curr, me](void*){
-                glfwMakeContextCurrent(curr);
+                me->_binding.glfwMakeContextCurrent(curr);
                 me->_lock.unlock();
             });
         }
 
         context::~context()
         {
-            glfwDestroyWindow(_ctx);
+            _binding.glfwDestroyWindow(_ctx);
         }
     }
 }

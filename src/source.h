@@ -13,7 +13,7 @@ namespace librealsense
 {
     class option;
 
-    class frame_source
+    class EXTENSION_API frame_source
     {
     public:
         frame_source(uint32_t max_publish_list_size = 16);

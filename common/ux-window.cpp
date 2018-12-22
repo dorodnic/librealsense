@@ -295,8 +295,6 @@ namespace rs2
 
         end_frame();
 
-        gl::stop_all();
-
         ImGui::GetIO().Fonts->ClearFonts();  // To be refactored into Viewer theme object
         ImGui_ImplGlfw_Shutdown();
         glfwDestroyWindow(_win);
@@ -383,8 +381,6 @@ namespace rs2
     {
         if (!_first_frame)
         {
-            rs2::gl::update_all(); // Give any pending graphic operations an opportunity to finish
-
             ImGui::Render();
 
             glfwSwapBuffers(_win);

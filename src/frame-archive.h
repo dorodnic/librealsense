@@ -141,15 +141,15 @@ namespace librealsense
                 auto callback_warning_duration = 1000 / (frame->get_stream()->get_framerate() + 1);
                 auto callback_duration = callback_ended - frame->get_frame_callback_start_time_point();
 
-                LOG_DEBUG("CallbackFinished," << librealsense::get_string(frame->get_stream()->get_stream_type()) << "," << frame->get_frame_number()
-                    << ",DispatchedAt," << callback_ended);
+                //LOG_DEBUG("CallbackFinished," << rs2_stream_to_string(frame->get_stream()->get_stream_type()) << "," << frame->get_frame_number()
+                //    << ",DispatchedAt," << callback_ended);
 
                 if (callback_duration > callback_warning_duration)
                 {
-                    LOG_DEBUG("Frame Callback [" << librealsense::get_string(frame->get_stream()->get_stream_type())
-                        << "#" << std::dec << frame->additional_data.frame_number
-                        << "] overdue. (Duration: " << callback_duration
-                        << "ms, FPS: " << frame->get_stream()->get_framerate() << ", Max Duration: " << callback_warning_duration << "ms)");
+                    //LOG_DEBUG("Frame Callback [" << rs2_stream_to_string(frame->get_stream()->get_stream_type())
+                    //    << "#" << std::dec << frame->additional_data.frame_number
+                    //    << "] overdue. (Duration: " << callback_duration
+                    //    << "ms, FPS: " << frame->get_stream()->get_framerate() << ", Max Duration: " << callback_warning_duration << "ms)");
                 }
             }
         }
