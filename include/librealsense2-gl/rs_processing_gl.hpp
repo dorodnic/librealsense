@@ -90,13 +90,13 @@ namespace rs2
             }
         };
 
-        class yuy_to_rgb : public processing_block
+        class yuy_to_rgb : public filter
         {
         public:
             /**
             * 
             */
-            yuy_to_rgb(context ctx = context()) : processing_block(init(ctx), 1) { }
+            yuy_to_rgb(context ctx = context()) : filter(init(ctx), 1) { }
 
         private:
             std::shared_ptr<rs2_processing_block> init(context ctx)

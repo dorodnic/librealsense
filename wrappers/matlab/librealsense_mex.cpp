@@ -1,6 +1,7 @@
 #include "MatlabParamParser.h"
 #include "Factory.h"
 #include "librealsense2/rs.hpp"
+#include "librealsense2/hpp/rs_export.hpp"
 
 #pragma comment(lib, "libmx.lib")
 #pragma comment(lib, "libmex.lib")
@@ -919,16 +920,22 @@ void make_factory(){
         });
         factory->record(frame_queue_factory);
     }
+// TODO: need to understand how to call matlab functions from within C++ before async things can be implemented.
+// processing_block API is completely async.
+//    {
+//        ClassFactory processing_block_factory("rs2::processing_block");
+//
+//        factory->record(processing_block_factory);
+//    }
     {
-        ClassFactory processing_block_factory("rs2::processing_block");
-        processing_block_factory.record("process", 1, 2, [](int outc, mxArray* outv[], int inc, const mxArray* inv[])
+        ClassFactory filter_factory("rs2::filter");
+        filter_factory.record("process", 1, 2, [](int outc, mxArray* outv[], int inc, const mxArray* inv[])
         {
-            auto thiz = MatlabParamParser::parse<rs2::processing_block>(inv[0]);
+            auto thiz = MatlabParamParser::parse<rs2::filter>(inv[0]);
             auto frame = MatlabParamParser::parse<rs2::frame>(inv[1]);
             outv[0] = MatlabParamParser::wrap(thiz.process(frame));
         });
-        // TODO: expose more functions?
-        factory->record(processing_block_factory);
+        factory->record(filter_factory);
     }
     {
         ClassFactory pointcloud_factory("rs2::pointcloud");
@@ -1092,6 +1099,41 @@ void make_factory(){
             }
         });
         factory->record(hole_filling_filter_factory);
+    }
+
+    // rs_export.hpp
+    {
+        ClassFactory save_to_ply_factory("rs2::save_to_ply");
+        save_to_ply_factory.record("new", 1, 0, 2, [](int outc, mxArray* outv[], int inc, const mxArray* inv[])
+        {
+            if (inc == 0) {
+                outv[0] = MatlabParamParser::wrap(rs2::save_to_ply());
+            }
+            else if (inc == 1) {
+                auto filename = MatlabParamParser::parse<std::string>(inv[0]);
+                outv[0] = MatlabParamParser::wrap(rs2::save_to_ply(filename));
+            }
+            else if (inc == 2) {
+                auto filename = MatlabParamParser::parse<std::string>(inv[0]);
+                auto pc = MatlabParamParser::parse<rs2::pointcloud>(inv[1]);
+                outv[0] = MatlabParamParser::wrap(rs2::save_to_ply(filename, pc));
+            }
+        });
+        factory->record(save_to_ply_factory);
+    }
+    {
+        ClassFactory save_single_frameset_factory("rs2::save_single_frameset");
+        save_single_frameset_factory.record("new", 1, 0, 1, [](int outc, mxArray* outv[], int inc, const mxArray* inv[])
+        {
+            if (inc == 0) {
+                outv[0] = MatlabParamParser::wrap(rs2::save_single_frameset());
+            }
+            else if (inc == 1) {
+                auto filename = MatlabParamParser::parse<std::string>(inv[0]);
+                outv[0] = MatlabParamParser::wrap(rs2::save_single_frameset(filename));
+            }
+        });
+        factory->record(save_single_frameset_factory);
     }
 
     // rs_context.hpp

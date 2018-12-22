@@ -192,7 +192,6 @@ namespace rs2
                     }
                 }
             });
-            
         }
 
         // If we are just getting started, render the Splash Screen instead of normal UI
@@ -208,7 +207,6 @@ namespace rs2
                 _is_ui_aligned = is_gui_aligned(_win);
                 _first_frame = false;
             }
-
             glPushMatrix();
             glViewport(0, 0, _fb_width, _fb_height);
             glClearColor(0.036f, 0.044f, 0.051f, 1.f);
@@ -242,7 +240,7 @@ namespace rs2
             bool do_200ms = every_200ms;
             if (_query_devices && do_200ms)
             {
-                _missing_device = rs2::context().query_devices().size() == 0;
+                _missing_device = rs2::context().query_devices(RS2_PRODUCT_LINE_ANY).size() == 0;
                 _hourglass_index = (_hourglass_index + 1) % 5;
 
                 if (!_missing_device)

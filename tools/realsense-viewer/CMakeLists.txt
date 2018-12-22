@@ -6,6 +6,9 @@ project(RealsenseToolsRealSenseViewer)
 # Save the command line compile commands in the build output
 set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
+
 include(CheckCXXCompilerFlag)
 CHECK_CXX_COMPILER_FLAG("-std=c++11" COMPILER_SUPPORTS_CXX11)
 CHECK_CXX_COMPILER_FLAG("-std=c++0x" COMPILER_SUPPORTS_CXX0X)
@@ -97,7 +100,11 @@ endif()
         ../../common ../../third-party)
     endif()
 
-    target_link_libraries(realsense-viewer ${DEPENDENCIES} ${GTK3_LIBRARIES})
+    target_link_libraries(realsense-viewer ${DEPENDENCIES}
+                                           ${GTK3_LIBRARIES}
+                                           Threads::Threads
+                                           realsense2-gl
+                                           )
 
     set_target_properties (realsense-viewer PROPERTIES
         FOLDER Tools
@@ -109,6 +116,6 @@ endif()
         realsense-viewer
 
         RUNTIME DESTINATION
-        ${CMAKE_INSTALL_PREFIX}/bin
+        ${CMAKE_INSTALL_BINDIR}
     )
 endif()
