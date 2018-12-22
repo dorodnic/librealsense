@@ -2912,6 +2912,7 @@ namespace rs2
         ImGui::SetNextWindowPos({ x, y });
         ImGui::SetNextWindowSize({ w, h });
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+
         is_output_collapsed = ImGui::Begin("Output", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
             ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_ShowBorders);
 
@@ -3063,11 +3064,22 @@ namespace rs2
 
             ImGui::PopStyleColor(5);
 
+            static bool dont_show_again = false;
+
             if (ImGui::Button(" Ignore & Continue ", ImVec2(150, 0)))
             {
                 continue_with_ui_not_aligned = true;
+                if (dont_show_again)
+                {
+                    config_file::instance().set(
+                        configurations::viewer::continue_with_ui_not_aligned, 
+                        continue_with_ui_not_aligned);
+                }
                 ImGui::CloseCurrentPopup();
             }
+
+            ImGui::SameLine();
+            ImGui::Checkbox("Don't show this again", &dont_show_again);
 
             ImGui::EndPopup();
         }
@@ -4127,14 +4139,18 @@ namespace rs2
         ImGui::PushFont(window.get_large_font());
         ImGui::PushStyleColor(ImGuiCol_Border, black);
 
-        ImGui::SetCursorPosX(window.width() - panel_width - panel_y * 2);
+        ImGui::SetCursorPosX(window.width() - panel_width - panel_y * 3);
         ImGui::PushStyleColor(ImGuiCol_Text, is_3d_view ? light_grey : light_blue);
         ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, is_3d_view ? light_grey : light_blue);
-        if (ImGui::Button("2D", { panel_y, panel_y })) is_3d_view = false;
+        if (ImGui::Button("2D", { panel_y, panel_y })) 
+        {
+            is_3d_view = false;
+            config_file::instance().set(configurations::viewer::is_3d_view, is_3d_view);
+        }
         ImGui::PopStyleColor(2);
         ImGui::SameLine();
 
-        ImGui::SetCursorPosX(window.width() - panel_width - panel_y * 1);
+        ImGui::SetCursorPosX(window.width() - panel_width - panel_y * 2);
         auto pos1 = ImGui::GetCursorScreenPos();
 
         ImGui::PushStyleColor(ImGuiCol_Text, !is_3d_view ? light_grey : light_blue);
@@ -4142,9 +4158,217 @@ namespace rs2
         if (ImGui::Button("3D", { panel_y,panel_y }))
         {
             is_3d_view = true;
+            config_file::instance().set(configurations::viewer::is_3d_view, is_3d_view);
             update_3d_camera(viewer_rect, window.get_mouse(), true);
         }
-        ImGui::PopStyleColor(3);
+
+        ImGui::PopStyleColor(2);
+        ImGui::SameLine();
+
+        ImGui::SetCursorPosX(window.width() - panel_width - panel_y * 1);
+
+        static bool settings_open = false;
+        ImGui::PushStyleColor(ImGuiCol_Text, !settings_open ? light_grey : light_blue);
+        ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, !settings_open ? light_grey : light_blue);
+        
+        if (ImGui::Button(u8"\uf013\uf0d7", { panel_y,panel_y }))
+        {
+            ImGui::OpenPopup("More Options");
+        }
+
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("%s", "More Options...");
+        }
+        ImGui::PopFont();
+
+        ImGui::PushStyleColor(ImGuiCol_Text, black);
+        ImGui::PushStyleColor(ImGuiCol_PopupBg, almost_white_bg);
+        ImGui::PushStyleColor(ImGuiCol_HeaderHovered, light_blue);
+        ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, light_grey);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(5, 5));
+
+        ImGui::PushFont(window.get_font());
+
+        auto settings = "Settings";
+        bool open_settings_popup = false;
+
+        ImGui::SetNextWindowPos({ window.width() - 100, panel_y });
+        ImGui::SetNextWindowSize({ 100, 50 });
+
+        if (ImGui::BeginPopup("More Options"))
+        {
+            settings_open = true;
+            if (ImGui::Selectable(settings))
+            {
+                open_settings_popup = true;
+            }
+            // ImGui::Separator();
+            if (ImGui::Selectable("About"))
+            {
+                
+            }
+
+            ImGui::EndPopup();
+        }
+        else
+        {
+            settings_open = false;
+        }
+
+        static config_file temp_cfg;
+
+        if (open_settings_popup) 
+        {
+            temp_cfg = config_file::instance();
+            ImGui::OpenPopup(settings);
+        }
+
+        {
+            int w = window.width() * 0.6f;
+            int h = window.height() * 0.6f;
+            int x0 = window.width() * 0.2f;
+            int y0 = window.height() * 0.2f;
+            ImGui::SetNextWindowPos({ x0, y0 });
+            ImGui::SetNextWindowSize({ w, h });
+
+            flags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+            ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings;
+
+            ImGui_ScopePushFont(window.get_font());
+            ImGui::PushStyleColor(ImGuiCol_PopupBg, sensor_bg);
+            ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, white);
+            ImGui::PushStyleColor(ImGuiCol_Text, light_grey);
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(15, 15));
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 1);
+
+            if (ImGui::BeginPopupModal(settings, nullptr, flags))
+            {
+                //ImGui::Text("RealSense error calling:");
+                //ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, regular_blue);
+                //ImGui::InputTextMultiline("error", const_cast<char*>(error_message.c_str()),
+                //    error_message.size() + 1, { 500,100 }, ImGuiInputTextFlags_AutoSelectAll | ImGuiInputTextFlags_ReadOnly);
+                //ImGui::PopStyleColor();
+
+                static int tab = 0;
+
+                ImGui::SetCursorScreenPos({ x0 + w / 2 - 175, y0 + 25 });
+                ImGui::PushStyleColor(ImGuiCol_Button, sensor_bg);
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, sensor_bg);
+                ImGui::PushFont(window.get_large_font());
+
+                ImGui::PushStyleColor(ImGuiCol_Text, tab != 0 ? light_grey : light_blue);
+                ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, tab != 0 ? light_grey : light_blue);
+                if (ImGui::Button("Playback & Record", { 170, 30})) tab = 0;
+                ImGui::PopStyleColor(2);
+                ImGui::SameLine();
+
+                ImGui::PushStyleColor(ImGuiCol_Text, tab != 1 ? light_grey : light_blue);
+                ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, tab != 1 ? light_grey : light_blue);
+                if (ImGui::Button("Performance", { 150, 30})) tab = 1;
+                ImGui::PopStyleColor(2);
+                //ImGui::SameLine();
+
+                ImGui::PopFont();
+                ImGui::PopStyleColor(2); // button color
+
+                ImGui::SetCursorScreenPos({ x0 + 15, y0 + 65 });
+                if (tab == 0)
+                {
+                    ImGui::Separator();
+
+                    static int recording_setting = 0;
+                    recording_setting = temp_cfg.get(configurations::record::file_save_mode, recording_setting);
+                    ImGui::Text("When starting a new recording:");
+                    if (ImGui::RadioButton("Select filename automatically", recording_setting == 0))
+                    {
+                        recording_setting = 0;
+                        temp_cfg.set(configurations::record::file_save_mode, recording_setting);
+                    }
+                    if (ImGui::RadioButton("Ask me every time", recording_setting == 1))
+                    {
+                        recording_setting = 1;
+                        temp_cfg.set(configurations::record::file_save_mode, recording_setting);
+                    }
+                    ImGui::Text("Default recording folder: ");
+                    ImGui::SameLine();
+                    static char path[256];
+                    memset(path, 0, 256);
+                    static std::string path_str = temp_cfg.get(configurations::record::default_path, 
+                        get_folder_path(special_folder::user_documents));
+                    memcpy(path, path_str.c_str(), std::min(255, (int)path_str.size()));
+
+                    if (ImGui::InputText("##default_record_path", path, 255))
+                    {
+                        path_str = path;
+                        temp_cfg.set(configurations::record::default_path, path_str);
+                    }
+
+                    ImGui::Separator();
+
+                    ImGui::Text("ROS-bag Compression:");
+                    static int recording_compression = 2;
+                    recording_compression = temp_cfg.get(configurations::record::compression_mode, recording_compression);
+                    if (ImGui::RadioButton("Always Compress (might cause frame drops)", recording_compression == 0))
+                    {
+                        recording_compression = 0;
+                        temp_cfg.set(configurations::record::compression_mode, recording_compression);
+                    }
+                    if (ImGui::RadioButton("Never Compress (larger .bag file size)", recording_compression == 1))
+                    {
+                        recording_compression = 1;
+                        temp_cfg.set(configurations::record::compression_mode, recording_compression);
+                    }
+                    if (ImGui::RadioButton("Use device defaults", recording_compression == 2))
+                    {
+                        recording_compression = 2;
+                        temp_cfg.set(configurations::record::compression_mode, recording_compression);
+                    }
+
+                    ImGui::Separator();
+                }
+
+                ImGui::GetWindowDrawList()->AddRectFilled({ x0, y0 + h - 40 }, 
+                    { x0 + w, y0 + h }, ImColor(sensor_bg));
+        
+                ImGui::SetCursorScreenPos({ x0 + w / 2 - 190, y0 + h - 30 });
+                if (ImGui::Button("OK", ImVec2(120, 0)))
+                {
+                    config_file::instance() = temp_cfg;
+                    ImGui::CloseCurrentPopup();
+                }
+                if (ImGui::IsItemHovered())
+                {
+                    ImGui::SetTooltip("%s", "Save settings and close");
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("Apply", ImVec2(120, 0)))
+                {
+                    config_file::instance() = temp_cfg;
+                }
+                if (ImGui::IsItemHovered())
+                {
+                    ImGui::SetTooltip("%s", "Save settings");
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("Cancel", ImVec2(120, 0)))
+                {
+                    ImGui::CloseCurrentPopup();
+                }
+                if (ImGui::IsItemHovered())
+                {
+                    ImGui::SetTooltip("%s", "Close window without saving any changes to the settings");
+                }
+
+                ImGui::EndPopup();
+            }
+
+            ImGui::PopStyleColor(3);
+            ImGui::PopStyleVar(2);
+        }
+
+        ImGui::PopStyleVar();
+        ImGui::PopStyleColor(7);
 
         ImGui::GetWindowDrawList()->AddLine({ pos1.x, pos1.y + 10 }, { pos1.x,pos1.y + panel_y - 10 }, ImColor(light_grey));
 

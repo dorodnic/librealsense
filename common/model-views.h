@@ -7,6 +7,7 @@
 #include "rendering.h"
 #include "ux-window.h"
 #include "parser.hpp"
+#include "rs-config.h"
 
 #include <gl/pc-shader.h>
 #include <gl/camera-shader.h>
@@ -92,6 +93,21 @@ namespace rs2
     inline std::ostream& operator<<(std::ostream& os, const textual_icon& i)
     {
         return os << static_cast<const char*>(i);
+    }
+
+    namespace configurations
+    {
+        namespace record
+        {
+            static const char* file_save_mode     { "record.file_save_mode" };
+            static const char* default_path       { "record.file_save_mode" };
+            static const char* compression_mode   { "record.compression" };
+        }
+        namespace viewer
+        {
+            static const char* is_3d_view   { "viewer_model.is_3d_view" };
+            static const char* continue_with_ui_not_aligned { "viewer_model.continue_with_ui_not_aligned" };
+        }
     }
 
     namespace textual_icons
@@ -904,6 +920,9 @@ namespace rs2
             reset_camera();
             rs2_error* e = nullptr;
             not_model.add_log(to_string() << "librealsense version: " << api_version_to_string(rs2_get_api_version(&e)) << "\n");
+        
+            continue_with_ui_not_aligned = config_file::instance().get(configurations::viewer::continue_with_ui_not_aligned, false);
+            is_3d_view = config_file::instance().get(configurations::viewer::is_3d_view, false);
         }
 
         ~viewer_model()
