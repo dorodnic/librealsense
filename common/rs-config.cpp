@@ -103,3 +103,8 @@ config_file& config_file::operator=(const config_file& other)
     }
     return *this;
 }
+
+bool config_file::operator==(const config_file& other) const
+{
+    return _values == other._values;
+}

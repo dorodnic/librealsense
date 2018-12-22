@@ -99,14 +99,21 @@ namespace rs2
     {
         namespace record
         {
-            static const char* file_save_mode     { "record.file_save_mode" };
-            static const char* default_path       { "record.file_save_mode" };
-            static const char* compression_mode   { "record.compression" };
+            static const char* file_save_mode      { "record.file_save_mode" };
+            static const char* default_path        { "record.default_path" };
+            static const char* compression_mode    { "record.compression" };
         }
         namespace viewer
         {
-            static const char* is_3d_view   { "viewer_model.is_3d_view" };
+            static const char* is_3d_view          { "viewer_model.is_3d_view" };
             static const char* continue_with_ui_not_aligned { "viewer_model.continue_with_ui_not_aligned" };
+        }
+        namespace performance
+        {
+            static const char* glsl_for_rendering  { "performance.glsl_for_rendering" };
+            static const char* glsl_for_processing { "performance.glsl_for_processing" };
+            static const char* enable_msaa         { "performance.msaa" };
+            static const char* enable_msaa_samples { "performance.msaa_samples" };
         }
     }
 

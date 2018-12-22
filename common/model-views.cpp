@@ -4191,7 +4191,9 @@ namespace rs2
         ImGui::PushFont(window.get_font());
 
         auto settings = "Settings";
+        auto about = "About";
         bool open_settings_popup = false;
+        bool open_about_popup = false;
 
         ImGui::SetNextWindowPos({ window.width() - 100, panel_y });
         ImGui::SetNextWindowSize({ 100, 50 });
@@ -4203,10 +4205,9 @@ namespace rs2
             {
                 open_settings_popup = true;
             }
-            // ImGui::Separator();
-            if (ImGui::Selectable("About"))
+            if (ImGui::Selectable(about))
             {
-                
+                open_about_popup = true;
             }
 
             ImGui::EndPopup();
@@ -4221,7 +4222,7 @@ namespace rs2
         if (open_settings_popup) 
         {
             temp_cfg = config_file::instance();
-            ImGui::OpenPopup(settings);
+            ImGui::OpenPopup(settings);                    
         }
 
         {
@@ -4244,15 +4245,9 @@ namespace rs2
 
             if (ImGui::BeginPopupModal(settings, nullptr, flags))
             {
-                //ImGui::Text("RealSense error calling:");
-                //ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, regular_blue);
-                //ImGui::InputTextMultiline("error", const_cast<char*>(error_message.c_str()),
-                //    error_message.size() + 1, { 500,100 }, ImGuiInputTextFlags_AutoSelectAll | ImGuiInputTextFlags_ReadOnly);
-                //ImGui::PopStyleColor();
-
                 static int tab = 0;
 
-                ImGui::SetCursorScreenPos({ x0 + w / 2 - 175, y0 + 25 });
+                ImGui::SetCursorScreenPos({ x0 + w / 2 - 225, y0 + 27 });
                 ImGui::PushStyleColor(ImGuiCol_Button, sensor_bg);
                 ImGui::PushStyleColor(ImGuiCol_ButtonHovered, sensor_bg);
                 ImGui::PushFont(window.get_large_font());
@@ -4267,18 +4262,23 @@ namespace rs2
                 ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, tab != 1 ? light_grey : light_blue);
                 if (ImGui::Button("Performance", { 150, 30})) tab = 1;
                 ImGui::PopStyleColor(2);
+                ImGui::SameLine();
+
+                ImGui::PushStyleColor(ImGuiCol_Text, tab != 2 ? light_grey : light_blue);
+                ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, tab != 2 ? light_grey : light_blue);
+                if (ImGui::Button("General", { 110, 30})) tab = 2;
+                ImGui::PopStyleColor(2);
                 //ImGui::SameLine();
 
                 ImGui::PopFont();
                 ImGui::PopStyleColor(2); // button color
 
                 ImGui::SetCursorScreenPos({ x0 + 15, y0 + 65 });
+                ImGui::Separator();
+
                 if (tab == 0)
                 {
-                    ImGui::Separator();
-
-                    static int recording_setting = 0;
-                    recording_setting = temp_cfg.get(configurations::record::file_save_mode, recording_setting);
+                    auto recording_setting = temp_cfg.get(configurations::record::file_save_mode, 0);
                     ImGui::Text("When starting a new recording:");
                     if (ImGui::RadioButton("Select filename automatically", recording_setting == 0))
                     {
@@ -4294,7 +4294,7 @@ namespace rs2
                     ImGui::SameLine();
                     static char path[256];
                     memset(path, 0, 256);
-                    static std::string path_str = temp_cfg.get(configurations::record::default_path, 
+                    auto path_str = temp_cfg.get(configurations::record::default_path, 
                         get_folder_path(special_folder::user_documents));
                     memcpy(path, path_str.c_str(), std::min(255, (int)path_str.size()));
 
@@ -4307,8 +4307,7 @@ namespace rs2
                     ImGui::Separator();
 
                     ImGui::Text("ROS-bag Compression:");
-                    static int recording_compression = 2;
-                    recording_compression = temp_cfg.get(configurations::record::compression_mode, recording_compression);
+                    auto recording_compression = temp_cfg.get(configurations::record::compression_mode, 2);
                     if (ImGui::RadioButton("Always Compress (might cause frame drops)", recording_compression == 0))
                     {
                         recording_compression = 0;
@@ -4324,9 +4323,82 @@ namespace rs2
                         recording_compression = 2;
                         temp_cfg.set(configurations::record::compression_mode, recording_compression);
                     }
-
-                    ImGui::Separator();
                 }
+
+                if (tab == 1)
+                {
+                    bool gpu_rendering = temp_cfg.get(configurations::performance::glsl_for_rendering, true);
+                    if (ImGui::Checkbox("Use GLSL for Rendering", &gpu_rendering))
+                    {
+                        temp_cfg.set(configurations::performance::glsl_for_rendering, gpu_rendering);
+                    }
+
+                    bool gpu_processing = temp_cfg.get(configurations::performance::glsl_for_processing, true);
+                    if (ImGui::Checkbox("Use GLSL for Processing", &gpu_processing))
+                    {
+                        temp_cfg.set(configurations::performance::glsl_for_processing, gpu_processing);
+                    }
+
+                    bool msaa = temp_cfg.get(configurations::performance::enable_msaa, true);
+                    if (ImGui::Checkbox("Enable Multisample Anti-Aliasing (MSAA)", &msaa))
+                    {
+                        temp_cfg.set(configurations::performance::enable_msaa, msaa);
+                    }
+
+                    if (msaa)
+                    {
+                        int samples = temp_cfg.get(configurations::performance::enable_msaa_samples, 4);
+                        ImGui::Text("MSAA Samples: "); ImGui::SameLine();
+                        ImGui::PushItemWidth(160);
+                        if (ImGui::SliderInt("##samples", &samples, 2, 16))
+                        {
+                            temp_cfg.set(configurations::performance::enable_msaa_samples, samples);
+                        }
+                        ImGui::PopItemWidth();
+                    }
+                }
+
+                if (tab == 2)
+                {
+                    ImGui::Text("RealSense tools settings capture the state of UI, and not of the hardware:");
+
+                    if (ImGui::Button(" Restore Defaults "))
+                    {
+                        temp_cfg = config_file();
+                    }
+                    ImGui::SameLine();
+                    if (ImGui::Button(" Export Settings "))
+                    {
+                        auto ret = file_dialog_open(save_file, "JavaScript Object Notation (JSON)\0*.json\0", NULL, NULL);
+                        if (ret)
+                        {
+                            try
+                            {
+                                std::string filename = ret;
+                                filename = to_lower(filename);
+                                if (!ends_with(filename, ".json")) filename += ".json";
+                                temp_cfg.save(filename.c_str());
+                            }
+                            catch (...){}
+                        }
+                    }
+                    ImGui::SameLine();
+                    if (ImGui::Button(" Import Settings "))
+                    {
+                        auto ret = file_dialog_open(open_file, "JavaScript Object Notation (JSON)\0*.json\0", NULL, NULL);
+                        if (ret)
+                        {
+                            try
+                            {
+                                config_file file(ret);
+                                temp_cfg = file;
+                            }
+                            catch (...){}
+                        }
+                    }
+                }
+
+                ImGui::Separator();
 
                 ImGui::GetWindowDrawList()->AddRectFilled({ x0, y0 + h - 40 }, 
                     { x0 + w, y0 + h }, ImColor(sensor_bg));
@@ -4342,10 +4414,15 @@ namespace rs2
                     ImGui::SetTooltip("%s", "Save settings and close");
                 }
                 ImGui::SameLine();
+
+                auto configs_same = temp_cfg == config_file::instance();
+                ImGui::PushStyleColor(ImGuiCol_Text, configs_same ? light_grey : light_blue);
+                ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, configs_same ? light_grey : light_blue);
                 if (ImGui::Button("Apply", ImVec2(120, 0)))
                 {
                     config_file::instance() = temp_cfg;
                 }
+                ImGui::PopStyleColor(2);
                 if (ImGui::IsItemHovered())
                 {
                     ImGui::SetTooltip("%s", "Save settings");
@@ -4359,6 +4436,87 @@ namespace rs2
                 {
                     ImGui::SetTooltip("%s", "Close window without saving any changes to the settings");
                 }
+
+                ImGui::EndPopup();
+            }
+
+            ImGui::PopStyleColor(3);
+            ImGui::PopStyleVar(2);
+        }
+
+        if (open_about_popup) 
+        {
+            ImGui::OpenPopup(about);                    
+        }
+
+        {
+            int w = 590;
+            int h = 300;
+            int x0 = (window.width() - w) / 2;
+            int y0 = (window.height() - h) / 2;
+            ImGui::SetNextWindowPos({ x0, y0 });
+            ImGui::SetNextWindowSize({ w, h });
+
+            flags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+            ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings;
+
+            ImGui_ScopePushFont(window.get_font());
+            ImGui::PushStyleColor(ImGuiCol_PopupBg, sensor_bg);
+            ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, white);
+            ImGui::PushStyleColor(ImGuiCol_Text, light_grey);
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(15, 15));
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 1);
+
+            if (ImGui::BeginPopupModal(about, nullptr, flags))
+            {
+                ImGui::Image((void*)(intptr_t)window.get_splash().get_gl_handle(), 
+                             ImVec2(w - 30, 100), {0.20f, 0.38f}, {0.80f, 0.56f});
+
+                auto realsense_pos = ImGui::GetCursorPos();
+                ImGui::Text("Intel RealSense Technology is a suite of depth and tracking technologies");
+
+                ImGui::Text("librealsense is an open-source cross-platform SDK for working with RealSense devices");
+
+                ImGui::Text("Full source code is available at"); ImGui::SameLine();
+                auto github_pos = ImGui::GetCursorPos();
+                ImGui::Text("github.com/IntelRealSense/librealsense");
+                
+                ImGui::Text("This software is distributed under the"); ImGui::SameLine();
+                auto license_pos = ImGui::GetCursorPos();
+                ImGui::Text("Apache License, Version 2.0");
+
+                ImGui::Text("RealSense is a registered trademark of Intel Corporation");
+                
+                ImGui::Text("Copyright 2018 Intel Corporation");
+
+                ImGui::PushStyleColor(ImGuiCol_Button, sensor_bg);
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, sensor_bg);
+                ImGui::PushStyleColor(ImGuiCol_ButtonActive, sensor_bg);
+                ImGui::PushStyleColor(ImGuiCol_Text, light_blue);
+
+                ImGui::SetCursorPos({ realsense_pos.x - 3, realsense_pos.y - 3 });
+                if (ImGui::Button("Intel RealSense Technology"))
+                {
+                    open_url("https://realsense.intel.com/");
+                }
+
+                ImGui::SetCursorPos({ github_pos.x - 3, github_pos.y - 3 });
+                if (ImGui::Button("github.com/IntelRealSense/librealsense"))
+                {
+                    open_url("https://github.com/IntelRealSense/librealsense/");
+                }
+
+                ImGui::SetCursorPos({ license_pos.x - 3, license_pos.y - 3 });
+                if (ImGui::Button("Apache License, Version 2.0"))
+                {
+                    open_url("https://raw.githubusercontent.com/IntelRealSense/librealsense/master/LICENSE");
+                }
+
+                ImGui::PopStyleColor(4);
+
+        
+                ImGui::SetCursorScreenPos({ x0 + w / 2 - 60, y0 + h - 30 });
+                if (ImGui::Button("OK", ImVec2(120, 0))) ImGui::CloseCurrentPopup();
 
                 ImGui::EndPopup();
             }

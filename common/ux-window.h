@@ -69,6 +69,8 @@ namespace rs2
 
 		bool is_ui_aligned() { return _is_ui_aligned; }
 
+        texture_buffer& get_splash() { return _splash_tex; }
+
     private:
         void open_window();
 

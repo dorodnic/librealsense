@@ -13,6 +13,9 @@ namespace rs2
     {
     public:
         config_file();
+        config_file(std::string filename);
+
+        bool operator==(const config_file& other) const;
 
         config_file& operator=(const config_file& other);
 
@@ -54,8 +57,6 @@ namespace rs2
         static config_file& instance();
 
     private:
-        config_file(std::string filename);
-
         void save();
 
         std::map<std::string, std::string> _values;
