@@ -4136,10 +4136,11 @@ namespace rs2
 				
 				static std::unique_ptr<vao> model;
                 static std::unique_ptr<vao> camera;
+
+                static obj_mesh camera_mesh;
                 
 				if (width != last_w || height != last_h)
 				{
-                    obj_mesh camera_mesh;
 					obj_mesh mesh = make_grid(height, width, 1.f / height, 1.f / height);
                     uncompress_d435_obj(camera_mesh.positions, camera_mesh.normals, camera_mesh.indexes);
 
@@ -4179,10 +4180,30 @@ namespace rs2
                 glDisable(GL_DEPTH_TEST);
                 glEnable(GL_BLEND);
                 glBlendFunc(GL_ONE, GL_ONE);
-                cam_shader.begin();
-                cam_shader.set_mvp(identity_matrix(), view_mat, perspective_mat);
-                camera->draw();
-                cam_shader.end();
+
+                if (config_file::instance().get(configurations::performance::glsl_for_rendering, false))
+                {
+                    cam_shader.begin();
+                    cam_shader.set_mvp(identity_matrix(), view_mat, perspective_mat);
+                    camera->draw();
+                    cam_shader.end();
+                }
+                else
+                {
+                    glBegin(GL_TRIANGLES);
+                    for (auto& i : camera_mesh.indexes)
+                    {
+                        auto v0 = camera_mesh.positions[i.x];
+                        auto v1 = camera_mesh.positions[i.y];
+                        auto v2 = camera_mesh.positions[i.z];
+                        glVertex3fv(&v0.x);
+                        glVertex3fv(&v1.x);
+                        glVertex3fv(&v2.x);
+                        glColor4f(0.036f, 0.044f, 0.051f, 0.3f);
+                    }
+                    glEnd();
+                }
+
                 glDisable(GL_BLEND);
                 glEnable(GL_DEPTH_TEST);
 
