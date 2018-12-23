@@ -9,6 +9,9 @@
 
 #include "tclap/CmdLine.h"
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "../third-party/stb_image.h"
+
 #include <lz4.h>
 
 struct float3
@@ -51,116 +54,163 @@ void uncompress(const uint8_t* ptr, int original_size, int vertex_count, int ind
     memcpy(normals.data(), uncompressed.data() + vertex_size + index_size, vertex_size);
 }
 
+bool ends_with(const std::string& s, const std::string& suffix)
+{
+    auto i = s.rbegin(), j = suffix.rbegin();
+    for (; i != s.rend() && j != suffix.rend() && *i == *j;
+        i++, j++);
+    return j == suffix.rend();
+}
+
+std::string to_lower(std::string x)
+{
+    transform(x.begin(), x.end(), x.begin(), tolower);
+    return x;
+}
+
 int main(int argc, char** argv) try
 {
     // Parse command line arguments
     CmdLine cmd("librealsense rs-embed tool", ' ');
     ValueArg<string> inputFilename("i", "input", "Input filename", true, "", "input-file");
     ValueArg<string> outputFilename("o", "output", "Output filename", false, "", "output-file");
+    ValueArg<string> objectName("n", "name", "Name", false, "", "object-name");
 
     cmd.add(inputFilename);
     cmd.add(outputFilename);
-    //cmd.parse(argc, argv);
+    cmd.add(objectName);
+    cmd.parse(argc, argv);
 
-    // auto input = inputFilename.getValue();
-    // auto output = inputFilename.getValue();
+    auto input = inputFilename.getValue();
+    auto output = outputFilename.getValue();
+    auto name = objectName.getValue();
 
-    auto input = "/home/dorodnic/Downloads/d415_new.obj";
-    auto output = "/home/dorodnic/Downloads/d415.h";
-    auto filename = "d415";
-
-    std::vector<float3> vertex_data;
-    std::vector<float3> normals_raw_data;
-    std::vector<float3> normals_data;
-    std::vector<int6> index_raw_data;
-    std::vector<int3> index_data;
-
-    if (file_exists(input))
+    if (ends_with(to_lower(input), ".obj"))
     {
-        std::ifstream file(input);
-        std::string str; 
-        while (std::getline(file, str))
+        std::vector<float3> vertex_data;
+        std::vector<float3> normals_raw_data;
+        std::vector<float3> normals_data;
+        std::vector<int6> index_raw_data;
+        std::vector<int3> index_data;
+
+        if (file_exists(input))
         {
-            if (str.size())
+            std::ifstream file(input);
+            std::string str;
+            while (std::getline(file, str))
             {
-                if (str[0] == 'v')
+                if (str.size())
                 {
-                    float a,b,c;
-                    if (str[1] == 'n')
+                    if (str[0] == 'v')
                     {
-                        sscanf(str.c_str(), "vn %f %f %f", &a, &b, &c);
-                        normals_raw_data.push_back({ a, b, c });
+                        float a, b, c;
+                        if (str[1] == 'n')
+                        {
+                            sscanf(str.c_str(), "vn %f %f %f", &a, &b, &c);
+                            normals_raw_data.push_back({ a, b, c });
+                        }
+                        else
+                        {
+                            sscanf(str.c_str(), "v %f %f %f", &a, &b, &c);
+                            vertex_data.push_back({ a, b, c });
+                        }
                     }
-                    else
+                    if (str[0] == 'f')
                     {
-                        sscanf(str.c_str(), "v %f %f %f", &a, &b, &c);
-                        vertex_data.push_back({ a, b, c });
+                        int x, y, z, a, b, c;
+                        sscanf(str.c_str(), "f %d %d %d", &x, &y, &z);
+                        index_raw_data.push_back({ x, y, z, a, b, c });
                     }
-                }
-                if (str[0] == 'f')
-                {
-                    int x,y,z,a,b,c;
-                    sscanf(str.c_str(), "f %d %d %d", &x, &y, &z);
-                    index_raw_data.push_back({ x, y, z, a, b, c });
                 }
             }
         }
+
+        normals_data.resize(vertex_data.size());
+        for (auto& idx : index_raw_data)
+        {
+            // normals_data[idx.x] = normals_raw_data[idx.a];
+            // normals_data[idx.y] = normals_raw_data[idx.b];
+            // normals_data[idx.z] = normals_raw_data[idx.c];
+            index_data.push_back({ idx.x - 1, idx.y - 1, idx.z - 1 });
+        }
+
+        size_t vertex_data_size = vertex_data.size() * sizeof(float3);
+        size_t index_data_size = index_data.size() * sizeof(int3);
+        //size_t normals_data_size = normals_data.size() * sizeof(float3);
+
+        std::vector<uint8_t> data(vertex_data_size + index_data_size, 0);
+        memcpy(data.data(), vertex_data.data(), vertex_data_size);
+        memcpy(data.data() + vertex_data_size, index_data.data(), index_data_size);
+        //memcpy(data.data() + vertex_data_size + index_data_size, normals_data.data(), normals_data_size);
+
+        // compress szSource into pchCompressed
+        char* pchCompressed = new char[data.size()];
+        int nCompressedSize = LZ4_compress((const char *)data.data(), pchCompressed, data.size());
+
+        ofstream myfile;
+        myfile.open(output);
+        myfile << "// License: Apache 2.0. See LICENSE file in root directory.\n";
+        myfile << "// Copyright(c) 2018 Intel Corporation. All Rights Reserved.\n\n";
+        myfile << "// This file is auto-generated from " << name << ".obj\n";
+        myfile << "static uint8_t " << name << "_obj_data [] { ";
+        for (int i = 0; i < nCompressedSize; i++)
+        {
+            uint8_t byte = pchCompressed[i];
+            myfile << "0x" << std::hex << (int)byte;
+            if (i < nCompressedSize - 1) myfile << ",";
+        }
+        myfile << "};\n";
+
+        myfile << "#include <lz4.h>\n";
+        myfile << "#include <vector>\n";
+
+        myfile << "inline void uncompress_" << name << "_obj(std::vector<float3>& vertex_data, std::vector<float3>& normals, std::vector<int3>& index_data)\n";
+        myfile << "{\n";
+        myfile << "    std::vector<char> uncompressed(0x" << std::hex << data.size() << ", 0);\n";
+        myfile << "    LZ4_uncompress((const char*)" << name << "_obj_data, uncompressed.data(), 0x" << std::hex << data.size() << ");\n";
+        myfile << "    const int vertex_size = 0x" << std::hex << vertex_data.size() << " * sizeof(float3);\n";
+        myfile << "    const int index_size = 0x" << std::hex << index_data.size() << " * sizeof(int3);\n";
+        myfile << "    vertex_data.resize(0x" << std::hex << vertex_data.size() << ");\n";
+        myfile << "    memcpy(vertex_data.data(), uncompressed.data(), vertex_size);\n";
+        myfile << "    index_data.resize(0x" << std::hex << index_data.size() << ");\n";
+        myfile << "    memcpy(index_data.data(), uncompressed.data() + vertex_size, index_size);\n";
+        myfile << "    //normals.resize(0x" << std::hex << vertex_data.size() << ");\n";
+        myfile << "    //memcpy(normals.data(), uncompressed.data() + vertex_size + index_size, vertex_size);\n";
+        myfile << "}\n";
+
+        myfile.close();
     }
 
-    normals_data.resize(vertex_data.size());
-    for (auto& idx : index_raw_data)
+    if (ends_with(to_lower(input), ".png"))
     {
-        // normals_data[idx.x] = normals_raw_data[idx.a];
-        // normals_data[idx.y] = normals_raw_data[idx.b];
-        // normals_data[idx.z] = normals_raw_data[idx.c];
-        index_data.push_back({ idx.x - 1, idx.y - 1, idx.z - 1 });
+        ifstream ifs(input, ios::binary | ios::ate);
+        ifstream::pos_type pos = ifs.tellg();
+
+        std::vector<char> buffer(pos);
+
+        ifs.seekg(0, ios::beg);
+        ifs.read(&buffer[0], pos);
+        
+        ofstream myfile;
+        myfile.open(output);
+        myfile << "// License: Apache 2.0. See LICENSE file in root directory.\n";
+        myfile << "// Copyright(c) 2018 Intel Corporation. All Rights Reserved.\n\n";
+        myfile << "// This file is auto-generated from " << name << ".png\n";
+
+        myfile << "static uint32_t " << name << "_png_size = 0x" << std::hex << buffer.size() << ";\n";
+
+        myfile << "static uint8_t " << name << "_png_data [] { ";
+        for (int i = 0; i < buffer.size(); i++)
+        {
+            uint8_t byte = buffer[i];
+            myfile << "0x" << std::hex << (int)byte;
+            if (i < buffer.size() - 1) myfile << ",";
+        }
+        myfile << "};\n";
+
+        myfile.close();
     }
-
-    size_t vertex_data_size = vertex_data.size() * sizeof(float3);
-    size_t index_data_size = index_data.size() * sizeof(int3);
-    //size_t normals_data_size = normals_data.size() * sizeof(float3);
-
-    std::vector<uint8_t> data(vertex_data_size + index_data_size, 0);
-    memcpy(data.data(), vertex_data.data(), vertex_data_size);
-    memcpy(data.data() + vertex_data_size, index_data.data(), index_data_size);
-    //memcpy(data.data() + vertex_data_size + index_data_size, normals_data.data(), normals_data_size);
-
-    // compress szSource into pchCompressed
-    char* pchCompressed = new char[data.size()];
-    int nCompressedSize = LZ4_compress((const char *)data.data(), pchCompressed, data.size());
-
-    ofstream myfile;
-    myfile.open(output);
-    myfile << "// License: Apache 2.0. See LICENSE file in root directory.\n";
-    myfile << "// Copyright(c) 2018 Intel Corporation. All Rights Reserved.\n\n";
-    myfile << "// This file is auto-generated from " << filename << ".obj\n";
-    myfile << "static uint8_t " << filename << "_obj_data [] { ";
-    for (int i = 0; i < nCompressedSize; i++)
-    {
-        uint8_t byte = pchCompressed[i];
-        myfile << "0x" << std::hex << (int)byte;
-        if (i < nCompressedSize - 1) myfile << ",";
-    }
-    myfile << "};\n";
-
-    myfile << "#include <lz4.h>\n";
-    myfile << "#include <vector>\n";
-
-    myfile << "inline void uncompress_" << filename << "_obj(std::vector<float3>& vertex_data, std::vector<float3>& normals, std::vector<int3>& index_data)\n";
-    myfile << "{\n";
-    myfile << "    std::vector<char> uncompressed(0x" << std::hex << data.size() << ", 0);\n";
-    myfile << "    LZ4_uncompress((const char*)" << filename << "_obj_data, uncompressed.data(), 0x" << std::hex << data.size() << ");\n";
-    myfile << "    const int vertex_size = 0x" << std::hex << vertex_data.size() << " * sizeof(float3);\n";
-    myfile << "    const int index_size = 0x" << std::hex << index_data.size() << " * sizeof(int3);\n";
-    myfile << "    vertex_data.resize(0x" << std::hex << vertex_data.size() << ");\n";
-    myfile << "    memcpy(vertex_data.data(), uncompressed.data(), vertex_size);\n";
-    myfile << "    index_data.resize(0x" << std::hex << index_data.size() << ");\n";
-    myfile << "    memcpy(index_data.data(), uncompressed.data() + vertex_size, index_size);\n";
-    myfile << "    //normals.resize(0x" << std::hex << vertex_data.size() << ");\n";
-    myfile << "    //memcpy(normals.data(), uncompressed.data() + vertex_size + index_size, vertex_size);\n";
-    myfile << "}\n";
-
-    myfile.close();
+    
 
     //uncompress_d435_obj(vertex_data, normals_data, index_data);
 

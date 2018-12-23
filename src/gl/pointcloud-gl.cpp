@@ -187,6 +187,7 @@ const librealsense::float3* pointcloud_gl::depth_to_points(
     _depth_data = depth_image;
     _depth_scale = depth_scale;
     _depth_intr = depth_intrinsics;
+    return (librealsense::float3*)points;
 }
 
 void pointcloud_gl::get_texture_map(

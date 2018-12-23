@@ -43,7 +43,7 @@ endif()
 set(DEPENDENCIES realsense2 ${OPENGL_LIBRARIES})
 
 if(WIN32)
-    list(APPEND DEPENDENCIES glfw3)
+    list(APPEND DEPENDENCIES glfw)
 else()
     # Find glfw header
     find_path(GLFW_INCLUDE_DIR NAMES GLFW/glfw3.h
@@ -81,6 +81,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     "${CMAKE_CURRENT_LIST_DIR}/../../common/gl/"
     "${CMAKE_CURRENT_LIST_DIR}/../../common/"
     "${CMAKE_CURRENT_LIST_DIR}/../../third-party/glad"
+    "${CMAKE_CURRENT_LIST_DIR}/../../third-party/glfw/include"
 )
 set_target_properties(${PROJECT_NAME} PROPERTIES FOLDER Library)
 target_link_libraries(${PROJECT_NAME} PRIVATE ${DEPENDENCIES})
