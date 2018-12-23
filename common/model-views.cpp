@@ -4646,21 +4646,21 @@ namespace rs2
                              ImVec2(w - 30, 100), {0.20f, 0.38f}, {0.80f, 0.56f});
 
                 auto realsense_pos = ImGui::GetCursorPos();
-                ImGui::Text("Intel RealSense Technology is a suite of depth and tracking technologies");
+                ImGui::Text("Intel RealSense is a suite of depth-sensing and motion-tracking technologies.");
 
-                ImGui::Text("librealsense is an open-source cross-platform SDK for working with RealSense devices");
+                ImGui::Text("librealsense is an open-source cross-platform SDK for working with RealSense devices.");
 
                 ImGui::Text("Full source code is available at"); ImGui::SameLine();
                 auto github_pos = ImGui::GetCursorPos();
-                ImGui::Text("github.com/IntelRealSense/librealsense");
+                ImGui::Text("github.com/IntelRealSense/librealsense.");
                 
                 ImGui::Text("This software is distributed under the"); ImGui::SameLine();
                 auto license_pos = ImGui::GetCursorPos();
-                ImGui::Text("Apache License, Version 2.0");
+                ImGui::Text("Apache License, Version 2.0.");
 
-                ImGui::Text("RealSense is a registered trademark of Intel Corporation");
+                ImGui::Text("RealSense is a registered trademark of Intel Corporation.");
                 
-                ImGui::Text("Copyright 2018 Intel Corporation");
+                ImGui::Text("Copyright 2018 Intel Corporation.");
 
                 ImGui::PushStyleColor(ImGuiCol_Button, sensor_bg);
                 ImGui::PushStyleColor(ImGuiCol_ButtonHovered, sensor_bg);
@@ -4668,7 +4668,7 @@ namespace rs2
                 ImGui::PushStyleColor(ImGuiCol_Text, light_blue);
 
                 ImGui::SetCursorPos({ realsense_pos.x - 4, realsense_pos.y - 3 });
-                if (ImGui::Button("Intel RealSense Technology"))
+                if (ImGui::Button("Intel RealSense"))
                 {
                     open_url("https://realsense.intel.com/");
                 }
