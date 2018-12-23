@@ -35,6 +35,7 @@ namespace rs2
 {
     #include <res/d435.h>
     #include <res/d415.h>
+    #include <res/sr300.h>
 }
 
 constexpr const char* recommended_fw_url = "https://downloadcenter.intel.com/download/27522/Latest-Firmware-for-Intel-RealSense-D400-Product-Family?v=t";
@@ -4152,6 +4153,10 @@ namespace rs2
                     if (starts_with(dev_name, "Intel RealSense D415"))
                     {
                         uncompress_d415_obj(camera_mesh.positions, camera_mesh.normals, camera_mesh.indexes);
+                    }
+                    if (starts_with(dev_name, "Intel RealSense SR300"))
+                    {
+                        uncompress_sr300_obj(camera_mesh.positions, camera_mesh.normals, camera_mesh.indexes);
                     }
 
 					obj_mesh mesh = make_grid(height, width, 1.f / height, 1.f / height);
