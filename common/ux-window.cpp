@@ -10,6 +10,7 @@
 #include <stb_image.h>
 // int-rs-splash.hpp contains the PNG image from res/int-rs-splash.png
 #include "res/int-rs-splash.hpp"
+#include "res/icon.h"
 
 #include "ux-alignment.h"
 
@@ -77,6 +78,33 @@ namespace rs2
 
         glfwMakeContextCurrent(_win);
 
+        GLFWimage icon[4];
+
+        int x, y, comp;
+
+        auto icon_16 = stbi_load_from_memory(icon_16_png_data, (int)icon_16_png_size, &x, &y, &comp, false);
+        icon[0].width = x; icon[0].height = y;
+        icon[0].pixels = icon_16;
+
+        auto icon_24 = stbi_load_from_memory(icon_24_png_data, (int)icon_24_png_size, &x, &y, &comp, false);
+        icon[1].width = x; icon[1].height = y;
+        icon[1].pixels = icon_24;
+
+        auto icon_64 = stbi_load_from_memory(icon_64_png_data, (int)icon_64_png_size, &x, &y, &comp, false);
+        icon[2].width = x; icon[2].height = y;
+        icon[2].pixels = icon_64;
+
+        auto icon_256 = stbi_load_from_memory(icon_256_png_data, (int)icon_256_png_size, &x, &y, &comp, false);
+        icon[3].width = x; icon[3].height = y;
+        icon[3].pixels = icon_256;
+
+        glfwSetWindowIcon(_win, 4, icon);
+
+        stbi_image_free(icon_16);
+        stbi_image_free(icon_24);
+        stbi_image_free(icon_64);
+        stbi_image_free(icon_256);
+
         gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
 
         ImGui_ImplGlfw_Init(_win, true);
@@ -127,7 +155,6 @@ namespace rs2
         _vsync = config_file::instance().get(configurations::performance::vsync, true);
 
         // Prepare the splash screen and do some initialization in the background
-        int x, y, comp;
         auto r = stbi_load_from_memory(splash, (int)splash_size, &x, &y, &comp, false);
         _splash_tex.upload_image(x, y, r);
         stbi_image_free(r);

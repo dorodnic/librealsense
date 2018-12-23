@@ -743,7 +743,7 @@ namespace rs2
     class post_processing_filters
     {
     public:
-        post_processing_filters(viewer_model& viewer)
+        post_processing_filters(viewer_model& viewer, gl::context& glctx)
             : processing_block([&](rs2::frame f, const rs2::frame_source& source)
             {
                 process(std::move(f),source);
@@ -754,7 +754,7 @@ namespace rs2
             resulting_queue(static_cast<unsigned int>(resulting_queue_max_size)),
             render_thread(),
             render_thread_active(false),
-            pc(new pointcloud())
+            pc(new gl::pointcloud(glctx))
         {
             std::string s;
             pc_gen = std::make_shared<processing_block_model>(nullptr, "Pointcloud Engine", pc, [=](rs2::frame f) { return pc->calculate(f); }, s);
@@ -935,8 +935,8 @@ namespace rs2
 
         rs2::frame handle_ready_frames(const rect& viewer_rect, ux_window& window, int devices, std::string& error_message);
 
-        viewer_model()
-            : ppf(*this),
+        viewer_model(gl::context& glctx)
+            : ppf(*this, glctx),
               synchronization_enable(true)
         {
             syncer = std::make_shared<syncer_model>();

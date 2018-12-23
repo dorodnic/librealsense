@@ -4356,8 +4356,8 @@ namespace rs2
             int h = window.height() * 0.6f;
             int x0 = window.width() * 0.2f;
             int y0 = window.height() * 0.2f;
-            ImGui::SetNextWindowPos({ x0, y0 });
-            ImGui::SetNextWindowSize({ w, h });
+            ImGui::SetNextWindowPos({ (float)x0, (float)y0 });
+            ImGui::SetNextWindowSize({ (float)w, (float)h });
 
             flags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
             ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings;
@@ -4371,7 +4371,7 @@ namespace rs2
 
             if (ImGui::BeginPopupModal(settings, nullptr, flags))
             {
-                ImGui::SetCursorScreenPos({ x0 + w / 2 - 225, y0 + 27 });
+                ImGui::SetCursorScreenPos({ (float)(x0 + w / 2 - 225), (float)(y0 + 27) });
                 ImGui::PushStyleColor(ImGuiCol_Button, sensor_bg);
                 ImGui::PushStyleColor(ImGuiCol_ButtonHovered, sensor_bg);
                 ImGui::PushFont(window.get_large_font());
@@ -4412,7 +4412,7 @@ namespace rs2
                 ImGui::PopFont();
                 ImGui::PopStyleColor(2); // button color
 
-                ImGui::SetCursorScreenPos({ x0 + 15, y0 + 65 });
+                ImGui::SetCursorScreenPos({ (float)(x0 + 15), (float)(y0 + 65) });
                 ImGui::Separator();
 
                 if (tab == 0)
@@ -4569,10 +4569,10 @@ namespace rs2
 
                 ImGui::Separator();
 
-                ImGui::GetWindowDrawList()->AddRectFilled({ x0, y0 + h - 60 }, 
-                    { x0 + w, y0 + h }, ImColor(sensor_bg));
+                ImGui::GetWindowDrawList()->AddRectFilled({ (float)x0, (float)(y0 + h - 60) },
+                    { (float)(x0 + w), (float)(y0 + h) }, ImColor(sensor_bg));
 
-                ImGui::SetCursorScreenPos({ x0 + 15, y0 + h - 60 });
+                ImGui::SetCursorScreenPos({ (float)(x0 + 15), (float)(y0 + h - 60) });
                 if (reload_required)
                 {
                     ImGui::PushStyleColor(ImGuiCol_Text, light_grey);
@@ -4580,7 +4580,7 @@ namespace rs2
                     ImGui::PopStyleColor();
                 }
         
-                ImGui::SetCursorScreenPos({ x0 + w / 2 - 190, y0 + h - 30 });
+                ImGui::SetCursorScreenPos({ (float)(x0 + w / 2 - 190), (float)(y0 + h - 30) });
                 if (ImGui::Button("OK", ImVec2(120, 0)))
                 {
                     config_file::instance() = temp_cfg;
@@ -4633,8 +4633,8 @@ namespace rs2
             int h = 300;
             int x0 = (window.width() - w) / 2;
             int y0 = (window.height() - h) / 2;
-            ImGui::SetNextWindowPos({ x0, y0 });
-            ImGui::SetNextWindowSize({ w, h });
+            ImGui::SetNextWindowPos({ (float)x0, (float)y0 });
+            ImGui::SetNextWindowSize({ (float)w, (float)h });
 
             flags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
             ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings;
@@ -4694,7 +4694,7 @@ namespace rs2
                 ImGui::PopStyleColor(4);
 
         
-                ImGui::SetCursorScreenPos({ x0 + w / 2 - 60, y0 + h - 30 });
+                ImGui::SetCursorScreenPos({ (float)(x0 + w / 2 - 60), (float)(y0 + h - 30) });
                 if (ImGui::Button("OK", ImVec2(120, 0))) ImGui::CloseCurrentPopup();
 
                 ImGui::EndPopup();
