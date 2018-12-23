@@ -4163,6 +4163,7 @@ namespace rs2
                     for (auto& xyz : camera_mesh.positions)
                     {
                         xyz = xyz / 1000.f;
+                        xyz.x *= -1;
                     }
 
                     model.reset(); camera.reset();
