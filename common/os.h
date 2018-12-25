@@ -58,5 +58,9 @@ namespace rs2
     std::string get_timestamped_file_name();
     std::string get_folder_path(special_folder f);
 
-    unsigned long long get_video_memory();
+    std::string url_encode(const std::string &value);
+
+    std::string get_os_name();
+
+    bool is_debug();
 }

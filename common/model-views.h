@@ -66,6 +66,8 @@ namespace rs2
 
     bool frame_metadata_to_csv(const std::string& filename, rs2::frame frame);
 
+    void open_issue(std::string body);
+
     struct textual_icon
     {
         explicit constexpr textual_icon(const char (&unicode_icon)[4]) :
@@ -947,7 +949,7 @@ namespace rs2
         void update_3d_camera(const rect& viewer_rect,
                               mouse_info& mouse, bool force = false);
 
-        void show_top_bar(ux_window& window, const rect& viewer_rect);
+        void show_top_bar(ux_window& window, const rect& viewer_rect, const std::vector<device_model>& devices);
 
         void render_3d_view(const rect& view_rect, texture_buffer* texture, rs2::points points);
 

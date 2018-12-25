@@ -147,6 +147,17 @@ namespace rs2
         }
     }
 
+    void open_issue(std::string body)
+    {
+        std::string link = "https://github.com/IntelRealSense/librealsense/issues/new?body=" + url_encode(body);
+        open_url(link.c_str());
+    }
+
+    void open_issue()
+    {
+
+    }
+
     std::tuple<uint8_t, uint8_t, uint8_t> get_texcolor(video_frame texture, texture_coordinate texcoords)
     {
         const int w = texture.get_width(), h = texture.get_height();
@@ -4115,7 +4126,7 @@ namespace rs2
         }
     }
 
-    void viewer_model::show_top_bar(ux_window& window, const rect& viewer_rect)
+    void viewer_model::show_top_bar(ux_window& window, const rect& viewer_rect, const std::vector<device_model>& devices)
     {
         auto flags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
             ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar |
@@ -4188,7 +4199,7 @@ namespace rs2
         bool open_about_popup = false;
 
         ImGui::SetNextWindowPos({ window.width() - 100, panel_y });
-        ImGui::SetNextWindowSize({ 100, 47 });
+        ImGui::SetNextWindowSize({ 100, 67 });
 
         if (ImGui::BeginPopup("More Options"))
         {
@@ -4196,6 +4207,33 @@ namespace rs2
             if (ImGui::Selectable(settings))
             {
                 open_settings_popup = true;
+            }
+            if (ImGui::Selectable("Report Issue"))
+            {
+                std::stringstream ss;
+
+                rs2_error* e = nullptr;
+
+                ss << "| | |\n";
+                ss << "|---|---|\n";
+                ss << "|librealsense|" << api_version_to_string(rs2_get_api_version(&e)) << (is_debug() ? " DEBUG" : " RELEASE") << "|\n";
+                ss << "|OS|" << get_os_name() << "|\n";
+
+                for (auto& dm : devices)
+                {
+                    for (auto& kvp : dm.infos)
+                    {
+                        if (kvp.first != "Recommended Firmware Version" &&
+                            kvp.first != "Debug Op Code" &&
+                            kvp.first != "Physical Port" &&
+                            kvp.first != "Product Id")
+                            ss << "|" << kvp.first << "|" << kvp.second << "|\n";
+                    }
+                }
+
+                ss << "\nPlease provide a description of the problem";
+
+                open_issue(ss.str());
             }
             if (ImGui::Selectable(about))
             {

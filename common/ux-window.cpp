@@ -279,9 +279,7 @@ namespace rs2
         std::stringstream temp_title;
         temp_title << _title_str;
 
-#ifndef NDEBUG
-        temp_title << ", DEBUG";
-#endif
+        if (is_debug()) temp_title << ", DEBUG";
 
         if (_show_fps)
         {

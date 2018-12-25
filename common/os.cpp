@@ -291,22 +291,55 @@ Some auxillary functionalities might be affected. Please report this message if 
         return j == prefix.end();
     }
 
-    unsigned long long get_video_memory()
+    std::string get_os_name()
     {
 #ifdef _WIN32
-        DWORD	i[5] = { 0, 0, 0x27, 0, 0 };
-        DWORD	o[5] = { 0, 0, 0, 0, 0 };
-
-        HDC hdc = CreateDC(L"DISPLAY", 0, 0, 0);
-        if (hdc == NULL) return 0;
-        int s = ExtEscape(hdc, 0x7032, 0x14, (LPCSTR)i, 0x14, (LPSTR)o);
-        DeleteDC(hdc);
-
-        if (s <= 0) return 0;
-        return o[3] * 0x100000;
+        return "Windows";
+#else
+#ifdef __APPLE__
+        return "Mac OS";
+#else
+#ifdef __linux__
+        return "Linux";
+#else
+        return "Unknown";
 #endif
-#if defined __linux__ || defined __APPLE__
-        return 0;
 #endif
+#endif
+    }
+    
+    bool is_debug()
+    {
+#ifndef NDEBUG
+        return false;
+#endif
+        return true;
+    }
+
+    std::string url_encode(const std::string &value) 
+    {
+        // based on https://stackoverflow.com/a/17708801
+        using namespace std;
+
+        ostringstream escaped;
+        escaped.fill('0');
+        escaped << hex;
+
+        for (string::const_iterator i = value.begin(), n = value.end(); i != n; ++i) {
+            string::value_type c = (*i);
+
+            // Keep alphanumeric and other accepted characters intact
+            if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
+                escaped << c;
+                continue;
+            }
+
+            // Any other characters are percent-encoded
+            escaped << uppercase;
+            escaped << '%' << setw(2) << int((unsigned char)c);
+            escaped << nouppercase;
+            }
+
+        return escaped.str();
     }
 }
