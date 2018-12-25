@@ -6,6 +6,7 @@
 #include <map>
 #include <string>
 #include <sstream>
+#include <functional>
 
 namespace rs2
 {
@@ -14,6 +15,36 @@ namespace rs2
     public:
         config_file();
         config_file(std::string filename);
+
+        void set_default(const char* key, const char* calculate);
+
+        template<class T>
+        void set_default(const char* key, T val)
+        {
+            std::stringstream ss;
+            ss << val;
+            set_default(key, ss.str().c_str());
+        }
+
+        template<class T>
+        T get_default(const char* key, T def) const
+        {
+            auto it = _defaults.find(key);
+            if (it == _defaults.end()) return def;
+
+            try
+            {
+                std::stringstream ss;
+                ss.str(it->second);
+                T res;
+                ss >> res;
+                return res;
+            }
+            catch (...)
+            {
+                return def;
+            }
+        }
 
         bool operator==(const config_file& other) const;
 
@@ -25,7 +56,7 @@ namespace rs2
         template<class T>
         T get(const char* key, T def) const
         {
-            if (!contains(key)) return def;
+            if (!contains(key)) return get_default(key, def);
             try
             {
                 std::stringstream ss;
@@ -60,6 +91,7 @@ namespace rs2
         void save();
 
         std::map<std::string, std::string> _values;
+        std::map<std::string, std::string> _defaults;
         std::string _filename;
     };
 }

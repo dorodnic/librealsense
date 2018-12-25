@@ -68,6 +68,8 @@ endif()
             ../../common/gl/camera-shader.cpp
             ../../common/rs-config.h
             ../../common/rs-config.cpp
+            ../../common/os.h
+            ../../common/os.cpp
             ${LZ4_DIR}/lz4.h
             ${LZ4_DIR}/lz4.c
         )

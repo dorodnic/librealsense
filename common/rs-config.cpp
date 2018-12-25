@@ -6,6 +6,8 @@
 
 #include <fstream>
 
+#include "os.h"
+
 using json = nlohmann::json;
 
 using namespace rs2;
@@ -14,6 +16,11 @@ void config_file::set(const char* key, const char* value)
 {
     _values[key] = value;
     save();
+}
+
+void config_file::set_default(const char* key, const char* calculate)
+{
+    _defaults[key] = calculate;
 }
 
 void config_file::reset()
@@ -29,7 +36,7 @@ std::string config_file::get(const char* key, const char* def) const
     {
         return it->second;
     }
-    return def;
+    return get_default(key, std::string(def));
 }
 
 bool config_file::contains(const char* key) const
@@ -59,7 +66,7 @@ void config_file::save(const char* filename)
 
 config_file& config_file::instance()
 {
-    static config_file inst(get_folder_path(rs2::special_folder::temp_folder) 
+    static config_file inst(get_folder_path(rs2::special_folder::app_data) 
                             + std::string("realsense-config.json"));
     return inst;
 }
@@ -69,7 +76,9 @@ config_file::config_file(std::string filename)
 {
     try
     {
+
         std::ifstream t(_filename);
+        if (!t.good()) return;
         std::string str((std::istreambuf_iterator<char>(t)),
                  std::istreambuf_iterator<char>());
         auto j = json::parse(str);
@@ -99,6 +108,7 @@ config_file& config_file::operator=(const config_file& other)
     if (this != &other)
     {
         _values = other._values;
+        _defaults = other._defaults;
         save();
     }
     return *this;

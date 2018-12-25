@@ -73,8 +73,11 @@ namespace rs2
 
         void reload();
 
+        void link_hovered();
     private:
         void open_window();
+
+        void setup_icon();
 
         GLFWwindow               *_win;
         int                      _width, _height, _output_height;
@@ -108,6 +111,10 @@ namespace rs2
         bool                     _use_glsl = false;
         bool                     _enable_msaa = false;
         int                      _msaa_samples = 0;
+
+        bool                     _link_hovered = false;
+        GLFWcursor*              _hand_cursor = nullptr;
+
         std::string              _title;
         std::shared_ptr<visualizer_2d> _2d_vis;
 

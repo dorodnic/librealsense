@@ -3,6 +3,7 @@
 
 #include <librealsense2/rs.hpp>
 #include "model-views.h"
+#include "os.h"
 #include "ux-window.h"
 
 #include <cstdarg>

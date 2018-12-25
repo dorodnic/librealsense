@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <regex>
 #include <cmath>
+
 #include <librealsense2/rs_advanced_mode.hpp>
 #include <librealsense2/rsutil.h>
 
@@ -21,16 +22,13 @@
 #include <gl/vao.h>
 #include <gl/pc-shader.h>
 
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include <stb_image_write.h>
-
-#define NOC_FILE_DIALOG_IMPLEMENTATION
-#include <noc_file_dialog.h>
-
 #define ARCBALL_CAMERA_IMPLEMENTATION
 #include <arcball_camera.h>
 
 #include "rendering.h"
+
+#include "os.h"
+
 namespace rs2
 {
     #include <res/d435.h>
@@ -47,18 +45,6 @@ using namespace nlohmann;
 ImVec4 flip(const ImVec4& c)
 {
     return{ c.y, c.x, c.z, c.w };
-}
-
-// Use shortcuts for long names to avoid trimming of essential data
-std::string     truncate_string(const std::string& str, size_t width)
-{
-    if (str.length() > width)
-    {
-        std::stringstream ss;
-        ss << str.substr(0,width/3) << "..." << str.substr(str.length()-width/3);
-        return ss.str().c_str();
-    }
-    return str;
 }
 
 ImVec4 from_rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a, bool consistent_color)
@@ -80,46 +66,6 @@ ImVec4 operator+(const ImVec4& c, float v)
     );
 }
 
-#if (defined(_WIN32) || defined(_WIN64))
-#include "ShellAPI.h"
-#endif
-
-void open_url(const char* url)
-{
-#if (defined(_WIN32) || defined(_WIN64))
-    if (reinterpret_cast<int>(ShellExecuteA(NULL, "open", url, NULL, NULL, SW_SHOW)) < 32)
-        throw std::runtime_error("Failed opening URL");
-#elif defined __linux__ || defined(__linux__)
-    std::string command_name = "xdg-open ";
-    std::string command = command_name + url;
-    if (system(command.c_str()))
-        throw std::runtime_error("Failed opening URL");
-#elif __APPLE__
-    std::string command_name = "open ";
-    std::string command = command_name + url;
-    if (system(command.c_str()))
-        throw std::runtime_error("Failed opening URL");
-#else
-#pragma message ( "\nLibrealsense couldn't establish OS/Build environment. \
-Some auxillary functionalities might be affected. Please report this message if encountered")
-#endif
-}
-
-std::vector<std::string> split_string(std::string& input, char delim)
-{
-    std::vector<std::string> result;
-    auto e = input.end();
-    auto i = input.begin();
-    while (i != e) {
-        i = find_if_not(i, e, [delim](char c) { return c == delim; });
-        if (i == e) break;
-        auto j = find(i, e, delim);
-        result.emplace_back(i, j);
-        i = j;
-    }
-    return result;
-}
-
 namespace rs2
 {
     void imgui_easy_theming(ImFont*& font_14, ImFont*& font_18)
@@ -127,6 +73,7 @@ namespace rs2
         ImGuiStyle& style = ImGui::GetStyle();
 
         ImGuiIO& io = ImGui::GetIO();
+        io.IniFilename = nullptr;
 
         const auto OVERSAMPLE = config_file::instance().get(configurations::performance::font_oversample, 4);
 
@@ -188,67 +135,16 @@ namespace rs2
         style.Colors[ImGuiCol_TitleBgActive] = header_color;
     }
 
-    // Helper function to get window rect from GLFW
-    rect get_window_rect(GLFWwindow* window)
+    void hyperlink(ux_window& window, const char* title, const char* link)
     {
-        int width, height;
-        glfwGetWindowSize(window, &width, &height);
-        int xpos, ypos;
-        glfwGetWindowPos(window, &xpos, &ypos);
-
-        return{ (float)xpos, (float)ypos,
-            (float)width, (float)height };
-    }
-
-    // Helper function to get monitor rect from GLFW
-    rect get_monitor_rect(GLFWmonitor* monitor)
-    {
-        const GLFWvidmode* mode = glfwGetVideoMode(monitor);
-        int xpos, ypos;
-        glfwGetMonitorPos(monitor, &xpos, &ypos);
-
-        return{ (float)xpos, (float)ypos,
-            (float)mode->width, (float)mode->height };
-    }
-
-    // Select appropriate scale factor based on the display
-    // that most of the application is presented on
-    int pick_scale_factor(GLFWwindow* window)
-    {
-        auto window_rect = get_window_rect(window);
-        int count;
-        GLFWmonitor** monitors = glfwGetMonitors(&count);
-        if (count == 0) return 1; // Not sure if possible, but better be safe
-
-                                    // Find the monitor that covers most of the application pixels:
-        GLFWmonitor* best = monitors[0];
-        float best_area = 0.f;
-        for (int i = 0; i < count; i++)
+        if (ImGui::Button(title))
         {
-            auto int_area = window_rect.intersection(
-                get_monitor_rect(monitors[i])).area();
-            if (int_area >= best_area)
-            {
-                best_area = int_area;
-                best = monitors[i];
-            }
+            open_url(link);
         }
-
-        int widthMM = 0;
-        int heightMM = 0;
-        glfwGetMonitorPhysicalSize(best, &widthMM, &heightMM);
-
-        // This indicates that the monitor dimentions are unknown
-        if (widthMM * heightMM == 0) return 1;
-
-        // The actual calculation is somewhat arbitrary, but we are going for
-        // about 1cm buttons, regardless of resultion
-        // We discourage fractional scale factors
-        float how_many_pixels_in_mm =
-            get_monitor_rect(best).area() / (widthMM * heightMM);
-        float scale = sqrt(how_many_pixels_in_mm) / 5.f;
-        if (scale < 1.f) return 1;
-        return (int)(floor(scale));
+        if (ImGui::IsItemHovered())
+        {
+            window.link_hovered();
+        }
     }
 
     std::tuple<uint8_t, uint8_t, uint8_t> get_texcolor(video_frame texture, texture_coordinate texcoords)
@@ -285,18 +181,6 @@ namespace rs2
                     RS2_NOTIFICATION_CATEGORY_UNKNOWN_ERROR });
             }
         }).detach();
-    }
-
-    const char* file_dialog_open(file_dialog_mode flags, const char* filters, const char* default_path, const char* default_name)
-    {
-        return noc_file_dialog_open(flags, filters, default_path, default_name);
-    }
-
-    int save_to_png(const char* filename,
-        size_t pixel_width, size_t pixels_height, size_t bytes_per_pixel,
-        const void* raster_data, size_t stride_bytes)
-    {
-        return stbi_write_png(filename, (int)pixel_width, (int)pixels_height, (int)bytes_per_pixel, raster_data, (int)stride_bytes);
     }
 
     bool save_frame_raw_data(const std::string& filename, rs2::frame frame)
@@ -1801,19 +1685,6 @@ namespace rs2
             glColor3f(1.0f, 1.0f, 1.0f);
             outline_rect(roi_display_rect);
         }
-    }
-
-    std::string get_file_name(const std::string& path)
-    {
-        std::string file_name;
-        for (auto rit = path.rbegin(); rit != path.rend(); ++rit)
-        {
-            if (*rit == '\\' || *rit == '/')
-                break;
-            file_name += *rit;
-        }
-        std::reverse(file_name.begin(), file_name.end());
-        return file_name;
     }
 
     bool draw_combo_box(const std::string& id, const std::vector<std::string>& device_names, int& new_index)
@@ -4475,6 +4346,7 @@ namespace rs2
                     }
                     ImGui::PopItemWidth();
                     
+#ifndef __APPLE__ // Not available at the moment on Mac
                     bool gpu_rendering = temp_cfg.get(configurations::performance::glsl_for_rendering, true);
                     if (ImGui::Checkbox("Use GLSL for Rendering", &gpu_rendering))
                     {
@@ -4488,6 +4360,7 @@ namespace rs2
                         reload_required = true;
                         temp_cfg.set(configurations::performance::glsl_for_processing, gpu_processing);
                     }
+#endif
 
                     bool msaa = temp_cfg.get(configurations::performance::enable_msaa, false);
                     if (ImGui::Checkbox("Enable Multisample Anti-Aliasing (MSAA)", &msaa))
@@ -4673,22 +4546,15 @@ namespace rs2
                 ImGui::PushStyleColor(ImGuiCol_Text, light_blue);
 
                 ImGui::SetCursorPos({ realsense_pos.x - 4, realsense_pos.y - 3 });
-                if (ImGui::Button("Intel RealSense"))
-                {
-                    open_url("https://realsense.intel.com/");
-                }
+
+                hyperlink(window, "Intel RealSense", "https://realsense.intel.com/");
 
                 ImGui::SetCursorPos({ github_pos.x - 4, github_pos.y - 3 });
-                if (ImGui::Button("github.com/IntelRealSense/librealsense"))
-                {
-                    open_url("https://github.com/IntelRealSense/librealsense/");
-                }
+                hyperlink(window, "github.com/IntelRealSense/librealsense", "https://github.com/IntelRealSense/librealsense/");
 
                 ImGui::SetCursorPos({ license_pos.x - 4, license_pos.y - 3 });
-                if (ImGui::Button("Apache License, Version 2.0"))
-                {
-                    open_url("https://raw.githubusercontent.com/IntelRealSense/librealsense/master/LICENSE");
-                }
+
+                hyperlink(window, "Apache License, Version 2.0", "https://raw.githubusercontent.com/IntelRealSense/librealsense/master/LICENSE");
 
                 ImGui::PopStyleColor(4);
 
@@ -4782,12 +4648,13 @@ namespace rs2
         if (viewer_rect.contains(mouse.cursor) || force)
         {
             auto dir = target - pos;
+            auto pan_speed = std::max(0.1f, std::min(dir.length(), 0.5f));
 
             arcball_camera_update(
                 (float*)&pos, (float*)&target, (float*)&up, view,
                 sec_since_update,
                 0.2f, // zoom per tick
-                -0.7f * dir.length(), // pan speed
+                -0.7f * pan_speed, // pan speed
                 3.0f, // rotation multiplier
                 static_cast<int>(viewer_rect.w), static_cast<int>(viewer_rect.h), // screen (window) size
                 static_cast<int>(mouse.prev_cursor.x), static_cast<int>(mouse.cursor.x),
@@ -4941,7 +4808,7 @@ namespace rs2
         _recorder->resume();
     }
 
-    int device_model::draw_playback_controls(ImFont* font, viewer_model& viewer)
+    int device_model::draw_playback_controls(ux_window& window, ImFont* font, viewer_model& viewer)
     {
         auto p = dev.as<playback>();
         rs2_playback_status current_playback_status = p.current_status();
@@ -5167,7 +5034,7 @@ namespace rs2
 
         ////////////////////    Info Icon    ////////////////////
         ImGui::SetCursorPosX(ImGui::GetCursorPosX() + space_width);
-        draw_info_icon(font, button_dim);
+        draw_info_icon(window, font, button_dim);
         ////////////////////    Info Icon    ////////////////////
 
         ImGui::PopFont();
@@ -5238,7 +5105,7 @@ namespace rs2
         return 50;
     }
 
-    int device_model::draw_playback_panel(ImFont* font, viewer_model& view)
+    int device_model::draw_playback_panel(ux_window& window, ImFont* font, viewer_model& view)
     {
         ImGui::PushStyleColor(ImGuiCol_Button, sensor_bg);
         ImGui::PushStyleColor(ImGuiCol_Text, light_grey);
@@ -5248,7 +5115,7 @@ namespace rs2
 
 
         auto pos = ImGui::GetCursorPos();
-        auto controls_height = draw_playback_controls(font, view);
+        auto controls_height = draw_playback_controls(window, font, view);
         float seek_bar_left_alignment = 4.f;
         ImGui::SetCursorPos({ pos.x + seek_bar_left_alignment, pos.y + controls_height });
         ImGui::PushFont(font);
@@ -5466,7 +5333,7 @@ namespace rs2
         return was_set;
     }
 
-    void device_model::draw_info_icon(ImFont* font, const ImVec2& size)
+    void device_model::draw_info_icon(ux_window& window, ImFont* font, const ImVec2& size)
     {
         std::string info_button_name = to_string() << textual_icons::info_circle << "##" << id;
         auto info_button_color = show_device_info ? light_blue : light_grey;
@@ -5479,6 +5346,7 @@ namespace rs2
         if (ImGui::IsItemHovered())
         {
             ImGui::SetTooltip("%s", show_device_info ? "Hide Device Details" : "Show Device Details");
+            window.link_hovered();
         }
         ImGui::PopStyleColor(2);
     }
@@ -5558,6 +5426,7 @@ namespace rs2
         {
             std::string record_button_hover_text = (!is_streaming ? "Start streaming to enable recording" : (is_recording ? "Stop Recording" : "Start Recording"));
             ImGui::SetTooltip("%s", record_button_hover_text.c_str());
+            if (is_streaming) window.link_hovered();
         }
 
         ImGui::PopStyleColor(2);
@@ -5583,7 +5452,7 @@ namespace rs2
         ////////////////////////////////////////
         // Draw Info icon
         ////////////////////////////////////////
-        draw_info_icon(window.get_font(), device_panel_icons_size);
+        draw_info_icon(window, window.get_font(), device_panel_icons_size);
         ImGui::SameLine();
 
         ////////////////////////////////////////
@@ -5599,6 +5468,7 @@ namespace rs2
         if (ImGui::IsItemHovered())
         {
             ImGui::SetTooltip("%s", "Click for more");
+            window.link_hovered();
         }
         ImGui::PopFont();
         ImGui::PushFont(window.get_font());
@@ -5705,6 +5575,7 @@ namespace rs2
         ImGui::PushStyleColor(ImGuiCol_Text, record_button_color);
         ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, record_button_color);
         ImGui::ButtonEx(is_recording ? "Stop" : "Record", device_panel_icons_size, (!is_streaming ? ImGuiButtonFlags_Disabled : 0));
+        if (ImGui::IsItemHovered() && is_streaming) window.link_hovered();
         ImGui::PopStyleColor(2);
         
         ImGui::SameLine();  ImGui::ButtonEx("Sync", device_panel_icons_size, ImGuiButtonFlags_Disabled);
@@ -5713,9 +5584,11 @@ namespace rs2
         ImGui::PushStyleColor(ImGuiCol_Text, info_button_color);
         ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, info_button_color);
         ImGui::SameLine(); ImGui::ButtonEx("Info", device_panel_icons_size);
+        if (ImGui::IsItemHovered()) window.link_hovered();
         ImGui::PopStyleColor(2);
 
         ImGui::SameLine(); ImGui::ButtonEx("More", device_panel_icons_size);
+        if (ImGui::IsItemHovered()) window.link_hovered();
         ImGui::PopStyleColor(3);
 
         ImGui::PopStyleVar();
@@ -6385,6 +6258,12 @@ namespace rs2
                 }
                 device_to_remove = this;
             }
+
+            if (ImGui::IsItemHovered())
+            {
+                ImGui::SetTooltip("Remove selected device from current view\n(can be restored by clicking Add Source)");
+                window.link_hovered();
+            }
         }
         ImGui::PopStyleColor(4);
         ImGui::PopStyleVar();
@@ -6444,7 +6323,7 @@ namespace rs2
             float space_before_playback_control = 18.0f;
             auto playback_panel_pos = ImVec2{ pos.x + 10, pos.y + space_before_playback_control };
             ImGui::SetCursorPos(playback_panel_pos);
-            auto playback_panel_height = draw_playback_panel(window.get_font(), viewer);
+            auto playback_panel_height = draw_playback_panel(window, window.get_font(), viewer);
             ImGui::SetCursorPos({ playback_panel_pos.x, playback_panel_pos.y + playback_panel_height });
         }
 
@@ -6605,6 +6484,7 @@ namespace rs2
                             }
                             if (ImGui::IsItemHovered())
                             {
+                                window.link_hovered();
                                 ImGui::SetTooltip("Start streaming data from this sensor");
                             }
                         }
@@ -6650,6 +6530,7 @@ namespace rs2
                         }
                         if (ImGui::IsItemHovered())
                         {
+                            window.link_hovered();
                             ImGui::SetTooltip("Stop streaming data from selected sub-device");
                         }
                     }
@@ -6766,9 +6647,8 @@ namespace rs2
                     const ImVec2 pos = ImGui::GetCursorPos();
 
                     draw_later.push_back([windows_width, &window, sub, pos, &viewer, this]() {
-                        if (!sub->streaming) ImGui::SetCursorPos({ windows_width -27 , pos.y - 1 });
-                        else
-                            ImGui::SetCursorPos({ windows_width - 32, pos.y - 3 });
+                        if (!sub->streaming) ImGui::SetCursorPos({ windows_width - 27 , pos.y - 1 });
+                        else ImGui::SetCursorPos({ windows_width - 34, pos.y - 3 });
 
                         ImGui::PushFont(window.get_font());
 
@@ -6803,13 +6683,14 @@ namespace rs2
                                 ImGui::PushStyleColor(ImGuiCol_Text, redish);
                                 ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, redish + 0.1f);
 
-                                if (ImGui::Button(label.c_str(), { 30,24 }))
+                                if (ImGui::Button(label.c_str(), { 28,24 }))
                                 {
                                     sub->post_processing_enabled = true;
                                 }
                                 if (ImGui::IsItemHovered())
                                 {
                                     ImGui::SetTooltip("Enable post-processing filters");
+                                    window.link_hovered();
                                 }
                             }
                             else
@@ -6818,13 +6699,14 @@ namespace rs2
                                 ImGui::PushStyleColor(ImGuiCol_Text, light_blue);
                                 ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, light_blue + 0.1f);
 
-                                if (ImGui::Button(label.c_str(), { 30,24 }))
+                                if (ImGui::Button(label.c_str(), { 28,24 }))
                                 {
                                     sub->post_processing_enabled = false;
                                 }
                                 if (ImGui::IsItemHovered())
                                 {
                                     ImGui::SetTooltip("Disable post-processing filters");
+                                    window.link_hovered();
                                 }
                             }
                         }
@@ -6889,6 +6771,7 @@ namespace rs2
                                         {
                                             label = to_string() << "Enable " << pb->get_name() << " post-processing filter";
                                             ImGui::SetTooltip("%s", label.c_str());
+                                            window.link_hovered();
                                         }
                                     }
                                     else
@@ -6905,6 +6788,7 @@ namespace rs2
                                         {
                                             label = to_string() << "Disable " << pb->get_name() << " post-processing filter";
                                             ImGui::SetTooltip("%s", label.c_str());
+                                            window.link_hovered();
                                         }
                                     }
                                 }
@@ -6997,6 +6881,13 @@ namespace rs2
 
     void viewer_model::draw_viewport(const rect& viewer_rect, ux_window& window, int devices, std::string& error_message, texture_buffer* texture, points points)
     {
+        static bool first = true;
+        if (first)
+        {
+            update_3d_camera(viewer_rect, window.get_mouse(), true);
+            first = false;
+        }
+
         if (!is_3d_view)
         {
             render_2d_view(viewer_rect, window,
@@ -7494,98 +7385,5 @@ namespace rs2
                 trajectory.push_back(p);
             }
         }
-    }
-
-    std::string get_timestamped_file_name()
-    {
-        std::time_t now = std::time(NULL);
-        std::tm * ptm = std::localtime(&now);
-        char buffer[16];
-        // Format: 20170529_205500
-        std::strftime(buffer, 16, "%Y%m%d_%H%M%S", ptm);
-        return buffer;
-    }
-    std::string get_folder_path(special_folder f)
-    {
-        std::string res;
-#ifdef _WIN32
-        if (f == temp_folder)
-        {
-            TCHAR buf[MAX_PATH];
-            if (GetTempPath(MAX_PATH, buf) != 0)
-            {
-                char str[1024];
-                wcstombs(str, buf, 1023);
-                res = str;
-            }
-        }
-        else
-        {
-            GUID folder;
-            switch (f)
-            {
-            case user_desktop: folder = FOLDERID_Desktop;
-                break;
-            case user_documents: folder = FOLDERID_Documents;
-                break;
-            case user_pictures: folder = FOLDERID_Pictures;
-                break;
-            case user_videos: folder = FOLDERID_Videos;
-                break;
-            default:
-                throw std::invalid_argument(
-                    std::string("Value of f (") + std::to_string(f) + std::string(") is not supported"));
-            }
-            PWSTR folder_path = NULL;
-            HRESULT hr = SHGetKnownFolderPath(folder, KF_FLAG_DEFAULT_PATH, NULL, &folder_path);
-            if (SUCCEEDED(hr))
-            {
-                char str[1024];
-                wcstombs(str, folder_path, 1023);
-                CoTaskMemFree(folder_path);
-                res = str;
-                res += "\\";
-            }
-            else
-            {
-                throw std::runtime_error("Failed to get requested special folder");
-            }
-        }
-#endif //_WIN32
-#if defined __linux__ || defined __APPLE__
-        if (f == special_folder::temp_folder)
-        {
-            const char* tmp_dir = getenv("TMPDIR");
-            res = tmp_dir ? tmp_dir : "/tmp/";
-        }
-        else
-        {
-            const char* home_dir = getenv("HOME");
-            if (!home_dir)
-            {
-                struct passwd* pw = getpwuid(getuid());
-                home_dir = (pw && pw->pw_dir) ? pw->pw_dir : "";
-            }
-            if (home_dir)
-            {
-                res = home_dir;
-                switch (f)
-                {
-                case user_desktop: res += "/Desktop/";
-                    break;
-                case user_documents: res += "/Documents/";
-                    break;
-                case user_pictures: res += "/Pictures/";
-                    break;
-                case user_videos: res += "/Videos/";
-                    break;
-                default:
-                    throw std::invalid_argument(
-                        std::string("Value of f (") + std::to_string(f) + std::string(") is not supported"));
-                }
-            }
-        }
-#endif // defined __linux__ || defined __APPLE__
-        return res;
     }
 }
