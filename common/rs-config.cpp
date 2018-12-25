@@ -36,13 +36,26 @@ std::string config_file::get(const char* key, const char* def) const
     {
         return it->second;
     }
-    return get_default(key, std::string(def));
+    return get_default(key, def);
 }
 
 bool config_file::contains(const char* key) const
 {
     auto it = _values.find(key);
     return it != _values.end();
+}
+
+std::string config_file::get_default(const char* key, const char* def) const
+{
+    auto it = _defaults.find(key);
+    if (it == _defaults.end()) return def;
+    return it->second;
+}
+
+config_value config_file::get(const char* key) const
+{
+    if (!contains(key)) return config_value(get_default(key, ""));
+    return config_value(get(key, ""));
 }
 
 void config_file::save(const char* filename)

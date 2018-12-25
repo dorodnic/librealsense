@@ -10,6 +10,25 @@
 
 namespace rs2
 {
+    class config_value
+    {
+    public:
+        template<class T>
+        operator T()
+        {
+            std::stringstream ss;
+            ss.str(_val);
+            T res;
+            ss >> res;
+            return res;
+        }
+
+        config_value(std::string val) : _val(std::move(val)) {}
+
+    private:
+        std::string _val;
+    };
+
     class config_file
     {
     public:
@@ -26,50 +45,14 @@ namespace rs2
             set_default(key, ss.str().c_str());
         }
 
-        template<class T>
-        T get_default(const char* key, T def) const
-        {
-            auto it = _defaults.find(key);
-            if (it == _defaults.end()) return def;
-
-            try
-            {
-                std::stringstream ss;
-                ss.str(it->second);
-                T res;
-                ss >> res;
-                return res;
-            }
-            catch (...)
-            {
-                return def;
-            }
-        }
-
         bool operator==(const config_file& other) const;
 
         config_file& operator=(const config_file& other);
 
         void set(const char* key, const char* value);
-        std::string get(const char* key, const char* def = "") const;
+        std::string get(const char* key, const char* def) const;
 
-        template<class T>
-        T get(const char* key, T def) const
-        {
-            if (!contains(key)) return get_default(key, def);
-            try
-            {
-                std::stringstream ss;
-                ss.str(get(key));
-                T res;
-                ss >> res;
-                return res;
-            }
-            catch(...)
-            {
-                return def;
-            }
-        }
+        config_value get(const char* key) const;
 
         template<class T>
         void set(const char* key, T val)
@@ -88,6 +71,8 @@ namespace rs2
         static config_file& instance();
 
     private:
+        std::string get_default(const char* key, const char* def) const;
+
         void save();
 
         std::map<std::string, std::string> _values;

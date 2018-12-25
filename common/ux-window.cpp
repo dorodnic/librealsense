@@ -23,6 +23,8 @@ namespace rs2
 {
     void prepare_config_file()
     {
+        config_file::instance().set_default(configurations::window::is_fullscreen, false);
+
         config_file::instance().set_default(configurations::viewer::continue_with_ui_not_aligned, false);
         config_file::instance().set_default(configurations::viewer::is_3d_view, false);
         config_file::instance().set_default(configurations::viewer::settings_tab, 0);
@@ -154,10 +156,12 @@ namespace rs2
             glfwDestroyWindow(ctx);
         }
 
-        _use_glsl = config_file::instance().get(configurations::performance::glsl_for_rendering, false);
+        _use_glsl = config_file::instance().get(configurations::performance::glsl_for_rendering);
 
-        _enable_msaa = config_file::instance().get(configurations::performance::enable_msaa, false);
-        _msaa_samples = config_file::instance().get(configurations::performance::msaa_samples, 4);
+        _enable_msaa = config_file::instance().get(configurations::performance::enable_msaa);
+        _msaa_samples = config_file::instance().get(configurations::performance::msaa_samples);
+
+        _fullscreen = config_file::instance().get(configurations::window::is_fullscreen);
 
         rs2_error* e = nullptr;
         _title_str = to_string() << _title << " v" << api_version_to_string(rs2_get_api_version(&e));
@@ -243,8 +247,8 @@ namespace rs2
 
         glfwFocusWindow(_win);
 
-        _show_fps = config_file::instance().get(configurations::performance::show_fps, false);
-        _vsync = config_file::instance().get(configurations::performance::vsync, true);
+        _show_fps = config_file::instance().get(configurations::performance::show_fps);
+        _vsync = config_file::instance().get(configurations::performance::vsync);
 
         // Prepare the splash screen and do some initialization in the background
         int x, y, comp;
@@ -482,6 +486,7 @@ namespace rs2
             if (_fullscreen_pressed)
             {
                 _fullscreen = !_fullscreen;
+                config_file::instance().set(configurations::window::is_fullscreen, _fullscreen);
                 open_window();
             }
             _fullscreen_pressed = false;

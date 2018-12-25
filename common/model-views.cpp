@@ -75,7 +75,7 @@ namespace rs2
         ImGuiIO& io = ImGui::GetIO();
         io.IniFilename = nullptr;
 
-        const auto OVERSAMPLE = config_file::instance().get(configurations::performance::font_oversample, 4);
+        const int OVERSAMPLE = config_file::instance().get(configurations::performance::font_oversample);
 
         static const ImWchar icons_ranges[] = { 0xf000, 0xf3ff, 0 }; // will not be copied by AddFont* so keep in scope.
 
@@ -4095,7 +4095,7 @@ namespace rs2
 
 
 
-                if (config_file::instance().get(configurations::performance::glsl_for_rendering, false))
+                if (config_file::instance().get(configurations::performance::glsl_for_rendering))
                 {
                     cam_shader.begin();
                     cam_shader.set_mvp(identity_matrix(), view_mat, perspective_mat);
@@ -4257,7 +4257,7 @@ namespace rs2
             temp_cfg = config_file::instance();
             ImGui::OpenPopup(settings);   
             reload_required = false;    
-            tab = config_file::instance().get(configurations::viewer::settings_tab, 0);             
+            tab = config_file::instance().get(configurations::viewer::settings_tab);             
         }
 
         {
@@ -4280,7 +4280,7 @@ namespace rs2
 
             if (ImGui::BeginPopupModal(settings, nullptr, flags))
             {
-                ImGui::SetCursorScreenPos({ (float)(x0 + w / 2 - 225), (float)(y0 + 27) });
+                ImGui::SetCursorScreenPos({ (float)(x0 + w / 2 - 220), (float)(y0 + 27) });
                 ImGui::PushStyleColor(ImGuiCol_Button, sensor_bg);
                 ImGui::PushStyleColor(ImGuiCol_ButtonHovered, sensor_bg);
                 ImGui::PushFont(window.get_large_font());
@@ -4309,7 +4309,7 @@ namespace rs2
 
                 ImGui::PushStyleColor(ImGuiCol_Text, tab != 2 ? light_grey : light_blue);
                 ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, tab != 2 ? light_grey : light_blue);
-                if (ImGui::Button("General", { 110, 30})) 
+                if (ImGui::Button("General", { 100, 30})) 
                 {
                     tab = 2;
                     config_file::instance().set(configurations::viewer::settings_tab, tab);
@@ -4326,7 +4326,7 @@ namespace rs2
 
                 if (tab == 0)
                 {
-                    auto recording_setting = temp_cfg.get(configurations::record::file_save_mode, 0);
+                    int recording_setting = temp_cfg.get(configurations::record::file_save_mode);
                     ImGui::Text("When starting a new recording:");
                     if (ImGui::RadioButton("Select filename automatically", recording_setting == 0))
                     {
@@ -4342,8 +4342,7 @@ namespace rs2
                     ImGui::SameLine();
                     static char path[256];
                     memset(path, 0, 256);
-                    auto path_str = temp_cfg.get(configurations::record::default_path, 
-                        get_folder_path(special_folder::user_documents));
+                    std::string path_str = temp_cfg.get(configurations::record::default_path);
                     memcpy(path, path_str.c_str(), std::min(255, (int)path_str.size()));
 
                     if (ImGui::InputText("##default_record_path", path, 255))
@@ -4355,7 +4354,7 @@ namespace rs2
                     ImGui::Separator();
 
                     ImGui::Text("ROS-bag Compression:");
-                    auto recording_compression = temp_cfg.get(configurations::record::compression_mode, 2);
+                    int recording_compression = temp_cfg.get(configurations::record::compression_mode);
                     if (ImGui::RadioButton("Always Compress (might cause frame drops)", recording_compression == 0))
                     {
                         recording_compression = 0;
@@ -4375,7 +4374,7 @@ namespace rs2
 
                 if (tab == 1)
                 {
-                    int font_samples = temp_cfg.get(configurations::performance::font_oversample, 4);
+                    int font_samples = temp_cfg.get(configurations::performance::font_oversample);
                     ImGui::Text("Font Samples: "); ImGui::SameLine();
                     ImGui::PushItemWidth(80);
                     if (ImGui::SliderInt("##font_samples", &font_samples, 1, 8))
@@ -4386,14 +4385,14 @@ namespace rs2
                     ImGui::PopItemWidth();
                     
 #ifndef __APPLE__ // Not available at the moment on Mac
-                    bool gpu_rendering = temp_cfg.get(configurations::performance::glsl_for_rendering, true);
+                    bool gpu_rendering = temp_cfg.get(configurations::performance::glsl_for_rendering);
                     if (ImGui::Checkbox("Use GLSL for Rendering", &gpu_rendering))
                     {
                         reload_required = true;
                         temp_cfg.set(configurations::performance::glsl_for_rendering, gpu_rendering);
                     }
 
-                    bool gpu_processing = temp_cfg.get(configurations::performance::glsl_for_processing, true);
+                    bool gpu_processing = temp_cfg.get(configurations::performance::glsl_for_processing);
                     if (ImGui::Checkbox("Use GLSL for Processing", &gpu_processing))
                     {
                         reload_required = true;
@@ -4401,7 +4400,7 @@ namespace rs2
                     }
 #endif
 
-                    bool msaa = temp_cfg.get(configurations::performance::enable_msaa, false);
+                    bool msaa = temp_cfg.get(configurations::performance::enable_msaa);
                     if (ImGui::Checkbox("Enable Multisample Anti-Aliasing (MSAA)", &msaa))
                     {
                         reload_required = true;
@@ -4410,7 +4409,7 @@ namespace rs2
 
                     if (msaa)
                     {
-                        int samples = temp_cfg.get(configurations::performance::msaa_samples, 4);
+                        int samples = temp_cfg.get(configurations::performance::msaa_samples);
                         ImGui::Text("MSAA Samples: "); ImGui::SameLine();
                         ImGui::PushItemWidth(160);
                         if (ImGui::SliderInt("##samples", &samples, 2, 16))
@@ -4421,18 +4420,25 @@ namespace rs2
                         ImGui::PopItemWidth();
                     }
 
-                    bool show_fps = temp_cfg.get(configurations::performance::show_fps, false);
+                    bool show_fps = temp_cfg.get(configurations::performance::show_fps);
                     if (ImGui::Checkbox("Show Application FPS (rendering FPS)", &show_fps))
                     {
                         reload_required = true;
                         temp_cfg.set(configurations::performance::show_fps, show_fps);
                     }
 
-                    bool vsync = temp_cfg.get(configurations::performance::vsync, true);
+                    bool vsync = temp_cfg.get(configurations::performance::vsync);
                     if (ImGui::Checkbox("Enable VSync", &vsync))
                     {
                         reload_required = true;
                         temp_cfg.set(configurations::performance::vsync, vsync);
+                    }
+
+                    bool fullscreen = temp_cfg.get(configurations::window::is_fullscreen);
+                    if (ImGui::Checkbox("Fullscreen", &fullscreen))
+                    {
+                        reload_required = true;
+                        temp_cfg.set(configurations::window::is_fullscreen, fullscreen);
                     }
                 }
 
@@ -4799,7 +4805,7 @@ namespace rs2
 
         try
         {
-            auto compression_mode = config_file::instance().get(configurations::record::compression_mode, 2);
+            int compression_mode = config_file::instance().get(configurations::record::compression_mode);
             if (compression_mode == 2)
                 _recorder = std::make_shared<recorder>(path, dev);
             else
@@ -5438,10 +5444,9 @@ namespace rs2
             }
             else
             {
-                auto recording_setting = config_file::instance().get(configurations::record::file_save_mode, 0);
+                int recording_setting = config_file::instance().get(configurations::record::file_save_mode);
                 std::string path = "";
-                std::string default_path = config_file::instance().get(configurations::record::default_path, 
-                                            rs2::get_folder_path(rs2::special_folder::user_documents));
+                std::string default_path = config_file::instance().get(configurations::record::default_path);
                 if (!ends_with(default_path, "/") && !ends_with(default_path, "\\")) default_path += "/";
                 std::string default_filename = rs2::get_timestamped_file_name() + ".bag";
                 if (recording_setting == 0)

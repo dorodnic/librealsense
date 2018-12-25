@@ -101,6 +101,11 @@ namespace rs2
             static const char* continue_with_ui_not_aligned { "viewer_model.continue_with_ui_not_aligned" };
             static const char* settings_tab        { "viewer_model.settings_tab" };
         }
+        namespace window
+        {
+            static const char* is_fullscreen       { "window.is_fullscreen" };
+
+        }
         namespace performance
         {
             static const char* glsl_for_rendering  { "performance.glsl_for_rendering" };
@@ -908,8 +913,8 @@ namespace rs2
             rs2_error* e = nullptr;
             not_model.add_log(to_string() << "librealsense version: " << api_version_to_string(rs2_get_api_version(&e)) << "\n");
         
-            continue_with_ui_not_aligned = config_file::instance().get(configurations::viewer::continue_with_ui_not_aligned, false);
-            is_3d_view = config_file::instance().get(configurations::viewer::is_3d_view, false);
+            continue_with_ui_not_aligned = config_file::instance().get(configurations::viewer::continue_with_ui_not_aligned);
+            is_3d_view = config_file::instance().get(configurations::viewer::is_3d_view);
         }
 
         ~viewer_model()
