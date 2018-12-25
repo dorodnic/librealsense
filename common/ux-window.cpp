@@ -195,7 +195,7 @@ namespace rs2
         glfwMakeContextCurrent(_win);
         gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
 
-        
+        setup_icon();
 
         ImGui_ImplGlfw_Init(_win, true);
 
@@ -279,12 +279,23 @@ namespace rs2
         std::stringstream temp_title;
         temp_title << _title_str;
 
-        if (is_debug()) temp_title << ", DEBUG";
+        auto debug = is_debug();
+        if (debug) temp_title << ", DEBUG";
 
+        auto fps = ImGui::GetIO().Framerate;
         if (_show_fps)
         {
-            temp_title << ", FPS: " << ImGui::GetIO().Framerate;
+            temp_title << ", FPS: " << fps;
         }
+
+        // If we detect really unacceptably low Viewer FPS...
+        if (fps > 0.f && fps < 15.f && _enable_msaa && !debug)
+        {
+            // Not much we can do at the moment, but for the next run, 
+            // its probably a good idea to disable anti-aliasing
+            config_file::instance().set(configurations::performance::enable_msaa, false);
+        }
+
         glfwSetWindowTitle(_win, temp_title.str().c_str());
 
         // Yield the CPU

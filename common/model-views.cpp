@@ -37,7 +37,7 @@ namespace rs2
 }
 
 constexpr const char* recommended_fw_url = "https://downloadcenter.intel.com/download/27522/Latest-Firmware-for-Intel-RealSense-D400-Product-Family?v=t";
-constexpr const char* store_url = "https://click.intel.com/";
+constexpr const char* store_url = "https://click.intel.com/realsense.html";
 
 using namespace rs400;
 using namespace nlohmann;
@@ -153,9 +153,32 @@ namespace rs2
         open_url(link.c_str());
     }
 
-    void open_issue()
+    void open_issue(const std::vector<device_model>& devices)
     {
+        std::stringstream ss;
 
+        rs2_error* e = nullptr;
+
+        ss << "| | |\n";
+        ss << "|---|---|\n";
+        ss << "|**librealsense**|" << api_version_to_string(rs2_get_api_version(&e)) << (is_debug() ? " DEBUG" : " RELEASE") << "|\n";
+        ss << "|**OS**|" << get_os_name() << "|\n";
+
+        for (auto& dm : devices)
+        {
+            for (auto& kvp : dm.infos)
+            {
+                if (kvp.first != "Recommended Firmware Version" &&
+                    kvp.first != "Debug Op Code" &&
+                    kvp.first != "Physical Port" &&
+                    kvp.first != "Product Id")
+                    ss << "|**" << kvp.first << "**|" << kvp.second << "|\n";
+            }
+        }
+
+        ss << "\nPlease provide a description of the problem";
+
+        open_issue(ss.str());
     }
 
     std::tuple<uint8_t, uint8_t, uint8_t> get_texcolor(video_frame texture, texture_coordinate texcoords)
@@ -3309,16 +3332,7 @@ namespace rs2
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, dark_window_background);
         ImGui::PushStyleColor(ImGuiCol_Text, button_color + 0.25f);
         ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, button_color + 0.55f);
-        ImGui::Spacing();
-        std::string message = to_string() << textual_icons::shopping_cart << "  Buy Now";
-        if (ImGui::Button(message.c_str(), { 75, 20 }))
-        {
-            open_url(store_url);
-        }
-        if (ImGui::IsItemHovered())
-        {
-            ImGui::SetTooltip("Go to click.intel.com");
-        }
+        
         ImGui::PopStyleColor(5);
         ImGui::End();
         ImGui::PopStyleColor();
@@ -4188,7 +4202,7 @@ namespace rs2
         ImGui::PushStyleColor(ImGuiCol_Text, black);
         ImGui::PushStyleColor(ImGuiCol_PopupBg, almost_white_bg);
         ImGui::PushStyleColor(ImGuiCol_HeaderHovered, light_blue);
-        ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, light_grey);
+        ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, white);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(5, 5));
 
         ImGui::PushFont(window.get_font());
@@ -4199,42 +4213,29 @@ namespace rs2
         bool open_about_popup = false;
 
         ImGui::SetNextWindowPos({ window.width() - 100, panel_y });
-        ImGui::SetNextWindowSize({ 100, 67 });
+        ImGui::SetNextWindowSize({ 100, 90 });
 
         if (ImGui::BeginPopup("More Options"))
         {
             settings_open = true;
+
+            if (ImGui::Selectable("Report Issue"))
+            {
+                open_issue(devices);
+            }
+
+            if (ImGui::Selectable("Intel Store"))
+            {
+                open_url(store_url);
+            }
+
             if (ImGui::Selectable(settings))
             {
                 open_settings_popup = true;
             }
-            if (ImGui::Selectable("Report Issue"))
-            {
-                std::stringstream ss;
+            
+            ImGui::Separator();
 
-                rs2_error* e = nullptr;
-
-                ss << "| | |\n";
-                ss << "|---|---|\n";
-                ss << "|librealsense|" << api_version_to_string(rs2_get_api_version(&e)) << (is_debug() ? " DEBUG" : " RELEASE") << "|\n";
-                ss << "|OS|" << get_os_name() << "|\n";
-
-                for (auto& dm : devices)
-                {
-                    for (auto& kvp : dm.infos)
-                    {
-                        if (kvp.first != "Recommended Firmware Version" &&
-                            kvp.first != "Debug Op Code" &&
-                            kvp.first != "Physical Port" &&
-                            kvp.first != "Product Id")
-                            ss << "|" << kvp.first << "|" << kvp.second << "|\n";
-                    }
-                }
-
-                ss << "\nPlease provide a description of the problem";
-
-                open_issue(ss.str());
-            }
             if (ImGui::Selectable(about))
             {
                 open_about_popup = true;
