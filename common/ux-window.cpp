@@ -4,6 +4,7 @@
 #include "ux-window.h"
 
 #include "model-views.h"
+#include "os.h"
 
 // We use STB image to load the splash-screen from memory
 #define STB_IMAGE_IMPLEMENTATION
@@ -20,64 +21,83 @@
 
 namespace rs2
 {
+    void prepare_config_file()
+    {
+        config_file::instance().set_default(configurations::window::is_fullscreen, false);
+
+        config_file::instance().set_default(configurations::viewer::continue_with_ui_not_aligned, false);
+        config_file::instance().set_default(configurations::viewer::is_3d_view, false);
+        config_file::instance().set_default(configurations::viewer::settings_tab, 0);
+
+        config_file::instance().set_default(configurations::record::compression_mode, 2); // Let the device decide
+        config_file::instance().set_default(configurations::record::default_path, get_folder_path(special_folder::user_documents));
+        config_file::instance().set_default(configurations::record::file_save_mode, 0); // Auto-select name
+
+        config_file::instance().set_default(configurations::performance::show_fps, false);
+        config_file::instance().set_default(configurations::performance::vsync, true);
+
+#ifdef __APPLE__
+        config_file::instance().set_default(configurations::performance::font_oversample, 8);
+        config_file::instance().set_default(configurations::performance::enable_msaa, true);
+        config_file::instance().set_default(configurations::performance::msaa_samples, 4);
+        // On Mac-OS, mixing OpenGL 2 with OpenGL 3 is not supported by the driver
+        // while this can be worked-around, this will take more development time,
+        // so for now Macs should not use the GLSL stuff
+        config_file::instance().set_default(configurations::performance::glsl_for_processing, false);
+        config_file::instance().set_default(configurations::performance::glsl_for_rendering, false);
+#endif
+
+        auto vendor = (const char*)glGetString(GL_VENDOR);
+        auto renderer = (const char*)glGetString(GL_RENDERER);
+        auto version = (const char*)glGetString(GL_VERSION);
+        auto glsl = (const char*)glGetString(GL_SHADING_LANGUAGE_VERSION);
+
+        bool use_glsl = false;
+
+        // Absolutely arbitrary list of manufacturers that are likely to benefit from GLSL optimisation
+        if (starts_with(to_lower(vendor), "intel") ||
+            starts_with(to_lower(vendor), "ati") ||
+            starts_with(to_lower(vendor), "nvidia"))
+        {
+            use_glsl = true;
+        }
+
+        // Double-check that GLSL 1.3+ is supported
+        if (starts_with(to_lower(vendor), "1.1") || starts_with(to_lower(vendor), "1.2"))
+        {
+            use_glsl = false;
+        }
+
+        if (use_glsl)
+        {
+            config_file::instance().set_default(configurations::performance::font_oversample, 8);
+            config_file::instance().set_default(configurations::performance::enable_msaa, true);
+            config_file::instance().set_default(configurations::performance::msaa_samples, 4);
+            config_file::instance().set_default(configurations::performance::glsl_for_processing, true);
+            config_file::instance().set_default(configurations::performance::glsl_for_rendering, true);
+        }
+        else
+        {
+            config_file::instance().set_default(configurations::performance::font_oversample, 1);
+            config_file::instance().set_default(configurations::performance::enable_msaa, false);
+            config_file::instance().set_default(configurations::performance::msaa_samples, 1);
+            config_file::instance().set_default(configurations::performance::glsl_for_processing, false);
+            config_file::instance().set_default(configurations::performance::glsl_for_rendering, false);
+        }
+    }
+
     void ux_window::reload()
     {
         _reload = true;
     }
 
-    void ux_window::open_window()
+    void ux_window::link_hovered()
     {
-        _use_glsl = config_file::instance().get(configurations::performance::glsl_for_rendering, false);
+        _link_hovered = true;
+    }
 
-        _enable_msaa = config_file::instance().get(configurations::performance::enable_msaa, false);
-        _msaa_samples = config_file::instance().get(configurations::performance::msaa_samples, 4);
-
-        if (_win)
-        {
-            _processing_context.reset();
-            ImGui::GetIO().Fonts->ClearFonts();  // To be refactored into Viewer theme object
-            ImGui_ImplGlfw_Shutdown();
-            glfwDestroyWindow(_win);
-            glfwTerminate();
-        }
-
-        if (!glfwInit())
-            exit(1);
-
-        rs2_error* e = nullptr;
-        _title_str = to_string() << _title << " v" << api_version_to_string(rs2_get_api_version(&e));
-
-        _width = 1024;
-        _height = 768;
-
-        // Dynamically adjust new window size (by detecting monitor resolution)
-        auto primary = glfwGetPrimaryMonitor();
-        if (primary)
-        {
-            const auto mode = glfwGetVideoMode(primary);
-            if (_fullscreen)
-            {
-                _width = mode->width;
-                _height = mode->height;
-            }
-            else
-            {
-                _width = int(mode->width * 0.7f);
-                _height = int(mode->height * 0.7f);
-            }
-        }
-        
-        if (_enable_msaa)
-            glfwWindowHint(GLFW_SAMPLES, _msaa_samples);
-
-        // Create GUI Windows
-        _win = glfwCreateWindow(_width, _height, _title_str.c_str(),
-            (_fullscreen ? primary : nullptr), nullptr);
-        if (!_win)
-            throw std::runtime_error("Could not open OpenGL window, please check your graphic drivers or use the textual SDK tools");
-
-        glfwMakeContextCurrent(_win);
-
+    void ux_window::setup_icon()
+    {
         GLFWimage icon[4];
 
         int x, y, comp;
@@ -104,8 +124,82 @@ namespace rs2
         stbi_image_free(icon_24);
         stbi_image_free(icon_64);
         stbi_image_free(icon_256);
+    }
 
+    void ux_window::open_window()
+    {
+        if (_win)
+        {
+            _processing_context.reset();
+            ImGui::GetIO().Fonts->ClearFonts();  // To be refactored into Viewer theme object
+            ImGui_ImplGlfw_Shutdown();
+            glfwDestroyWindow(_win);
+            glfwDestroyCursor(_hand_cursor);
+            glfwTerminate();
+        }
+
+        if (!glfwInit())
+            exit(1);
+
+        _hand_cursor = glfwCreateStandardCursor(GLFW_HAND_CURSOR);
+
+        {
+            glfwWindowHint(GLFW_VISIBLE, 0);
+            auto ctx = glfwCreateWindow(640, 480, "Offscreen Context", nullptr, nullptr);
+            if (!ctx) throw std::runtime_error("Could not initialize offscreen context!");
+            glfwMakeContextCurrent(ctx);
+
+            gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
+
+            prepare_config_file();
+
+            glfwDestroyWindow(ctx);
+        }
+
+        _use_glsl = config_file::instance().get(configurations::performance::glsl_for_rendering);
+
+        _enable_msaa = config_file::instance().get(configurations::performance::enable_msaa);
+        _msaa_samples = config_file::instance().get(configurations::performance::msaa_samples);
+
+        _fullscreen = config_file::instance().get(configurations::window::is_fullscreen);
+
+        rs2_error* e = nullptr;
+        _title_str = to_string() << _title << " v" << api_version_to_string(rs2_get_api_version(&e));
+
+        _width = 1024;
+        _height = 768;
+
+        // Dynamically adjust new window size (by detecting monitor resolution)
+        auto primary = glfwGetPrimaryMonitor();
+        if (primary)
+        {
+            const auto mode = glfwGetVideoMode(primary);
+            if (_fullscreen)
+            {
+                _width = mode->width;
+                _height = mode->height;
+            }
+            else
+            {
+                _width = int(mode->width * 0.7f);
+                _height = int(mode->height * 0.7f);
+            }
+        }
+        
+        if (_enable_msaa)
+            glfwWindowHint(GLFW_SAMPLES, _msaa_samples);
+        
+        glfwWindowHint(GLFW_VISIBLE, 1);
+        // Create GUI Windows
+        _win = glfwCreateWindow(_width, _height, _title_str.c_str(),
+            (_fullscreen ? primary : nullptr), nullptr);
+        if (!_win)
+            throw std::runtime_error("Could not open OpenGL window, please check your graphic drivers or use the textual SDK tools");
+
+        glfwMakeContextCurrent(_win);
         gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
+
+        setup_icon();
 
         ImGui_ImplGlfw_Init(_win, true);
 
@@ -151,10 +245,13 @@ namespace rs2
 
         _processing_context = std::make_shared<rs2::gl::context>(_win);
 
-        _show_fps = config_file::instance().get(configurations::performance::show_fps, false);
-        _vsync = config_file::instance().get(configurations::performance::vsync, true);
+        glfwFocusWindow(_win);
+
+        _show_fps = config_file::instance().get(configurations::performance::show_fps);
+        _vsync = config_file::instance().get(configurations::performance::vsync);
 
         // Prepare the splash screen and do some initialization in the background
+        int x, y, comp;
         auto r = stbi_load_from_memory(splash, (int)splash_size, &x, &y, &comp, false);
         _splash_tex.upload_image(x, y, r);
         stbi_image_free(r);
@@ -186,14 +283,23 @@ namespace rs2
         std::stringstream temp_title;
         temp_title << _title_str;
 
-#ifndef NDEBUG
-        temp_title << ", DEBUG";
-#endif
+        auto debug = is_debug();
+        if (debug) temp_title << ", DEBUG";
 
+        auto fps = ImGui::GetIO().Framerate;
         if (_show_fps)
         {
-            temp_title << ", FPS: " << ImGui::GetIO().Framerate;
+            temp_title << ", FPS: " << fps;
         }
+
+        // If we detect really unacceptably low Viewer FPS...
+        if (fps > 0.f && fps < 15.f && _enable_msaa && !debug)
+        {
+            // Not much we can do at the moment, but for the next run, 
+            // its probably a good idea to disable anti-aliasing
+            config_file::instance().set(configurations::performance::enable_msaa, false);
+        }
+
         glfwSetWindowTitle(_win, temp_title.str().c_str());
 
         // Yield the CPU
@@ -336,6 +442,12 @@ namespace rs2
         // reset graphic pipe
         begin_frame();
 
+        if (_link_hovered)
+            glfwSetCursor(_win, _hand_cursor);
+        else
+            glfwSetCursor(_win, nullptr);
+        _link_hovered = false;
+
         return res;
     }
 
@@ -354,6 +466,9 @@ namespace rs2
         ImGui::GetIO().Fonts->ClearFonts();  // To be refactored into Viewer theme object
         ImGui_ImplGlfw_Shutdown();
         glfwDestroyWindow(_win);
+
+        glfwDestroyCursor(_hand_cursor);
+
         glfwTerminate();
     }
 
@@ -371,6 +486,7 @@ namespace rs2
             if (_fullscreen_pressed)
             {
                 _fullscreen = !_fullscreen;
+                config_file::instance().set(configurations::window::is_fullscreen, _fullscreen);
                 open_window();
             }
             _fullscreen_pressed = false;

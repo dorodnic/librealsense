@@ -26,18 +26,6 @@
 #include "../third-party/json.hpp"
 
 #include "realsense-ui-advanced-mode.h"
-#ifdef _WIN32
-#include <windows.h>
-#include <wchar.h>
-#include <KnownFolders.h>
-#include <shlobj.h>
-#endif
-
-#if defined __linux__ || defined __APPLE__
-#include <unistd.h>
-#include <sys/types.h>
-#include <pwd.h>
-#endif
 
 ImVec4 from_rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a, bool consistent_color = false);
 ImVec4 operator+(const ImVec4& c, float v);
@@ -74,7 +62,11 @@ inline ImVec4 blend(const ImVec4& c, float a)
 
 namespace rs2
 {
+    void prepare_config_file();
+
     bool frame_metadata_to_csv(const std::string& filename, rs2::frame frame);
+
+    void open_issue(std::string body);
 
     struct textual_icon
     {
@@ -108,6 +100,11 @@ namespace rs2
             static const char* is_3d_view          { "viewer_model.is_3d_view" };
             static const char* continue_with_ui_not_aligned { "viewer_model.continue_with_ui_not_aligned" };
             static const char* settings_tab        { "viewer_model.settings_tab" };
+        }
+        namespace window
+        {
+            static const char* is_fullscreen       { "window.is_fullscreen" };
+
         }
         namespace performance
         {
@@ -169,16 +166,6 @@ namespace rs2
     struct notifications_model;
 
     void imgui_easy_theming(ImFont*& font_14, ImFont*& font_18);
-
-    // Helper function to get window rect from GLFW
-    rect get_window_rect(GLFWwindow* window);
-
-    // Helper function to get monitor rect from GLFW
-    rect get_monitor_rect(GLFWmonitor* monitor);
-
-    // Select appropriate scale factor based on the display
-    // that most of the application is presented on
-    int pick_scale_factor(GLFWwindow* window);
 
     // avoid display the following options
     bool static skip_option(rs2_option opt)
@@ -503,22 +490,6 @@ namespace rs2
 
     class viewer_model;
 
-    inline bool ends_with(const std::string& s, const std::string& suffix)
-    {
-        auto i = s.rbegin(), j = suffix.rbegin();
-        for (; i != s.rend() && j != suffix.rend() && *i == *j;
-            i++, j++);
-        return j == suffix.rend();
-    }
-
-    inline bool starts_with(const std::string& s, const std::string& prefix)
-    {
-        auto i = s.begin(), j = prefix.begin();
-        for (; i != s.end() && j != prefix.end() && *i == *j;
-            i++, j++);
-        return j == prefix.end();
-    }
-
     void outline_rect(const rect& r);
     void draw_rect(const rect& r, int line_width = 1);
 
@@ -587,7 +558,7 @@ namespace rs2
         void stop_recording(viewer_model& viewer);
         void pause_record();
         void resume_record();
-        int draw_playback_panel(ImFont* font, viewer_model& view);
+        int draw_playback_panel(ux_window& window, ImFont* font, viewer_model& view);
         bool draw_advanced_controls(viewer_model& view, ux_window& window, std::string& error_message);
         void draw_controls(float panel_width, float panel_height,
             ux_window& window,
@@ -625,9 +596,9 @@ namespace rs2
         std::set<std::string> advanced_mode_settings_file_names;
         std::string selected_file_preset;
     private:
-        void draw_info_icon(ImFont* font, const ImVec2& size);
+        void draw_info_icon(ux_window& window, ImFont* font, const ImVec2& size);
         int draw_seek_bar();
-        int draw_playback_controls(ImFont* font, viewer_model& view);
+        int draw_playback_controls(ux_window& window, ImFont* font, viewer_model& view);
         advanced_mode_control amc;
         std::string pretty_time(std::chrono::nanoseconds duration);
         void draw_controllers_panel(ImFont* font, bool is_device_streaming);
@@ -736,8 +707,6 @@ namespace rs2
         std::vector<std::string> log;
         notification_model selected;
     };
-
-    std::string get_file_name(const std::string& path);
 
     class viewer_model;
     class post_processing_filters
@@ -944,8 +913,8 @@ namespace rs2
             rs2_error* e = nullptr;
             not_model.add_log(to_string() << "librealsense version: " << api_version_to_string(rs2_get_api_version(&e)) << "\n");
         
-            continue_with_ui_not_aligned = config_file::instance().get(configurations::viewer::continue_with_ui_not_aligned, false);
-            is_3d_view = config_file::instance().get(configurations::viewer::is_3d_view, false);
+            continue_with_ui_not_aligned = config_file::instance().get(configurations::viewer::continue_with_ui_not_aligned);
+            is_3d_view = config_file::instance().get(configurations::viewer::is_3d_view);
         }
 
         ~viewer_model()
@@ -985,7 +954,7 @@ namespace rs2
         void update_3d_camera(const rect& viewer_rect,
                               mouse_info& mouse, bool force = false);
 
-        void show_top_bar(ux_window& window, const rect& viewer_rect);
+        void show_top_bar(ux_window& window, const rect& viewer_rect, const std::vector<device_model>& devices);
 
         void render_3d_view(const rect& view_rect, texture_buffer* texture, rs2::points points);
 
@@ -1073,21 +1042,6 @@ namespace rs2
 
     void export_to_ply(const std::string& file_name, notifications_model& ns, frameset points, video_frame texture, bool notify = true);
 
-    // Wrapper for cross-platform dialog control
-    enum file_dialog_mode {
-        open_file       = (1 << 0),
-        save_file       = (1 << 1),
-        open_dir        = (1 << 2),
-        override_file   = (1 << 3)
-    };
-
-    const char* file_dialog_open(file_dialog_mode flags, const char* filters, const char* default_path, const char* default_name);
-
-    // Encapsulate helper function to resolve linking
-    int save_to_png(const char* filename,
-        size_t pixel_width, size_t pixels_height, size_t bytes_per_pixel,
-        const void* raster_data, size_t stride_bytes);
-
     // Auxillary function to save stream data in its internal (raw) format
     bool save_frame_raw_data(const std::string& filename, rs2::frame frame);
 
@@ -1104,16 +1058,4 @@ namespace rs2
         std::queue<event_information> _changes;
         std::mutex _mtx;
     };
-
-    enum special_folder
-    {
-        user_desktop,
-        user_documents,
-        user_pictures,
-        user_videos,
-        temp_folder
-    };
-
-    std::string get_timestamped_file_name();
-    std::string get_folder_path(special_folder f);
 }

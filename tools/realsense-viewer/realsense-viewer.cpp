@@ -3,6 +3,7 @@
 
 #include <librealsense2/rs.hpp>
 #include "model-views.h"
+#include "os.h"
 #include "ux-window.h"
 
 #include <cstdarg>
@@ -409,7 +410,7 @@ int main(int argv, const char** argc) try
         ImGui::PopStyleVar();
 
 
-        viewer_model.show_top_bar(window, viewer_rect);
+        viewer_model.show_top_bar(window, viewer_rect, *device_models);
 
         viewer_model.show_event_log(window.get_font(), viewer_model.panel_width,
             window.height() - (viewer_model.is_output_collapsed ? viewer_model.default_log_h : 20),
