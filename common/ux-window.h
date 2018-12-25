@@ -68,6 +68,7 @@ namespace rs2
         void add_on_load_message(const std::string& msg);
 
         bool is_ui_aligned() { return _is_ui_aligned; }
+        bool is_fullscreen() { return _fullscreen; }
 
         texture_buffer& get_splash() { return _splash_tex; }
 

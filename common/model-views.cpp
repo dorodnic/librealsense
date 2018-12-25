@@ -4157,7 +4157,9 @@ namespace rs2
         ImGui::PushFont(window.get_large_font());
         ImGui::PushStyleColor(ImGuiCol_Border, black);
 
-        ImGui::SetCursorPosX(window.width() - panel_width - panel_y * 3);
+        int buttons = window.is_fullscreen() ? 4 : 3;
+
+        ImGui::SetCursorPosX(window.width() - panel_width - panel_y * (buttons));
         ImGui::PushStyleColor(ImGuiCol_Text, is_3d_view ? light_grey : light_blue);
         ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, is_3d_view ? light_grey : light_blue);
         if (ImGui::Button("2D", { panel_y, panel_y })) 
@@ -4168,7 +4170,7 @@ namespace rs2
         ImGui::PopStyleColor(2);
         ImGui::SameLine();
 
-        ImGui::SetCursorPosX(window.width() - panel_width - panel_y * 2);
+        ImGui::SetCursorPosX(window.width() - panel_width - panel_y * (buttons - 1));
         auto pos1 = ImGui::GetCursorScreenPos();
 
         ImGui::PushStyleColor(ImGuiCol_Text, !is_3d_view ? light_grey : light_blue);
@@ -4183,7 +4185,7 @@ namespace rs2
         ImGui::PopStyleColor(2);
         ImGui::SameLine();
 
-        ImGui::SetCursorPosX(window.width() - panel_width - panel_y * 1);
+        ImGui::SetCursorPosX(window.width() - panel_width - panel_y * (buttons - 2));
 
         static bool settings_open = false;
         ImGui::PushStyleColor(ImGuiCol_Text, !settings_open ? light_grey : light_blue);
@@ -4198,6 +4200,27 @@ namespace rs2
         {
             ImGui::SetTooltip("%s", "More Options...");
         }
+
+        if (window.is_fullscreen())
+        {
+            ImGui::SameLine();
+            ImGui::SetCursorPosX(window.width() - panel_width - panel_y * (buttons - 3));
+
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, button_color);
+            ImGui::PushStyleColor(ImGuiCol_Text, light_grey);
+            ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, light_red);
+            if (ImGui::Button(textual_icons::exit, { panel_y,panel_y }))
+            {
+                exit(0);
+            }
+            if (ImGui::IsItemHovered())
+            {
+                ImGui::SetTooltip("Exit the App");
+                window.link_hovered();
+            }
+            ImGui::PopStyleColor(3);
+        }
+
         ImGui::PopFont();
 
         ImGui::PushStyleColor(ImGuiCol_Text, black);

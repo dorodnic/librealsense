@@ -45,6 +45,7 @@ static const ImVec4 dark_grey = from_rgba(30, 30, 30, 255);
 static const ImVec4 sensor_header_light_blue = from_rgba(80, 99, 115, 0xff);
 static const ImVec4 sensor_bg = from_rgba(36, 44, 51, 0xff);
 static const ImVec4 redish = from_rgba(255, 46, 54, 255, true);
+static const ImVec4 light_red = from_rgba(255, 146, 154, 255, true);
 static const ImVec4 dark_red = from_rgba(200, 46, 54, 255, true);
 static const ImVec4 button_color = from_rgba(62, 77, 89, 0xff);
 static const ImVec4 header_window_bg = from_rgba(36, 44, 54, 0xff);
@@ -104,7 +105,13 @@ namespace rs2
         namespace window
         {
             static const char* is_fullscreen       { "window.is_fullscreen" };
-
+            static const char* saved_pos           { "window.saved_pos" };
+            static const char* position_x          { "window.position_x" };
+            static const char* position_y          { "window.position_y" };
+            static const char* saved_size          { "window.saved_size" };
+            static const char* width               { "window.width" };
+            static const char* height              { "window.height" };
+            static const char* maximized           { "window.maximized" };
         }
         namespace performance
         {
@@ -160,6 +167,7 @@ namespace rs2
         static const textual_icon braille                  { u8"\uf2a1" };
         static const textual_icon window_maximize          { u8"\uf2d0" };
         static const textual_icon window_restore           { u8"\uf2d2" };
+        static const textual_icon exit                     { u8"\uf011" };
     }
 
     class subdevice_model;

@@ -24,6 +24,8 @@ namespace rs2
     void prepare_config_file()
     {
         config_file::instance().set_default(configurations::window::is_fullscreen, false);
+        config_file::instance().set_default(configurations::window::saved_pos, false);
+        config_file::instance().set_default(configurations::window::saved_size, false);
 
         config_file::instance().set_default(configurations::viewer::continue_with_ui_not_aligned, false);
         config_file::instance().set_default(configurations::viewer::is_3d_view, false);
@@ -189,15 +191,48 @@ namespace rs2
         if (_enable_msaa)
             glfwWindowHint(GLFW_SAMPLES, _msaa_samples);
         
-        glfwWindowHint(GLFW_VISIBLE, 1);
+        glfwWindowHint(GLFW_VISIBLE, 0);
+
         // Create GUI Windows
         _win = glfwCreateWindow(_width, _height, _title_str.c_str(),
             (_fullscreen ? primary : nullptr), nullptr);
         if (!_win)
             throw std::runtime_error("Could not open OpenGL window, please check your graphic drivers or use the textual SDK tools");
 
+        if (config_file::instance().get(configurations::window::saved_pos))
+        {
+            int x = config_file::instance().get(configurations::window::position_x);
+            int y = config_file::instance().get(configurations::window::position_y);
+            glfwSetWindowPos(_win, x, y);
+        }
+
+        if (config_file::instance().get(configurations::window::saved_size))
+        {
+            int w = config_file::instance().get(configurations::window::width);
+            int h = config_file::instance().get(configurations::window::height);
+            glfwSetWindowSize(_win, w, h);
+            
+            if (config_file::instance().get(configurations::window::maximized))
+                glfwMaximizeWindow(_win);
+        }
+
         glfwMakeContextCurrent(_win);
         gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
+
+        glfwSetWindowPosCallback(_win, [](GLFWwindow* w, int x, int y)
+        {
+            config_file::instance().set(configurations::window::saved_pos, true);
+            config_file::instance().set(configurations::window::position_x, x);
+            config_file::instance().set(configurations::window::position_y, y);
+        });
+
+        glfwSetWindowSizeCallback(_win, [](GLFWwindow* window, int width, int height)
+        {
+            config_file::instance().set(configurations::window::saved_size, true);
+            config_file::instance().set(configurations::window::width, width);
+            config_file::instance().set(configurations::window::height, height);
+            config_file::instance().set(configurations::window::maximized, glfwGetWindowAttrib(window, GLFW_MAXIMIZED));
+        });
 
         setup_icon();
 
@@ -245,6 +280,7 @@ namespace rs2
 
         _processing_context = std::make_shared<rs2::gl::context>(_win);
 
+        glfwShowWindow(_win);
         glfwFocusWindow(_win);
 
         _show_fps = config_file::instance().get(configurations::performance::show_fps);
