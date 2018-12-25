@@ -55,6 +55,13 @@ namespace rs2
         config_value get(const char* key) const;
 
         template<class T>
+        T get_or_default(const char* key, T def) const
+        {
+            if (contains(key)) return get(key);
+            return def;
+        }
+
+        template<class T>
         void set(const char* key, T val)
         {
             std::stringstream ss;

@@ -2123,6 +2123,43 @@ namespace rs2
         ImGui::PopFont();
     }
 
+    void viewer_model::update_configuration()
+    {
+        continue_with_ui_not_aligned = config_file::instance().get_or_default(
+            configurations::viewer::continue_with_ui_not_aligned, false);
+        is_3d_view = config_file::instance().get_or_default(
+            configurations::viewer::is_3d_view, false);
+
+        auto min_severity = (rs2_log_severity)config_file::instance().get_or_default(
+            configurations::viewer::log_severity, 2);
+
+        if (config_file::instance().get_or_default(
+            configurations::viewer::log_to_console, false))
+        {
+            rs2::log_to_console(min_severity);
+        }
+        if (config_file::instance().get_or_default(
+            configurations::viewer::log_to_file, false))
+        {
+            std::string filename = config_file::instance().get(
+                configurations::viewer::log_filename);
+
+            rs2::log_to_file(min_severity, filename.c_str());
+        }
+    }
+
+    viewer_model::viewer_model(gl::context& glctx)
+            : ppf(*this, glctx),
+              synchronization_enable(true)
+    {
+        syncer = std::make_shared<syncer_model>();
+        reset_camera();
+        rs2_error* e = nullptr;
+        not_model.add_log(to_string() << "librealsense version: " << api_version_to_string(rs2_get_api_version(&e)) << "\n");
+    
+        update_configuration();
+    }
+
     void viewer_model::gc_streams()
     {
         std::lock_guard<std::mutex> lock(streams_mutex);
@@ -4281,7 +4318,7 @@ namespace rs2
             temp_cfg = config_file::instance();
             ImGui::OpenPopup(settings);   
             reload_required = false;    
-            tab = config_file::instance().get(configurations::viewer::settings_tab);             
+            tab = config_file::instance().get_or_default(configurations::viewer::settings_tab, 0);             
         }
 
         {
@@ -4468,6 +4505,56 @@ namespace rs2
 
                 if (tab == 2)
                 {
+                    ImGui::Text("librealsense has built-in logging capabilities.");
+                    ImGui::Text("Logs may contain API calls, timing of frames, OS error messages and file-system links, but no actual frame content.");
+
+                    bool log_to_console = temp_cfg.get(configurations::viewer::log_to_console);
+                    if (ImGui::Checkbox("Output librealsense log to console", &log_to_console))
+                    {
+                        temp_cfg.set(configurations::viewer::log_to_console, log_to_console);
+                    }
+                    bool log_to_file = temp_cfg.get(configurations::viewer::log_to_file);
+                    if (ImGui::Checkbox("Output librealsense log to file", &log_to_file))
+                    {
+                        temp_cfg.set(configurations::viewer::log_to_file, log_to_file);
+                    }
+                    if (log_to_file)
+                    {
+                        ImGui::Text("Log file name:");
+                        ImGui::SameLine();
+                        static char logpath[256];
+                        memset(logpath, 0, 256);
+                        std::string path_str = temp_cfg.get(configurations::viewer::log_filename);
+                        memcpy(logpath, path_str.c_str(), std::min(255, (int)path_str.size()));
+
+                        if (ImGui::InputText("##default_log_path", logpath, 255))
+                        {
+                            path_str = logpath;
+                            temp_cfg.set(configurations::viewer::log_filename, path_str);
+                        }
+                    }
+                    if (log_to_console || log_to_file)
+                    {
+                        int new_severity = temp_cfg.get(configurations::viewer::log_severity);
+
+                        std::vector<std::string> severities;
+                        for (int i = 0; i < RS2_LOG_SEVERITY_COUNT; i++)
+                            severities.push_back(rs2_log_severity_to_string((rs2_log_severity)i));
+
+                        ImGui::Text("Minimal log severity:");
+                        ImGui::SameLine();
+
+                        ImGui::PushItemWidth(150);
+                        if (draw_combo_box("##log_severity", severities, new_severity))
+                        {
+                            temp_cfg.set(configurations::viewer::log_severity, new_severity);
+                        }
+                        ImGui::PopItemWidth();
+                    }
+
+
+                    ImGui::Separator();
+
                     ImGui::Text("RealSense tools settings capture the state of UI, and not of the hardware:");
 
                     if (ImGui::Button(" Restore Defaults "))
@@ -4527,6 +4614,7 @@ namespace rs2
                     config_file::instance() = temp_cfg;
                     ImGui::CloseCurrentPopup();
                     if (reload_required) window.reload();
+                    update_configuration();
                 }
                 if (ImGui::IsItemHovered())
                 {
@@ -4541,6 +4629,7 @@ namespace rs2
                 {
                     config_file::instance() = temp_cfg;
                     if (reload_required) window.reload();
+                    update_configuration();
                 }
                 ImGui::PopStyleColor(2);
                 if (ImGui::IsItemHovered())

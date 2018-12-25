@@ -266,7 +266,7 @@ void pointcloud_gl::get_texture_map(
 
     auto end = std::chrono::high_resolution_clock::now();
     auto ms = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-    std::cout << ms << std::endl;
+    //std::cout << ms << std::endl;
 }
 
 rs2::points pointcloud_gl::allocate_points(

@@ -27,9 +27,10 @@ namespace rs2
         config_file::instance().set_default(configurations::window::saved_pos, false);
         config_file::instance().set_default(configurations::window::saved_size, false);
 
-        config_file::instance().set_default(configurations::viewer::continue_with_ui_not_aligned, false);
-        config_file::instance().set_default(configurations::viewer::is_3d_view, false);
-        config_file::instance().set_default(configurations::viewer::settings_tab, 0);
+        config_file::instance().set_default(configurations::viewer::log_filename, get_folder_path(special_folder::user_documents) + "librealsense.log");
+        config_file::instance().set_default(configurations::viewer::log_to_console, true);
+        config_file::instance().set_default(configurations::viewer::log_to_file, false);
+        config_file::instance().set_default(configurations::viewer::log_severity, 2);
 
         config_file::instance().set_default(configurations::record::compression_mode, 2); // Let the device decide
         config_file::instance().set_default(configurations::record::default_path, get_folder_path(special_folder::user_documents));

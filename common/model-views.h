@@ -101,6 +101,11 @@ namespace rs2
             static const char* is_3d_view          { "viewer_model.is_3d_view" };
             static const char* continue_with_ui_not_aligned { "viewer_model.continue_with_ui_not_aligned" };
             static const char* settings_tab        { "viewer_model.settings_tab" };
+
+            static const char* log_to_console      { "viewer_model.log_to_console" };
+            static const char* log_to_file         { "viewer_model.log_to_file" };
+            static const char* log_filename        { "viewer_model.log_filename" };
+            static const char* log_severity        { "viewer_model.log_severity" };
         }
         namespace window
         {
@@ -904,6 +909,8 @@ namespace rs2
     public:
         void reset_camera(float3 pos = { 0.0f, 0.0f, -1.0f });
 
+        void update_configuration();
+
         const float panel_width = 340.f;
         const float panel_y = 50.f;
         const float default_log_h = 110.f;
@@ -912,18 +919,7 @@ namespace rs2
 
         rs2::frame handle_ready_frames(const rect& viewer_rect, ux_window& window, int devices, std::string& error_message);
 
-        viewer_model(gl::context& glctx)
-            : ppf(*this, glctx),
-              synchronization_enable(true)
-        {
-            syncer = std::make_shared<syncer_model>();
-            reset_camera();
-            rs2_error* e = nullptr;
-            not_model.add_log(to_string() << "librealsense version: " << api_version_to_string(rs2_get_api_version(&e)) << "\n");
-        
-            continue_with_ui_not_aligned = config_file::instance().get(configurations::viewer::continue_with_ui_not_aligned);
-            is_3d_view = config_file::instance().get(configurations::viewer::is_3d_view);
-        }
+        viewer_model(gl::context& glctx);
 
         ~viewer_model()
         {
