@@ -29,6 +29,20 @@ namespace librealsense
             UV
         };
 
+        class gpu_object;
+
+        class context_lane
+        {
+        public:
+            void register_gpu_object(std::weak_ptr<gpu_object> obj);
+            void unregister_gpu_object(gpu_object* obj);
+
+            std::weak_ptr<gpu_object> get_context();
+
+            void recreate(GLFWwindow* share_with, glfw_binding binding);
+
+        };
+
         class context : public std::enable_shared_from_this<context>
         {
         public:
@@ -42,6 +56,13 @@ namespace librealsense
             GLFWwindow* _ctx;
             glfw_binding _binding;
             std::mutex _lock;
+        };
+
+        class gpu_object
+        {
+        public:
+            virtual void on_context_release() = 0;
+            virtual void on_context_recreate(context_lane& lane) = 0;
         };
 
         class gpu_section
