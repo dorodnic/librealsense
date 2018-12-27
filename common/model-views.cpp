@@ -18,9 +18,7 @@
 #include "model-views.h"
 #include <imgui_internal.h>
 
-#include <gl/loader.h>
-#include <gl/vao.h>
-#include <gl/pc-shader.h>
+#include <opengl3.h>
 
 #define ARCBALL_CAMERA_IMPLEMENTATION
 #include <arcball_camera.h>

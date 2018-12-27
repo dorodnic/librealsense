@@ -23,6 +23,15 @@ typedef enum rs2_gl_extension
 } rs2_gl_extension;
 const char* rs2_gl_extension_to_string(rs2_extension type);
 
+typedef enum rs2_gl_matrix_type
+{
+    RS2_GL_MATRIX_TRANSFORMATION,
+    RS2_GL_MATRIX_PROJECTION,
+    RS2_GL_MATRIX_CAMERA,
+    RS2_GL_MATRIX_COUNT
+} rs2_gl_matrix_type;
+const char* rs2_gl_matrix_type_to_string(rs2_gl_matrix_type type);
+
 typedef struct rs2_gl_context rs2_gl_context;
 typedef struct GLFWwindow GLFWwindow;
 typedef struct GLFWmonitor GLFWmonitor;
@@ -56,6 +65,7 @@ struct glfw_binding
 */
 rs2_processing_block* rs2_gl_create_yuy_to_rgb(rs2_gl_context* context, rs2_error** error);
 
+void rs2_gl_set_matrix(rs2_processing_block* block, rs2_gl_matrix_type type, float* m4x4, rs2_error** error);
 
 int rs2_gl_is_frame_extendable_to(const rs2_frame* f, rs2_gl_extension extension_type, rs2_error** error);
 

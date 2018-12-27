@@ -51,21 +51,8 @@ endif()
             ../../common/ux-window.cpp
             ../../common/ux-alignment.cpp
             ../../common/ux-alignment.h
-            ../../common/gl/shader.cpp
-            ../../common/gl/shader.h
-            ../../common/gl/vao.h
-            ../../common/gl/vao.cpp
-            ../../common/gl/vbo.h
-            ../../common/gl/vbo.cpp
-            ../../common/gl/texture-2d-shader.cpp
-            ../../common/gl/texture-2d-shader.h
-            ../../common/gl/pc-shader.cpp
-            ../../common/gl/pc-shader.h
-            ../../common/gl/loader.h
-            ../../common/gl/fbo.h
-            ../../common/gl/fbo.cpp
-            ../../common/gl/camera-shader.h
-            ../../common/gl/camera-shader.cpp
+            ../../common/opengl3.cpp
+            ../../common/opengl3.h
             ../../common/rs-config.h
             ../../common/rs-config.cpp
             ../../common/os.h

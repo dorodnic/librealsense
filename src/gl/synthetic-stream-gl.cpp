@@ -4,8 +4,7 @@
 #include "core/video.h"
 #include "synthetic-stream-gl.h"
 #include "option.h"
-#include "fbo.h"
-#include "texture-2d-shader.h"
+#include "opengl3.h"
 
 #include <GLFW/glfw3.h>
 
@@ -180,75 +179,6 @@ namespace librealsense
                         }
                 //});
             }
-        }
-
-        main_thread_dispatcher::main_thread_dispatcher()
-            : _actions(10), _active(true)
-        {
-            
-        }
-
-        main_thread_dispatcher& main_thread_dispatcher::instance()
-        {
-            static main_thread_dispatcher inst;
-            return inst;
-        }
-
-        void main_thread_dispatcher::stop()
-        {
-            _active = false;
-            update();
-        }
-
-        bool main_thread_dispatcher::require_dispatch() const
-        {
-            auto myid = std::this_thread::get_id();
-            return _main_thread != myid;
-        }
-
-        void main_thread_dispatcher::invoke(std::function<void()> action)
-        {
-            auto myid = std::this_thread::get_id();
-            if (_main_thread == myid) action();
-            else
-            {
-                std::promise<bool> prom;
-                auto future = prom.get_future();
-
-                std::function<void()> new_action = [action, &prom, this](){
-                    try
-                    {
-                        if (_active) action();
-                        prom.set_value(0);
-                    }
-                    catch(...)
-                    {
-                        prom.set_value(-1);
-                    }
-                };
-
-
-                if (_active)
-                {
-                    _actions.enqueue(std::move(new_action));
-
-                    std::future_status status;
-                    do
-                    {
-                        status = future.wait_for(std::chrono::milliseconds(10));
-                    }
-                    while (status != std::future_status::ready && _active);
-                    if (_active && future.get())
-                        throw std::runtime_error("Async operation failed!");
-                }
-            }
-        }
-
-        void main_thread_dispatcher::update()
-        {
-            _main_thread = std::this_thread::get_id();
-            std::function<void()> act;
-            while (_actions.try_dequeue(&act)) act();
         }
 
         context::context(GLFWwindow* share_with, glfw_binding binding) : _binding(binding)

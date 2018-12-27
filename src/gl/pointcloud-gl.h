@@ -2,7 +2,7 @@
 // Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 #pragma once
-#include "texture-2d-shader.h"
+#include "opengl3.h"
 #include "proc/pointcloud.h"
 #include "synthetic-stream-gl.h"
 

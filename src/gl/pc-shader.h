@@ -1,7 +1,7 @@
 #pragma once
 
 #include "rendering.h"
-#include "shader.h"
+#include "opengl3.h"
 
 namespace rs2
 {

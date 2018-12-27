@@ -29,7 +29,6 @@ namespace librealsense
             UV
         };
 
-
         class context : public std::enable_shared_from_this<context>
         {
         public:
@@ -113,21 +112,18 @@ namespace librealsense
             mutable gpu_section _section;
         };
 
-        class main_thread_dispatcher
+        class opengl_processing_block : public filter
         {
         public:
-            main_thread_dispatcher();
-            void update();
-            void invoke(std::function<void()> action);
-            void stop();
-            bool require_dispatch() const;
+            opengl_processing_block(std::shared_ptr<librealsense::gl::context> ctx)
+                : filter([this](frame f, frame_source& s) { func(f, s); })
+            {
+                register_simple_option(OPTION_COMPATIBILITY_MODE, option_range{ 0, 1, 0, 1 });
+            }
 
-            static main_thread_dispatcher& instance();
-
+            static const auto OPTION_COMPATIBILITY_MODE = rs2_option(RS2_OPTION_COUNT + 1);
         private:
-            single_consumer_queue<std::function<void()>> _actions;
-            std::thread::id _main_thread;
-            std::atomic<bool> _active;
+            
         };
 
         class gpu_video_frame : public gpu_addon<video_frame> {};

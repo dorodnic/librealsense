@@ -10,11 +10,9 @@
 #include "synthetic-stream-gl.h"
 
 #include <librealsense2/rs.hpp>
-#include "fbo.h"
+#include "opengl3.h"
 
 #include <memory>
-
-#include "texture-2d-shader.h"
 
 namespace rs2
 {

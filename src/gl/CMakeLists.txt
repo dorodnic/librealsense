@@ -14,20 +14,21 @@ set(REALSENSE_GL_CPP
     ../../include/librealsense2-gl/rs_processing_gl.h
     ../../include/librealsense2-gl/rs_processing_gl.hpp
     ../../third-party/glad/glad.c
-    ../../common/gl/shader.cpp
-    ../../common/gl/shader.h
-    ../../common/gl/vao.h
-    ../../common/gl/vao.cpp
-    ../../common/gl/vbo.h
-    ../../common/gl/vbo.cpp
-    ../../common/gl/texture-2d-shader.cpp
-    ../../common/gl/texture-2d-shader.h
-    ../../common/gl/pc-shader.cpp
-    ../../common/gl/pc-shader.h
-    ../../common/gl/loader.h
-    ../../common/gl/fbo.h
-    ../../common/gl/fbo.cpp
+    ../../common/opengl3.cpp
+    ../../common/opengl3.h
+    pc-shader.cpp
+    pc-shader.h
+    camera-shader.cpp
+    camera-shader.h
 )
+
+source_group("3rd Party" FILES
+    ../../third-party/glad/glad.c)
+
+source_group("API" FILES
+    ../../include/librealsense2-gl/rs_processing_gl.h
+    ../../include/librealsense2-gl/rs_processing_gl.hpp
+    realsense-gl.def)
 
 if(BUILD_EASYLOGGINGPP)
     list(APPEND REALSENSE_GL_CPP ../../third-party/easyloggingpp/src/easylogging++.cc)

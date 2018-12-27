@@ -37,7 +37,25 @@ namespace librealsense
     }
 }
 
-const char* rs2_frame_metadata_to_string(rs2_gl_extension ex) { return librealsense::get_string(ex); }
+const char* rs2_gl_extension_to_string(rs2_gl_extension ex) { return librealsense::get_string(ex); }
+
+namespace librealsense
+{
+    RS2_ENUM_HELPERS(rs2_gl_matrix_type, GL_MATRIX)
+
+    const char* get_string(rs2_gl_matrix_type value)
+    {
+        switch (value)
+        {
+        case RS2_GL_MATRIX_TRANSFORMATION: return "Transformation Matrix";
+        case RS2_GL_MATRIX_PROJECTION: return "Projection Matrix";
+        case RS2_GL_MATRIX_CAMERA: return "Camera Matrix";
+        default: assert(!is_valid(value)); return UNKNOWN_VALUE;
+        }
+    }
+}
+
+const char* rs2_gl_matrix_type_to_string(rs2_gl_matrix_type type) { return librealsense::get_string(type); }
 
 rs2_processing_block* rs2_gl_create_yuy_to_rgb(rs2_gl_context* ctx, rs2_error** error) BEGIN_API_CALL
 {
@@ -134,3 +152,9 @@ void rs2_gl_delete_context(rs2_gl_context* context) BEGIN_API_CALL
     delete context;
 }
 NOEXCEPT_RETURN(, context)
+
+void rs2_gl_set_matrix(rs2_processing_block* block, rs2_gl_matrix_type type, float* m4x4, rs2_error** error) BEGIN_API_CALL
+{
+    // TODO
+}
+HANDLE_EXCEPTIONS_AND_RETURN(, block, type, m4x4)

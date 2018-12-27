@@ -15,7 +15,7 @@
 #include <iostream>
 #include <chrono>
 
-#include "fbo.h"
+#include "opengl3.h"
 
 using namespace rs2;
 using namespace librealsense;

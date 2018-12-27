@@ -1041,8 +1041,6 @@ namespace rs2
         rs2::points last_points;
         texture_buffer* last_texture;
         texture_buffer texture;
-        pointcloud_shader pc_shader;
-        camera_shader cam_shader;
     };
 
     void export_to_ply(const std::string& file_name, notifications_model& ns, frameset points, video_frame texture, bool notify = true);

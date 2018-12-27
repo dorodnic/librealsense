@@ -17,7 +17,6 @@
 #include <chrono>
 #include <strstream>
 
-#include "texture-2d-shader.h"
 #include "synthetic-stream-gl.h"
 
 static const char* fragment_shader_text =
