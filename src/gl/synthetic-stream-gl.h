@@ -9,12 +9,14 @@
 #include "../include/librealsense2/hpp/rs_frame.hpp"
 #include "../include/librealsense2/hpp/rs_processing.hpp"
 #include "../include/librealsense2-gl/rs_processing_gl.hpp"
+#include "opengl3.h"
 
 #include "concurrency.h"
 #include <functional>
 #include <thread>
 #include <deque>
 #include <unordered_set>
+
 
 #define RS2_EXTENSION_VIDEO_FRAME_GL (rs2_extension)(RS2_EXTENSION_COUNT + RS2_GL_EXTENSION_VIDEO_FRAME)
 #define MAX_TEXTURES 2
@@ -54,6 +56,7 @@ namespace librealsense
             std::unordered_set<gpu_object*> objs;
             std::mutex mutex;
             std::atomic_bool active { false };
+            bool use_glsl = false;
 
             void register_gpu_object(gpu_object* obj)
             {
@@ -92,8 +95,25 @@ namespace librealsense
             static rendering_lane& instance();
 
             bool is_active() const { return _data.active; }
+            bool glsl_enabled() const { return _data.use_glsl; }
         protected:
             lane _data;
+        };
+
+        class matrix_container
+        {
+        public:
+            matrix_container()
+            {
+                for (auto i = 0; i < RS2_GL_MATRIX_COUNT; i++)
+                    m[i] = rs2::matrix4::identity();
+            }
+            const rs2::matrix4& get_matrix(rs2_gl_matrix_type type) const { return m[type]; }
+            void set_matrix(rs2_gl_matrix_type type, const rs2::matrix4& val) { m[type] = val; }
+            virtual ~matrix_container() {}
+
+        private:
+            rs2::matrix4 m[RS2_GL_MATRIX_COUNT];
         };
 
         class processing_lane
@@ -111,6 +131,7 @@ namespace librealsense
 
             bool is_active() const { return _data.active; }
             std::shared_ptr<context> get_context() const { return _ctx; }
+            bool glsl_enabled() const { return _data.use_glsl; }
         private:
             lane _data;
             std::shared_ptr<context> _ctx;
@@ -137,6 +158,7 @@ namespace librealsense
             bool glsl_enabled() const { return _use_glsl; }
 
             bool need_cleanup() { _needs_cleanup = 1; }
+            void use_glsl(bool val) { _use_glsl = val; }
 
         private:
             std::atomic_int _needs_cleanup { 0 };
@@ -157,8 +179,10 @@ namespace librealsense
 
         protected:
             void initialize() {
+                use_glsl(rendering_lane::instance().glsl_enabled());
                 if (rendering_lane::instance().is_active())
                     create_gpu_resources();
+                need_cleanup();
             }
 
             template<class T>
@@ -187,6 +211,7 @@ namespace librealsense
                 if (processing_lane::instance().is_active())
                 {
                     _ctx = processing_lane::instance().get_context();
+                    use_glsl(processing_lane::instance().glsl_enabled());
                     perform_gl_action([this](){
                         create_gpu_resources();
                     }, []{});

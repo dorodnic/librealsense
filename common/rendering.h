@@ -246,6 +246,19 @@ namespace rs2
     {
         float mat[4][4];
 
+        operator float*() const
+        {
+            return (float*)&mat;
+        } 
+
+        static matrix4 identity()
+        {
+            matrix4 m;
+            for (int i = 0; i < 4; i++)
+                m.mat[i][i] = 1.f;
+            return m;
+        }
+
         matrix4()
         {
             std::memset(mat, 0, sizeof(mat));

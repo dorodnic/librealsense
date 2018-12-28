@@ -9,9 +9,6 @@
 #include "parser.hpp"
 #include "rs-config.h"
 
-#include <gl/pc-shader.h>
-#include <gl/camera-shader.h>
-
 #define GLFW_INCLUDE_GLU
 #include <GLFW/glfw3.h>
 #include <imgui.h>

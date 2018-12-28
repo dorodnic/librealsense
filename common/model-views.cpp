@@ -4145,48 +4145,48 @@ namespace rs2
             {
 				auto width = vf_profile.width(), height = vf_profile.height();
 				
-				static int last_w = 0;
-				static int last_h = 0;
+				//static int last_w = 0;
+				//static int last_h = 0;
 				
-				static std::unique_ptr<vao> model;
-                static std::unique_ptr<vao> camera;
+				//static std::unique_ptr<vao> model;
+                //static std::unique_ptr<vao> camera;
 
-                static obj_mesh camera_mesh;
+                //static obj_mesh camera_mesh;
                 
-				if (width != last_w || height != last_h)
-				{
-                    std::string dev_name = "";
-                    auto dev = streams[selected_depth_source_uid].dev->dev;
-                    if (dev.supports(RS2_CAMERA_INFO_NAME)) dev_name = dev.get_info(RS2_CAMERA_INFO_NAME);
+				// if (width != last_w || height != last_h)
+				// {
+                //     std::string dev_name = "";
+                //     auto dev = streams[selected_depth_source_uid].dev->dev;
+                //     if (dev.supports(RS2_CAMERA_INFO_NAME)) dev_name = dev.get_info(RS2_CAMERA_INFO_NAME);
 
-                    // if (starts_with(dev_name, "Intel RealSense D435"))
-                    // {
-                    //     uncompress_d435_obj(camera_mesh.positions, camera_mesh.normals, camera_mesh.indexes);
-                    // }
-                    // if (starts_with(dev_name, "Intel RealSense D415"))
-                    // {
-                    //     uncompress_d415_obj(camera_mesh.positions, camera_mesh.normals, camera_mesh.indexes);
-                    // }
-                    // if (starts_with(dev_name, "Intel RealSense SR300"))
-                    // {
-                    //     uncompress_sr300_obj(camera_mesh.positions, camera_mesh.normals, camera_mesh.indexes);
-                    // }
+                //     // if (starts_with(dev_name, "Intel RealSense D435"))
+                //     // {
+                //     //     uncompress_d435_obj(camera_mesh.positions, camera_mesh.normals, camera_mesh.indexes);
+                //     // }
+                //     // if (starts_with(dev_name, "Intel RealSense D415"))
+                //     // {
+                //     //     uncompress_d415_obj(camera_mesh.positions, camera_mesh.normals, camera_mesh.indexes);
+                //     // }
+                //     // if (starts_with(dev_name, "Intel RealSense SR300"))
+                //     // {
+                //     //     uncompress_sr300_obj(camera_mesh.positions, camera_mesh.normals, camera_mesh.indexes);
+                //     // }
 
-					obj_mesh mesh = make_grid(height, width, 1.f / height, 1.f / height);
-                    for (auto& xyz : camera_mesh.positions)
-                    {
-                        xyz = xyz / 1000.f;
-                        xyz.x *= -1;
-                    }
+				// 	obj_mesh mesh = make_grid(height, width, 1.f / height, 1.f / height);
+                //     for (auto& xyz : camera_mesh.positions)
+                //     {
+                //         xyz = xyz / 1000.f;
+                //         xyz.x *= -1;
+                //     }
 
-                    model.reset(); camera.reset();
-                    positions.reset(); uvs.reset();
-					model = vao::create(mesh);
-                    camera = vao::create(camera_mesh);
-					last_w = width; last_h = height;
-					positions = std::unique_ptr<texture_buffer>(new texture_buffer());
-                    uvs = std::unique_ptr<texture_buffer>(new texture_buffer());
-				}
+                //     model.reset(); camera.reset();
+                //     positions.reset(); uvs.reset();
+				// 	model = vao::create(mesh);
+                //     camera = vao::create(camera_mesh);
+				// 	last_w = width; last_h = height;
+				// 	positions = std::unique_ptr<texture_buffer>(new texture_buffer());
+                //     uvs = std::unique_ptr<texture_buffer>(new texture_buffer());
+				// }
 
                 // pc_shader.begin();
                 // pc_shader.set_mvp(identity_matrix(), view_mat, perspective_mat);
@@ -4207,9 +4207,7 @@ namespace rs2
                 // glBindTexture(GL_TEXTURE_2D, 0);
                 // pc_shader.end();
 
-                glDisable(GL_DEPTH_TEST);
-                glEnable(GL_BLEND);
-                glBlendFunc(GL_ONE, GL_ONE);
+                
 
 
 
@@ -4236,10 +4234,20 @@ namespace rs2
                 //     glEnd();
                 // }
 
+                _cam_renderer.set_matrix(RS2_GL_MATRIX_CAMERA,     view_mat);
+                _cam_renderer.set_matrix(RS2_GL_MATRIX_PROJECTION, perspective_mat);
+
+                glDisable(GL_TEXTURE_2D);
+
+                glDisable(GL_DEPTH_TEST);
+                glEnable(GL_BLEND);
+                glBlendFunc(GL_ONE, GL_ONE);
+
                 last_points.apply_filter(_cam_renderer);
 
                 glDisable(GL_BLEND);
                 glEnable(GL_DEPTH_TEST);
+
 
                 //positions->show(rect{ 0.f, 0.f, 1.f, 1.f }, 1.f);
                 //uvs->show(rect{ 1.f, 0.f, 1.f, 1.f }, 1.f);

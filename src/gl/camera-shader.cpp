@@ -1,11 +1,9 @@
 #include "camera-shader.h"
 #include <glad/glad.h>
 
-#include "rendering.h"
-
 using namespace rs2;
 
-#include <res/d415.h>
+#include <res/d435.h>
 
 static const char* vertex_shader_text =
 "#version 110\n"
@@ -65,17 +63,30 @@ namespace librealsense
 
         void camera_renderer::cleanup_gpu_resources()
         {
-            
+            _shader.reset();
+            _camera_model.reset();
         }
 
         void camera_renderer::create_gpu_resources()
         {
-            
+            if (glsl_enabled())
+            {
+                _shader = std::make_shared<camera_shader>(); 
+                _camera_model = vao::create(camera_mesh);
+            }
         }
 
         camera_renderer::camera_renderer()
         {
-            uncompress_d415_obj(camera_mesh.positions, camera_mesh.normals, camera_mesh.indexes);
+            uncompress_d435_obj(camera_mesh.positions, camera_mesh.normals, camera_mesh.indexes);
+
+            for (auto& xyz : camera_mesh.positions)
+            {
+                xyz = xyz / 1000.f;
+                xyz.x *= -1;
+                xyz.y *= -1;
+            }
+
             initialize();
         }
 
@@ -86,8 +97,12 @@ namespace librealsense
                 if (glsl_enabled())
                 {
                     _shader->begin();
-                    //cam_shader.set_mvp(identity_matrix(), view_mat, perspective_mat);
-                    //_shader->draw();
+                    _shader->set_mvp(get_matrix(
+                        RS2_GL_MATRIX_TRANSFORMATION), 
+                        get_matrix(RS2_GL_MATRIX_CAMERA), 
+                        get_matrix(RS2_GL_MATRIX_PROJECTION)
+                    );
+                    _camera_model->draw();
                     _shader->end();
                 }
                 else

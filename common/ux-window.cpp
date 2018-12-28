@@ -133,7 +133,7 @@ namespace rs2
     {
         if (_win)
         {
-            if (_use_glsl_render) rs2::gl::shutdown_rendering();
+            rs2::gl::shutdown_rendering();
             if (_use_glsl_proc) rs2::gl::shutdown_processing();
 
             ImGui::GetIO().Fonts->ClearFonts();  // To be refactored into Viewer theme object
@@ -282,7 +282,7 @@ namespace rs2
             }
         });
 
-        if (_use_glsl_render) rs2::gl::init_rendering();
+        rs2::gl::init_rendering(_use_glsl_render);
         if (_use_glsl_proc) rs2::gl::init_processing(_win, _use_glsl_proc);
 
         glfwShowWindow(_win);
@@ -502,7 +502,7 @@ namespace rs2
 
         end_frame();
 
-        if (_use_glsl_render) rs2::gl::shutdown_rendering();
+        rs2::gl::shutdown_rendering();
         if (_use_glsl_proc) rs2::gl::shutdown_processing();
 
         ImGui::GetIO().Fonts->ClearFonts();  // To be refactored into Viewer theme object

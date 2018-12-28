@@ -183,6 +183,7 @@ pointcloud_gl::pointcloud_gl()
 {
     _source.add_extension<gl::gpu_points_frame>(RS2_EXTENSION_VIDEO_FRAME_GL);
     _backup = pointcloud::create();
+    initialize();
 }
 
 void pointcloud_gl::preprocess()

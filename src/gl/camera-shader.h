@@ -1,6 +1,5 @@
 #pragma once
 
-#include "rendering.h"
 #include "opengl3.h"
 #include "synthetic-stream-gl.h"
 #include "proc/synthetic-stream.h"
@@ -31,7 +30,9 @@ namespace librealsense
             uint32_t _camera_matrix_location;
         };
 
-        class camera_renderer : public stream_filter_processing_block, public gpu_rendering_object
+        class camera_renderer : public stream_filter_processing_block, 
+                                public gpu_rendering_object,
+                                public matrix_container
         {
         public:
             camera_renderer();

@@ -120,7 +120,11 @@ NOARGS_HANDLE_EXCEPTIONS_AND_RETURN(nullptr)
 
 void rs2_gl_set_matrix(rs2_processing_block* block, rs2_gl_matrix_type type, float* m4x4, rs2_error** error) BEGIN_API_CALL
 {
-    // TODO
+    auto ptr = dynamic_cast<librealsense::gl::matrix_container*>(block->block.get());
+    if (!ptr) throw std::runtime_error("Processing block does not support matrix setting");
+    rs2::matrix4 m;
+    memcpy(&m.mat, m4x4, sizeof(rs2::matrix4));
+    ptr->set_matrix(type, m);
 }
 HANDLE_EXCEPTIONS_AND_RETURN(, block, type, m4x4)
 

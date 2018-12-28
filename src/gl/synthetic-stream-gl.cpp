@@ -42,6 +42,7 @@ namespace librealsense
                 obj->update_gpu_resources(use_glsl);
             }
             _data.active = true;
+            _data.use_glsl = use_glsl;
         }
 
         void rendering_lane::shutdown()
@@ -81,6 +82,7 @@ namespace librealsense
             std::lock_guard<std::mutex> lock(_data.mutex);
 
             _data.active = true;
+            _data.use_glsl = use_glsl;
 
             _ctx = std::make_shared<context>(share_with, binding);
             auto session = _ctx->begin_session();

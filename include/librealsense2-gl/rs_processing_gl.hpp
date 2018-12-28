@@ -158,6 +158,13 @@ namespace rs2
         public:
             camera_renderer() : rs2::filter(init()) {}
 
+            void set_matrix(rs2_gl_matrix_type type, float* m4x4)
+            {
+                rs2_error* e = nullptr;
+                rs2_gl_set_matrix(get(), type, m4x4, &e);
+                error::handle(e);
+            }
+
         private:
             friend class context;
 
