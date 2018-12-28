@@ -395,7 +395,7 @@ namespace rs2
             bool* options_invalidated,
             std::string& error_message);
 
-        subdevice_model(device& dev, std::shared_ptr<sensor> s, std::string& error_message, gl::context* glctx);
+        subdevice_model(device& dev, std::shared_ptr<sensor> s, std::string& error_message);
         bool is_there_common_fps() ;
         bool draw_stream_selection();
         bool is_selected_combination_supported();
@@ -567,7 +567,7 @@ namespace rs2
         typedef std::function<void(std::function<void()> load)> json_loading_func;
 
         void reset();
-        explicit device_model(device& dev, std::string& error_message, viewer_model& viewer, gl::context* glctx);
+        explicit device_model(device& dev, std::string& error_message, viewer_model& viewer);
         void start_recording(const std::string& path, std::string& error_message);
         void stop_recording(viewer_model& viewer);
         void pause_record();
@@ -726,7 +726,7 @@ namespace rs2
     class post_processing_filters
     {
     public:
-        post_processing_filters(viewer_model& viewer, gl::context& glctx)
+        post_processing_filters(viewer_model& viewer)
             : processing_block([&](rs2::frame f, const rs2::frame_source& source)
             {
                 process(std::move(f),source);
@@ -737,7 +737,7 @@ namespace rs2
             resulting_queue(static_cast<unsigned int>(resulting_queue_max_size)),
             render_thread(),
             render_thread_active(false),
-            pc(new gl::pointcloud(glctx))
+            pc(new gl::pointcloud())
         {
             std::string s;
             pc_gen = std::make_shared<processing_block_model>(nullptr, "Pointcloud Engine", pc, [=](rs2::frame f) { return pc->calculate(f); }, s);
@@ -920,7 +920,7 @@ namespace rs2
 
         rs2::frame handle_ready_frames(const rect& viewer_rect, ux_window& window, int devices, std::string& error_message);
 
-        viewer_model(gl::context& glctx);
+        viewer_model();
 
         ~viewer_model()
         {
@@ -1041,6 +1041,8 @@ namespace rs2
         rs2::points last_points;
         texture_buffer* last_texture;
         texture_buffer texture;
+
+        rs2::gl::camera_renderer _cam_renderer;
     };
 
     void export_to_ply(const std::string& file_name, notifications_model& ns, frameset points, video_frame texture, bool notify = true);

@@ -169,12 +169,25 @@ private:
     uint32_t _extrinsics_location;
 };
 
-pointcloud_gl::pointcloud_gl(std::shared_ptr<librealsense::gl::context> ctx)
-    : pointcloud(), _ctx(ctx),
-      _projection_renderer(std::make_shared<lazy<visualizer_2d>>([](){ 
-          return visualizer_2d(std::make_shared<project_shader>()); }))
+void pointcloud_gl::cleanup_gpu_resources()
+{
+    _projection_renderer.reset();
+}
+void pointcloud_gl::create_gpu_resources()
+{
+    _projection_renderer = std::make_shared<visualizer_2d>(std::make_shared<project_shader>());
+}
+
+pointcloud_gl::pointcloud_gl()
+    : pointcloud()
 {
     _source.add_extension<gl::gpu_points_frame>(RS2_EXTENSION_VIDEO_FRAME_GL);
+    _backup = pointcloud::create();
+}
+
+void pointcloud_gl::preprocess()
+{
+    //_backup->preprocess();
 }
 
 const librealsense::float3* pointcloud_gl::depth_to_points(
@@ -184,9 +197,18 @@ const librealsense::float3* pointcloud_gl::depth_to_points(
         const uint16_t * depth_image, 
         float depth_scale)
 {
-    _depth_data = depth_image;
-    _depth_scale = depth_scale;
-    _depth_intr = depth_intrinsics;
+    if (!glsl_enabled())
+    {
+        return _backup->depth_to_points(output, points, depth_intrinsics, depth_image, depth_scale);
+    }
+
+    perform_gl_action([&]{
+        _depth_data = depth_image;
+        _depth_scale = depth_scale;
+        _depth_intr = depth_intrinsics;
+    }, [&]{
+        _backup->depth_to_points(output, points, depth_intrinsics, depth_image, depth_scale);
+    });
     return (librealsense::float3*)points;
 }
 
@@ -200,79 +222,92 @@ void pointcloud_gl::get_texture_map(
     librealsense::float2* tex_ptr,
     librealsense::float2* pixels_ptr)
 {
-    auto session = _ctx->begin_session();
+    if (!glsl_enabled())
+    {
+        _backup->get_texture_map(output, points, width, height, other_intrinsics, extr, tex_ptr, pixels_ptr);
+        return;
+    }
 
-    auto start = std::chrono::high_resolution_clock::now();
+    perform_gl_action([&]{
+        auto start = std::chrono::high_resolution_clock::now();
 
-    auto viz = _projection_renderer;
-    auto frame_ref = output.get();
+        auto viz = _projection_renderer;
+        auto frame_ref = output.get();
 
-    auto gf = dynamic_cast<gpu_addon_interface*>((frame_interface*)frame_ref);
+        auto gf = dynamic_cast<gpu_addon_interface*>((frame_interface*)frame_ref);
 
-    uint32_t depth_texture;
-    glGenTextures(1, &depth_texture);
-    glBindTexture(GL_TEXTURE_2D, depth_texture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_R16, width, height, 0, GL_RED, GL_UNSIGNED_SHORT, _depth_data);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        uint32_t depth_texture;
+        glGenTextures(1, &depth_texture);
+        glBindTexture(GL_TEXTURE_2D, depth_texture);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_R16, width, height, 0, GL_RED, GL_UNSIGNED_SHORT, _depth_data);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
-    fbo fbo(width, height);
+        fbo fbo(width, height);
 
-    uint32_t output_xyz;
-    gf->get_gpu_section().output_texture(0, &output_xyz, texture_type::XYZ, _ctx);
-    glBindTexture(GL_TEXTURE_2D, output_xyz);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, nullptr);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        uint32_t output_xyz;
+        gf->get_gpu_section().output_texture(0, &output_xyz, texture_type::XYZ);
+        glBindTexture(GL_TEXTURE_2D, output_xyz);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, nullptr);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, output_xyz, 0);
-    glBindTexture(GL_TEXTURE_2D, 0);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, output_xyz, 0);
+        glBindTexture(GL_TEXTURE_2D, 0);
 
-    uint32_t output_uv;
-    gf->get_gpu_section().output_texture(1, &output_uv, texture_type::UV, _ctx);
-    glBindTexture(GL_TEXTURE_2D, output_uv);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RG32F, width, height, 0, GL_RG, GL_FLOAT, nullptr);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        uint32_t output_uv;
+        gf->get_gpu_section().output_texture(1, &output_uv, texture_type::UV);
+        glBindTexture(GL_TEXTURE_2D, output_uv);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RG32F, width, height, 0, GL_RG, GL_FLOAT, nullptr);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, output_uv, 0);
-    glBindTexture(GL_TEXTURE_2D, 0);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, output_uv, 0);
+        glBindTexture(GL_TEXTURE_2D, 0);
 
-    gf->get_gpu_section().set_size(width, height);
+        gf->get_gpu_section().set_size(width, height);
 
-    fbo.bind();
-    
-    GLuint attachments[2] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
-    glDrawBuffers(2, attachments);
+        fbo.bind();
+        
+        GLuint attachments[2] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
+        glDrawBuffers(2, attachments);
 
-    glClearColor(0, 0, 0, 1);
-    glClear(GL_COLOR_BUFFER_BIT);
+        glClearColor(0, 0, 0, 1);
+        glClear(GL_COLOR_BUFFER_BIT);
 
-    auto& shader = (project_shader&)(*viz)->get_shader();
-    shader.begin();
-    shader.set_depth_scale(_depth_scale);
-    shader.set_intrinsics(0, _depth_intr);
-    shader.set_intrinsics(1, other_intrinsics);
-    shader.set_extrinsics(extr);
-    shader.set_size(0, width, height);
-    shader.set_size(1, other_intrinsics.width, other_intrinsics.height);
-    shader.end();
-    (*viz)->draw_texture(depth_texture);
+        auto& shader = (project_shader&)viz->get_shader();
+        shader.begin();
+        shader.set_depth_scale(_depth_scale);
+        shader.set_intrinsics(0, _depth_intr);
+        shader.set_intrinsics(1, other_intrinsics);
+        shader.set_extrinsics(extr);
+        shader.set_size(0, width, height);
+        shader.set_size(1, other_intrinsics.width, other_intrinsics.height);
+        shader.end();
+        viz->draw_texture(depth_texture);
 
-    fbo.unbind();
+        fbo.unbind();
 
-    glBindTexture(GL_TEXTURE_2D, 0);
-    glDeleteTextures(1, &depth_texture);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glDeleteTextures(1, &depth_texture);
 
-    auto end = std::chrono::high_resolution_clock::now();
-    auto ms = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-    //std::cout << ms << std::endl;
+        auto end = std::chrono::high_resolution_clock::now();
+        auto ms = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+
+    }, [&]{
+        _backup->get_texture_map(output, points, width, height, other_intrinsics, extr, tex_ptr, pixels_ptr);
+    });
 }
 
 rs2::points pointcloud_gl::allocate_points(
     const rs2::frame_source& source, 
     const rs2::frame& f)
 {
+    if (!glsl_enabled())
+    {
+        return _backup->allocate_points(source, f);
+    }
+
     auto prof = std::dynamic_pointer_cast<librealsense::stream_profile_interface>(
         _output_stream.get()->profile->shared_from_this());
     auto frame_ref = _source_wrapper.allocate_points(prof, (frame_interface*)f.get(),

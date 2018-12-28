@@ -16,30 +16,40 @@ namespace rs2
         class pointcloud;
         class yuy_to_rgb;
 
-        /**
-        * GL context maps to OpenGL rendering context
-        * Providing one to a processing block allows that processing block
-        * to run in parallel with other OpenGL calls.
-        * includes realsense API version as provided by RS2_API_VERSION macro
-        */
-        class context
+        inline void init_rendering(bool use_glsl = true)
         {
-        public:
-            context()
-            {
-                rs2_error* e = nullptr;
-                _context = std::shared_ptr<rs2_gl_context>(
-                    rs2_gl_create_context(RS2_API_VERSION, &e),
-                    rs2_gl_delete_context);
-                error::handle(e);
-            }
+            rs2_error* e = nullptr;
+            rs2_gl_init_rendering(RS2_API_VERSION, use_glsl ? 1 : 0, &e);
+            error::handle(e);
+        }
+
+        inline void shutdown_rendering()
+        {
+            rs2_error* e = nullptr;
+            rs2_gl_shutdown_rendering(RS2_API_VERSION, &e);
+            error::handle(e);
+        }
+
+        inline void init_processing(bool use_glsl = true)
+        {
+            rs2_error* e = nullptr;
+            rs2_gl_init_processing(RS2_API_VERSION, use_glsl ? 1 : 0, &e);
+            error::handle(e);
+        }
+
+        inline void shutdown_processing()
+        {
+            rs2_error* e = nullptr;
+            rs2_gl_shutdown_processing(RS2_API_VERSION, &e);
+            error::handle(e);
+        }
 
 #ifdef _glfw3_h_
-            context(GLFWwindow* share_with)
-            {
-                rs2_error* e = nullptr;
+        inline void init_processing(GLFWwindow* share_with, bool use_glsl = true)
+        {
+            rs2_error* e = nullptr;
 
-                glfw_binding binding{
+            glfw_binding binding{
                     nullptr,
                     &glfwWindowHint,
                     &glfwCreateWindow,
@@ -50,18 +60,10 @@ namespace rs2
                     &glfwGetProcAddress
                 };
 
-                _context = std::shared_ptr<rs2_gl_context>(
-                    rs2_gl_create_shared_context(RS2_API_VERSION, share_with, binding, &e),
-                    rs2_gl_delete_context);
-                error::handle(e);
-            }
+            rs2_gl_init_processing_glfw(RS2_API_VERSION, share_with, binding, use_glsl ? 1 : 0, &e);
+            error::handle(e);
+        }
 #endif
-        protected:
-            friend class rs2::gl::pointcloud;
-            friend class rs2::gl::yuy_to_rgb;
-
-            std::shared_ptr<rs2_gl_context> _context;
-        };
 
         class gpu_frame : public frame
         {
@@ -96,14 +98,14 @@ namespace rs2
             /**
             * 
             */
-            yuy_to_rgb(context ctx = context()) : filter(init(ctx), 1) { }
+            yuy_to_rgb() : filter(init(), 1) { }
 
         private:
-            std::shared_ptr<rs2_processing_block> init(context ctx)
+            std::shared_ptr<rs2_processing_block> init()
             {
                 rs2_error* e = nullptr;
                 auto block = std::shared_ptr<rs2_processing_block>(
-                    rs2_gl_create_yuy_to_rgb(ctx._context.get(), &e),
+                    rs2_gl_create_yuy_to_rgb(RS2_API_VERSION, &e),
                     rs2_delete_processing_block);
                 error::handle(e);
 
@@ -123,10 +125,10 @@ namespace rs2
             /**
             * create pointcloud instance
             */
-            pointcloud(context ctx = context()) : rs2::pointcloud(init(ctx)) {}
+            pointcloud() : rs2::pointcloud(init()) {}
 
-            pointcloud(rs2_stream stream, int index = 0, context ctx = context()) 
-                : rs2::pointcloud(init(ctx))
+            pointcloud(rs2_stream stream, int index = 0) 
+                : rs2::pointcloud(init())
             {
                 set_option(RS2_OPTION_STREAM_FILTER, float(stream));
                 set_option(RS2_OPTION_STREAM_INDEX_FILTER, float(index));
@@ -135,12 +137,12 @@ namespace rs2
         private:
             friend class context;
 
-            std::shared_ptr<rs2_processing_block> init(context ctx)
+            std::shared_ptr<rs2_processing_block> init()
             {
                 rs2_error* e = nullptr;
 
                 auto block = std::shared_ptr<rs2_processing_block>(
-                    rs2_gl_create_pointcloud(ctx._context.get(), &e),
+                    rs2_gl_create_pointcloud(RS2_API_VERSION, &e),
                     rs2_delete_processing_block);
 
                 error::handle(e);
@@ -151,19 +153,26 @@ namespace rs2
             }
         };
 
-        inline void update_all()
+        class camera_renderer : public rs2::filter
         {
-            rs2_error* e = nullptr;
-            rs2_gl_update_all(RS2_API_VERSION, &e);
-            error::handle(e);
-        }
+        public:
+            camera_renderer() : rs2::filter(init()) {}
 
-        inline void stop_all()
-        {
-            rs2_error* e = nullptr;
-            rs2_gl_stop_all(RS2_API_VERSION, &e);
-            error::handle(e);
-        }
+        private:
+            friend class context;
+
+            std::shared_ptr<rs2_processing_block> init()
+            {
+                rs2_error* e = nullptr;
+
+                auto block = std::shared_ptr<rs2_processing_block>(
+                    rs2_gl_create_camera_renderer(RS2_API_VERSION, &e),
+                    rs2_delete_processing_block);
+
+                error::handle(e);
+                return block;
+            }
+        };
     }
 }
 #endif // LIBREALSENSE_RS2_PROCESSING_GL_HPP

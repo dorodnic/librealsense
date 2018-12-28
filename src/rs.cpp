@@ -1750,13 +1750,7 @@ HANDLE_EXCEPTIONS_AND_RETURN(0, frame)
 
 rs2_processing_block* rs2_create_pointcloud(rs2_error** error) BEGIN_API_CALL
 {
-#ifdef __SSSE3__
-    auto block = std::make_shared<librealsense::pointcloud_sse>();
-#else
-    auto block = std::make_shared<librealsense::pointcloud>();
-#endif
-
-    return new rs2_processing_block { block };
+    return new rs2_processing_block { pointcloud::create() };
 }
 NOARGS_HANDLE_EXCEPTIONS_AND_RETURN(nullptr)
 

@@ -24,23 +24,23 @@ namespace librealsense
 {
     namespace gl
     {
-        class yuy2rgb : public stream_filter_processing_block
+        class yuy2rgb : public stream_filter_processing_block, public gpu_processing_object
         {
         public:
-            yuy2rgb(std::shared_ptr<librealsense::gl::context> ctx);
+            yuy2rgb();
+
+            void cleanup_gpu_resources() override;
+            void create_gpu_resources() override;
 
             rs2::frame process_frame(const rs2::frame_source& source, const rs2::frame& f) override;
         private:
-            void on_frame(frame f, frame_source& src);
 
             rs2::stream_profile _input_profile;
             rs2::stream_profile _output_profile;
 
             int _width, _height;
 
-            lazy<rs2::visualizer_2d> _viz;
-
-            std::shared_ptr<gl::context> _ctx;
+            std::shared_ptr<rs2::visualizer_2d> _viz;
         };
     }
 }

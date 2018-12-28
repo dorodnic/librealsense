@@ -20,6 +20,8 @@ set(REALSENSE_GL_CPP
     pc-shader.h
     camera-shader.cpp
     camera-shader.h
+    ${LZ4_DIR}/lz4.h
+    ${LZ4_DIR}/lz4.c
 )
 
 source_group("3rd Party" FILES
@@ -35,6 +37,7 @@ if(BUILD_EASYLOGGINGPP)
 endif()
 
 add_library(${PROJECT_NAME} ${REALSENSE_GL_CPP})
+include_directories(${LZ4_DIR})
 
 find_package(OpenGL)
 if(NOT OPENGL_FOUND)

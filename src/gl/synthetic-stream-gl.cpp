@@ -23,35 +23,164 @@ namespace librealsense
 {
     namespace gl
     {
+
+        void rendering_lane::register_gpu_object(gpu_rendering_object* obj)
+        {
+            _data.register_gpu_object(obj);
+        }
+
+        void rendering_lane::unregister_gpu_object(gpu_rendering_object* obj)
+        {
+            _data.unregister_gpu_object(obj);
+        }
+
+        void rendering_lane::init(bool use_glsl)
+        {
+            std::lock_guard<std::mutex> lock(_data.mutex);
+            for (auto&& obj : _data.objs)
+            {
+                obj->update_gpu_resources(use_glsl);
+            }
+            _data.active = true;
+        }
+
+        void rendering_lane::shutdown()
+        {
+            std::lock_guard<std::mutex> lock(_data.mutex);
+            for (auto&& obj : _data.objs)
+            {
+                obj->update_gpu_resources(false);
+            }
+            _data.active = false;
+        }
+
+        rendering_lane& rendering_lane::instance()
+        {
+            static rendering_lane instance;
+            return instance;
+        }
+
+        processing_lane& processing_lane::instance()
+        {
+            static processing_lane instance;
+            return instance;
+        }
+
+        void processing_lane::register_gpu_object(gpu_processing_object* obj)
+        {
+            _data.register_gpu_object(obj);
+        }
+
+        void processing_lane::unregister_gpu_object(gpu_processing_object* obj)
+        {
+            _data.unregister_gpu_object(obj);
+        }
+
+        void processing_lane::init(GLFWwindow* share_with, glfw_binding binding, bool use_glsl)
+        {
+            std::lock_guard<std::mutex> lock(_data.mutex);
+
+            _data.active = true;
+
+            _ctx = std::make_shared<context>(share_with, binding);
+            auto session = _ctx->begin_session();
+
+            for (auto&& obj : _data.objs)
+            {
+                ((gpu_processing_object*)obj)->set_context(_ctx);
+                obj->update_gpu_resources(use_glsl);
+            }
+        }
+
+        void processing_lane::shutdown()
+        {
+            std::lock_guard<std::mutex> lock(_data.mutex);
+
+            _data.active = false;
+            auto session = _ctx->begin_session();
+
+            for (auto&& obj : _data.objs)
+            {
+                ((gpu_processing_object*)obj)->set_context({});
+                obj->update_gpu_resources(false);
+            }
+            
+            _ctx.reset();
+        }
+
+        void gpu_section::cleanup_gpu_resources()
+        {
+            if (backup_content)
+            {
+                backup = std::unique_ptr<uint8_t[]>(new uint8_t[get_frame_size()]);
+                fetch_frame(backup.get());
+            }
+            for (int i = 0; i < MAX_TEXTURES; i++)
+            {
+                if (textures[i])
+                {
+                    glDeleteTextures(1, &textures[i]);
+                }
+            }
+        }
+
+        gpu_section::~gpu_section()
+        {
+            backup_content = false;
+            perform_gl_action([&](){
+                cleanup_gpu_resources();
+            }, []{});
+        }
+
+        void gpu_section::create_gpu_resources()
+        {
+            auto ptr = backup.get();
+            for (int i = 0; i < MAX_TEXTURES; i++)
+            {
+                if (textures[i])
+                {
+                    glGenTextures(1, &textures[i]);
+                    glBindTexture(GL_TEXTURE_2D, textures[i]);
+
+                    if (types[i] == texture_type::RGB)
+                    {
+                        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, ptr);
+                        ptr += width * height * 3;
+                    }
+                    else if (types[i] == texture_type::XYZ)
+                    {
+                        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, ptr);
+                        ptr += width * height * 12;
+                    }
+                    else if (types[i] == texture_type::UV)
+                    {
+                        glTexImage2D(GL_TEXTURE_2D, 0, GL_RG32F, width, height, 0, GL_RG, GL_FLOAT, ptr);
+                        ptr += width * height * 8;
+                    }
+
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+                }
+            }
+            backup.reset();
+        }
+
+        gpu_section::operator bool()
+        {
+            bool res = false;
+            for (int i = 0; i < MAX_TEXTURES; i++)
+                if (loaded[i]) res = true;
+            return res;
+        }
+
         gpu_section::gpu_section()
         {
             for (int i = 0; i < MAX_TEXTURES; i++)
             {
                 textures[i] = 0;
                 loaded[i] = false;
-                contexts[i] = nullptr;
             }
-        }
-
-        gpu_section::~gpu_section()
-        {
-            // bool need_to_delete = false;
-            // for (int i = 0; i < MAX_TEXTURES; i++)
-            //     if (textures[i]) need_to_delete = true;
-
-            // if (need_to_delete)
-            //     main_thread_dispatcher::instance().invoke([&]()
-            //     {
-            //         glDeleteTextures(MAX_TEXTURES, textures);
-            //     });
-            for (int i = 0; i < MAX_TEXTURES; i++)
-            {
-                if (textures[i])
-                {
-                    auto session = contexts[i]->begin_session();
-                    glDeleteTextures(1, &textures[i]);
-                }
-            }
+            initialize();
         }
 
         void gpu_section::on_publish()
@@ -66,28 +195,17 @@ namespace librealsense
         {
             for (int i = 0; i < MAX_TEXTURES; i++)
             {
-                // if (textures[i])
-                // {
-                //     auto session = contexts[i]->begin_session();
-                //     glDeleteTextures(1, &textures[i]);
-                //     contexts[i] = nullptr;
-                //     textures[i] = 0;
-                // }
-
                 loaded[i] = false;
             }
-
-            _delayed_actions.clear();
         }
 
-        void gpu_section::output_texture(int id, uint32_t* tex, texture_type type, std::shared_ptr<gl::context> ctx)
+        void gpu_section::output_texture(int id, uint32_t* tex, texture_type type)
         {
             auto existing_tex = textures[id];
             if (existing_tex)
                 *tex = existing_tex;
             else
             {
-                contexts[id] = ctx;
                 glGenTextures(1, tex);
                 textures[id] = *tex;
             }
@@ -100,30 +218,36 @@ namespace librealsense
             this->width = width; this->height = height;
         }
 
-        void gpu_section::delay(std::function<void()> action)
-        {
-            _delayed_actions.push_back(action);
-        }
-
-        void gpu_section::catch_up()
-        {
-            while (_delayed_actions.size())
-            {
-                auto act = _delayed_actions.front();
-                _delayed_actions.pop_front();
-                act();
-            }
-        }
-
         bool gpu_section::input_texture(int id, uint32_t* tex)
         {
-            catch_up();
             if (loaded[id]) 
             {
                 *tex = textures[id];
                 return true;
             }
             return false;
+        }
+
+        int gpu_section::get_frame_size() const
+        {
+            int res = 0;
+            for (int i = 0; i < MAX_TEXTURES; i++)
+                if (textures[i] && loaded[i])
+                {
+                    if (types[i] == texture_type::RGB)
+                    {
+                        res += width * height * 3;
+                    }
+                    else if (types[i] == texture_type::XYZ)
+                    {
+                        res += width * height * 12;
+                    }
+                    else if (types[i] == texture_type::UV)
+                    {
+                        res += width * height * 8;
+                    }
+                }
+            return res;
         }
 
         void gpu_section::fetch_frame(void* to)
@@ -134,50 +258,48 @@ namespace librealsense
 
             if (need_to_fetch)
             {
-                // main_thread_dispatcher::instance().invoke([&]()
-                // {
-                //     catch_up();
-                    
+                perform_gl_action([&]{
                     auto ptr = (uint8_t*)to;
+
                     for (int i = 0; i < MAX_TEXTURES; i++)
-                        if (textures[i] && loaded[i])
+                    if (textures[i] && loaded[i])
+                    {
+                        rs2::visualizer_2d vis;
+                        rs2::fbo fbo(width, height);
+                        uint32_t res;
+                        glGenTextures(1, &res);
+                        fbo.createTextureAttachment(res);
+
+                        fbo.bind();
+                        glViewport(0, 0, width, height);
+                        glClearColor(0, 0, 0, 1);
+                        glClear(GL_COLOR_BUFFER_BIT);
+                        vis.draw_texture(textures[i]);
+                        glReadBuffer(GL_COLOR_ATTACHMENT0);
+
+                        if (types[i] == texture_type::RGB)
                         {
-                            auto session = contexts[i]->begin_session();
-
-                            rs2::visualizer_2d vis;
-                            rs2::fbo fbo(width, height);
-                            uint32_t res;
-                            glGenTextures(1, &res);
-                            fbo.createTextureAttachment(res);
-
-                            fbo.bind();
-                            glViewport(0, 0, width, height);
-                            glClearColor(0, 0, 0, 1);
-                            glClear(GL_COLOR_BUFFER_BIT);
-                            vis.draw_texture(textures[i]);
-                            glReadBuffer(GL_COLOR_ATTACHMENT0);
-
-                            if (types[i] == texture_type::RGB)
-                            {
-                                glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, ptr);
-                                ptr += width * height * 3;
-                            }
-                            else if (types[i] == texture_type::XYZ)
-                            {
-                                glReadPixels(0, 0, width, height, GL_RGB, GL_FLOAT, ptr);
-                                ptr += width * height * 12;
-                            }
-                            else if (types[i] == texture_type::UV)
-                            {
-                                glReadPixels(0, 0, width, height, GL_RG, GL_FLOAT, ptr);
-                                ptr += width * height * 8;
-                            }
-
-                            glDeleteTextures(1, &res);
-                            
-                            fbo.unbind();
+                            glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, ptr);
+                            ptr += width * height * 3;
                         }
-                //});
+                        else if (types[i] == texture_type::XYZ)
+                        {
+                            glReadPixels(0, 0, width, height, GL_RGB, GL_FLOAT, ptr);
+                            ptr += width * height * 12;
+                        }
+                        else if (types[i] == texture_type::UV)
+                        {
+                            glReadPixels(0, 0, width, height, GL_RG, GL_FLOAT, ptr);
+                            ptr += width * height * 8;
+                        }
+
+                        glDeleteTextures(1, &res);
+                        
+                        fbo.unbind();
+                    }
+                }, [&]{
+                    memcpy(to, backup.get(), get_frame_size());
+                });
             }
         }
 

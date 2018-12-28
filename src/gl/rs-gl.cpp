@@ -7,6 +7,7 @@
 #include "pointcloud-gl.h"
 #include "../include/librealsense2/h/rs_types.h"
 #include "../include/librealsense2-gl/rs_processing_gl.h"
+#include "camera-shader.h"
 #include <assert.h>
 
 #include <GLFW/glfw3.h>
@@ -57,13 +58,13 @@ namespace librealsense
 
 const char* rs2_gl_matrix_type_to_string(rs2_gl_matrix_type type) { return librealsense::get_string(type); }
 
-rs2_processing_block* rs2_gl_create_yuy_to_rgb(rs2_gl_context* ctx, rs2_error** error) BEGIN_API_CALL
+rs2_processing_block* rs2_gl_create_yuy_to_rgb(int api_version, rs2_error** error) BEGIN_API_CALL
 {
-    auto block = std::make_shared<librealsense::gl::yuy2rgb>(ctx->ctx);
+    verify_version_compatibility(api_version);
+
+    auto block = std::make_shared<librealsense::gl::yuy2rgb>();
 
     auto res = new rs2_processing_block{ block };
-
-    auto res2 = (rs2_options*)res;
 
     return res;
 }
@@ -90,39 +91,48 @@ int rs2_gl_is_frame_extendable_to(const rs2_frame* f, rs2_gl_extension extension
     VALIDATE_NOT_NULL(f);
     VALIDATE_ENUM(extension_type);
 
+    bool res = false;
+
     switch (extension_type)
     {
-    case RS2_GL_EXTENSION_VIDEO_FRAME: return dynamic_cast<gl::gpu_addon_interface*>((frame_interface*)f) ? 1 : 0;
+    case RS2_GL_EXTENSION_VIDEO_FRAME: 
+    {
+        auto gpu = dynamic_cast<gl::gpu_addon_interface*>((frame_interface*)f);
+        if (!gpu) return false;
+        // If nothing was loaded to the GPU frame, abort
+        if (!gpu->get_gpu_section()) return false;
+        // If GPU frame was backed up to main memory, abort
+        if (!gpu->get_gpu_section().on_gpu()) return false;
+        return true;
+    }
     default: return 0;
     }
 }
 HANDLE_EXCEPTIONS_AND_RETURN(0, f, extension_type)
 
-rs2_processing_block* rs2_gl_create_pointcloud(rs2_gl_context* ctx, rs2_error** error) BEGIN_API_CALL
+rs2_processing_block* rs2_gl_create_pointcloud(int api_version, rs2_error** error) BEGIN_API_CALL
 {
-    auto block = std::make_shared<librealsense::gl::pointcloud_gl>(ctx->ctx);
-
+    verify_version_compatibility(api_version);
+    auto block = std::make_shared<librealsense::gl::pointcloud_gl>();
     return new rs2_processing_block { block };
 }
 NOARGS_HANDLE_EXCEPTIONS_AND_RETURN(nullptr)
 
-void rs2_gl_update_all(int api_version, rs2_error** error) BEGIN_API_CALL
+void rs2_gl_set_matrix(rs2_processing_block* block, rs2_gl_matrix_type type, float* m4x4, rs2_error** error) BEGIN_API_CALL
+{
+    // TODO
+}
+HANDLE_EXCEPTIONS_AND_RETURN(, block, type, m4x4)
+
+
+void rs2_gl_init_rendering(int api_version, int use_glsl, rs2_error** error) BEGIN_API_CALL
 {
     verify_version_compatibility(api_version);
-
-    gl::main_thread_dispatcher::instance().update();
+    librealsense::gl::rendering_lane::instance().init(use_glsl > 0);
 }
-NOEXCEPT_RETURN(, api_version)
+HANDLE_EXCEPTIONS_AND_RETURN(, api_version, use_glsl)
 
-void rs2_gl_stop_all(int api_version, rs2_error** error) BEGIN_API_CALL
-{
-    verify_version_compatibility(api_version);
-
-    gl::main_thread_dispatcher::instance().stop();
-}
-NOEXCEPT_RETURN(, api_version)
-
-rs2_gl_context* rs2_gl_create_context(int api_version, rs2_error** error) BEGIN_API_CALL
+void rs2_gl_init_processing(int api_version, int use_glsl, rs2_error** error) BEGIN_API_CALL
 {
     verify_version_compatibility(api_version);
     glfw_binding binding{
@@ -135,26 +145,36 @@ rs2_gl_context* rs2_gl_create_context(int api_version, rs2_error** error) BEGIN_
         &glfwSwapInterval,
         &glfwGetProcAddress
     };
-    return new rs2_gl_context { std::make_shared<gl::context>(nullptr, binding) };
+    librealsense::gl::processing_lane::instance().init(nullptr, binding, use_glsl > 0);
 }
-HANDLE_EXCEPTIONS_AND_RETURN(nullptr, api_version)
+HANDLE_EXCEPTIONS_AND_RETURN(, api_version, use_glsl)
 
-rs2_gl_context* rs2_gl_create_shared_context(int api_version, GLFWwindow* share_with, glfw_binding binding, rs2_error** error) BEGIN_API_CALL
+void rs2_gl_init_processing_glfw(int api_version, GLFWwindow* share_with, 
+                                 glfw_binding bindings, int use_glsl, rs2_error** error) BEGIN_API_CALL
 {
     verify_version_compatibility(api_version);
-    return new rs2_gl_context{ std::make_shared<gl::context>(share_with, binding) };
+    librealsense::gl::processing_lane::instance().init(share_with, bindings, use_glsl > 0);
 }
-HANDLE_EXCEPTIONS_AND_RETURN(nullptr, api_version, share_with)
+HANDLE_EXCEPTIONS_AND_RETURN(, api_version, use_glsl)
 
-void rs2_gl_delete_context(rs2_gl_context* context) BEGIN_API_CALL
+void rs2_gl_shutdown_rendering(int api_version, rs2_error** error) BEGIN_API_CALL
 {
-    VALIDATE_NOT_NULL(context);
-    delete context;
+    verify_version_compatibility(api_version);
+    librealsense::gl::rendering_lane::instance().shutdown();
 }
-NOEXCEPT_RETURN(, context)
+HANDLE_EXCEPTIONS_AND_RETURN(, api_version)
 
-void rs2_gl_set_matrix(rs2_processing_block* block, rs2_gl_matrix_type type, float* m4x4, rs2_error** error) BEGIN_API_CALL
+void rs2_gl_shutdown_processing(int api_version, rs2_error** error) BEGIN_API_CALL
 {
-    // TODO
+    verify_version_compatibility(api_version);
+    librealsense::gl::processing_lane::instance().shutdown();
 }
-HANDLE_EXCEPTIONS_AND_RETURN(, block, type, m4x4)
+HANDLE_EXCEPTIONS_AND_RETURN(, api_version)
+
+rs2_processing_block* rs2_gl_create_camera_renderer(int api_version, rs2_error** error) BEGIN_API_CALL
+{
+    verify_version_compatibility(api_version);
+    auto block = std::make_shared<librealsense::gl::camera_renderer>();
+    return new rs2_processing_block { block };
+}
+HANDLE_EXCEPTIONS_AND_RETURN(nullptr, api_version)

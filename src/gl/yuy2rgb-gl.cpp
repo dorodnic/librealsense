@@ -88,10 +88,21 @@ private:
     uint32_t _height_location;
 };
 
-yuy2rgb::yuy2rgb(std::shared_ptr<librealsense::gl::context> ctx)
-    : _viz([](){ return visualizer_2d(std::make_shared<yuy2rgb_shader>()); }), _ctx(ctx)
+void yuy2rgb::cleanup_gpu_resources()
+{
+    _viz.reset();
+}
+
+void yuy2rgb::create_gpu_resources()
+{
+    _viz = std::make_shared<visualizer_2d>(std::make_shared<yuy2rgb_shader>());
+}
+
+yuy2rgb::yuy2rgb()
 {
     _source.add_extension<gpu_video_frame>(RS2_EXTENSION_VIDEO_FRAME_GL);
+
+    initialize();
 }
 
 rs2::frame yuy2rgb::process_frame(const rs2::frame_source& src, const rs2::frame& f)
@@ -110,10 +121,8 @@ rs2::frame yuy2rgb::process_frame(const rs2::frame_source& src, const rs2::frame
 
     auto res = src.allocate_video_frame(_output_profile, f, 3, _width, _height, _width * 3, RS2_EXTENSION_VIDEO_FRAME_GL);
 
-    auto session = _ctx->begin_session();
-
-    // main_thread_dispatcher::instance().invoke([&]()
-    // {
+    perform_gl_action([&]()
+    {
         auto gf = dynamic_cast<gpu_addon_interface*>((frame_interface*)res.get());
         
         uint32_t yuy_texture;
@@ -124,7 +133,7 @@ rs2::frame yuy2rgb::process_frame(const rs2::frame_source& src, const rs2::frame
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
         uint32_t output_rgb;
-        gf->get_gpu_section().output_texture(0, &output_rgb, texture_type::RGB, _ctx);
+        gf->get_gpu_section().output_texture(0, &output_rgb, texture_type::RGB);
         glBindTexture(GL_TEXTURE_2D, output_rgb);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, _width, _height, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -150,7 +159,10 @@ rs2::frame yuy2rgb::process_frame(const rs2::frame_source& src, const rs2::frame
 
         glBindTexture(GL_TEXTURE_2D, 0);
         glDeleteTextures(1, &yuy_texture);
-    //});
+    }, 
+    []{
+        std::cout << "CPU YUY 2 RGB not implemented yet :(" << std::endl;
+    }); // TODO: Add fallback
 
     auto end = std::chrono::high_resolution_clock::now();
     auto ms = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();

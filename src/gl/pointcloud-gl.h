@@ -10,11 +10,15 @@ namespace librealsense
 {
     namespace gl
     {
-        class pointcloud_gl : public pointcloud
+        class pointcloud_gl : public pointcloud, public gpu_processing_object
         {
         public:
-            pointcloud_gl(std::shared_ptr<gl::context> ctx);
+            pointcloud_gl();
+
         private:
+            void cleanup_gpu_resources() override;
+            void create_gpu_resources() override;
+
             const float3 * depth_to_points(
                 rs2::points output,
                 uint8_t* image, 
@@ -32,14 +36,15 @@ namespace librealsense
             rs2::points allocate_points(
                 const rs2::frame_source& source, 
                 const rs2::frame& f) override;
+            void preprocess() override;
 
-            std::shared_ptr<lazy<rs2::visualizer_2d>> _projection_renderer;
-
-            std::shared_ptr<gl::context> _ctx;
+            std::shared_ptr<rs2::visualizer_2d> _projection_renderer;
 
             const uint16_t* _depth_data;
             float _depth_scale;
             rs2_intrinsics _depth_intr;
+
+            std::shared_ptr<pointcloud> _backup;
         };
     }
 }

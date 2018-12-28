@@ -26,7 +26,7 @@ using namespace rs2;
 using namespace rs400;
 
 void add_playback_device(context& ctx, std::shared_ptr<std::vector<device_model>> device_models, 
-    std::string& error_message, viewer_model& viewer_model, const std::string& file, gl::context* glctx)
+    std::string& error_message, viewer_model& viewer_model, const std::string& file)
 {
     bool was_loaded = false;
     bool failed = false;
@@ -35,7 +35,7 @@ void add_playback_device(context& ctx, std::shared_ptr<std::vector<device_model>
         auto dev = ctx.load_device(file);
         was_loaded = true;
         // TODO: Pass proper context
-        device_models->emplace_back(dev, error_message, viewer_model, glctx); //Will cause the new device to appear in the left panel
+        device_models->emplace_back(dev, error_message, viewer_model); //Will cause the new device to appear in the left panel
         if (auto p = dev.as<playback>())
         {
             auto filename = p.file_name();
@@ -113,8 +113,7 @@ void refresh_devices(std::mutex& m,
     std::vector<std::pair<std::string, std::string>>& device_names,
     std::shared_ptr<std::vector<device_model>> device_models,
     viewer_model& viewer_model,
-    std::string& error_message,
-    gl::context* glctx = nullptr)
+    std::string& error_message)
 {
     event_information info({}, {});
     if (devices_connection_changes.try_get_next_changes(info))
@@ -200,7 +199,7 @@ void refresh_devices(std::mutex& m,
                 if (device_models->size() == 0 &&
                     dev.supports(RS2_CAMERA_INFO_NAME) && std::string(dev.get_info(RS2_CAMERA_INFO_NAME)) != "Platform Camera")
                 {
-                    device_models->emplace_back(dev, error_message, viewer_model, glctx);
+                    device_models->emplace_back(dev, error_message, viewer_model);
                     viewer_model.not_model.add_log(to_string() << device_models->rbegin()->dev.get_info(RS2_CAMERA_INFO_NAME) << " was selected as a default device");
                 }
             }
@@ -238,7 +237,7 @@ int main(int argv, const char** argc) try
     std::shared_ptr<std::vector<device_model>> device_models = std::make_shared<std::vector<device_model>>();
     device_model* device_to_remove = nullptr;
 
-    viewer_model viewer_model(window.get_processing_context());
+    viewer_model viewer_model;
 
     std::vector<device> connected_devs;
     std::mutex m;
@@ -248,7 +247,7 @@ int main(int argv, const char** argc) try
     window.on_file_drop = [&](std::string filename)
     {
         std::string error_message{};
-        add_playback_device(ctx, device_models, error_message, viewer_model, filename, &window.get_processing_context());
+        add_playback_device(ctx, device_models, error_message, viewer_model, filename);
         if (!error_message.empty())
         {
             viewer_model.not_model.add_notification({ error_message,
@@ -265,7 +264,7 @@ int main(int argv, const char** argc) try
             if (!file.good())
                 continue;
 
-            add_playback_device(ctx, device_models, error_message, viewer_model, arg, &window.get_processing_context());
+            add_playback_device(ctx, device_models, error_message, viewer_model, arg);
         }
         catch (const rs2::error& e)
         {
@@ -280,7 +279,7 @@ int main(int argv, const char** argc) try
     window.on_load = [&]()
     {
         refresh_devices(m, ctx, devices_connection_changes, connected_devs, 
-            device_names, device_models, viewer_model, error_message, &window.get_processing_context());
+            device_names, device_models, viewer_model, error_message);
         return true;
     };
 
@@ -292,7 +291,7 @@ int main(int argv, const char** argc) try
 			viewer_model.popup_if_ui_not_aligned(window.get_font());
 		}
         refresh_devices(m, ctx, devices_connection_changes, connected_devs, 
-            device_names, device_models, viewer_model, error_message, &window.get_processing_context());
+            device_names, device_models, viewer_model, error_message);
 
         bool update_read_only_options = update_readonly_options_timer;
 
@@ -354,7 +353,7 @@ int main(int argv, const char** argc) try
                     try
                     {
                         auto dev = connected_devs[i];
-                        device_models->emplace_back(dev, error_message, viewer_model, &window.get_processing_context());
+                        device_models->emplace_back(dev, error_message, viewer_model);
                     }
                     catch (const error& e)
                     {
@@ -389,7 +388,7 @@ int main(int argv, const char** argc) try
             {
                 if (auto ret = file_dialog_open(open_file, "ROS-bag\0*.bag\0", NULL, NULL))
                 {
-                    add_playback_device(ctx, device_models, error_message, viewer_model, ret, &window.get_processing_context());
+                    add_playback_device(ctx, device_models, error_message, viewer_model, ret);
                 }
             }
             ImGui::NextColumn();

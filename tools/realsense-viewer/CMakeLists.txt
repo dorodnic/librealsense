@@ -57,8 +57,6 @@ endif()
             ../../common/rs-config.cpp
             ../../common/os.h
             ../../common/os.cpp
-            ${LZ4_DIR}/lz4.h
-            ${LZ4_DIR}/lz4.c
         )
 
     # config-ui
@@ -80,12 +78,12 @@ endif()
                 ${CMAKE_CURRENT_SOURCE_DIR}/res/realsense-viewer.rc)
 
         include_directories(realsense-viewer ../../third-party/imgui 
-        ../../third-party/glad ../../common/gl ../../common ${LZ4_DIR}
+        ../../third-party/glad ../../common/gl ../../common
         ../../third-party ${CMAKE_CURRENT_SOURCE_DIR}/res/)
     else()
         add_executable(realsense-viewer ${RS_VIEWER_CPP})
         include_directories(realsense-viewer ../../third-party/imgui 
-        ../../third-party/glad ../../common/gl ${LZ4_DIR}
+        ../../third-party/glad ../../common/gl
         ../../common ../../third-party)
     endif()
 

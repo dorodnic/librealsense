@@ -27,12 +27,12 @@
 
 #include "os.h"
 
-namespace rs2
-{
-    #include <res/d435.h>
-    #include <res/d415.h>
-    #include <res/sr300.h>
-}
+// namespace rs2
+// {
+//     #include <res/d435.h>
+//     #include <res/d415.h>
+//     #include <res/sr300.h>
+// }
 
 constexpr const char* recommended_fw_url = "https://downloadcenter.intel.com/download/27522/Latest-Firmware-for-Intel-RealSense-D400-Product-Family?v=t";
 constexpr const char* store_url = "https://click.intel.com/realsense.html";
@@ -753,11 +753,11 @@ namespace rs2
 
     subdevice_model::subdevice_model(
         device& dev,
-        std::shared_ptr<sensor> s, std::string& error_message, gl::context* glctx)
+        std::shared_ptr<sensor> s, std::string& error_message)
         : s(s), dev(dev), ui(), last_valid_ui(),
         streaming(false), _pause(false),
         depth_colorizer(std::make_shared<rs2::colorizer>()),
-        yuy_decoder(std::make_shared<rs2::gl::yuy_to_rgb>(*glctx)),
+        yuy_decoder(std::make_shared<rs2::gl::yuy_to_rgb>()),
         decimation_filter(),
         spatial_filter(),
         temporal_filter(),
@@ -2146,8 +2146,8 @@ namespace rs2
         }
     }
 
-    viewer_model::viewer_model(gl::context& glctx)
-            : ppf(*this, glctx),
+    viewer_model::viewer_model()
+            : ppf(*this),
               synchronization_enable(true)
     {
         syncer = std::make_shared<syncer_model>();
@@ -2850,13 +2850,13 @@ namespace rs2
         return std::make_pair(s.str(), serial);        // push name and sn to list
     }
 
-    device_model::device_model(device& dev, std::string& error_message, viewer_model& viewer, gl::context* glctx)
+    device_model::device_model(device& dev, std::string& error_message, viewer_model& viewer)
         : dev(dev),
           syncer(viewer.syncer)
     {
         for (auto&& sub : dev.query_sensors())
         {
-            auto model = std::make_shared<subdevice_model>(dev, std::make_shared<sensor>(sub), error_message, glctx);
+            auto model = std::make_shared<subdevice_model>(dev, std::make_shared<sensor>(sub), error_message);
             subdevices.push_back(model);
         }
 
@@ -4159,18 +4159,18 @@ namespace rs2
                     auto dev = streams[selected_depth_source_uid].dev->dev;
                     if (dev.supports(RS2_CAMERA_INFO_NAME)) dev_name = dev.get_info(RS2_CAMERA_INFO_NAME);
 
-                    if (starts_with(dev_name, "Intel RealSense D435"))
-                    {
-                        uncompress_d435_obj(camera_mesh.positions, camera_mesh.normals, camera_mesh.indexes);
-                    }
-                    if (starts_with(dev_name, "Intel RealSense D415"))
-                    {
-                        uncompress_d415_obj(camera_mesh.positions, camera_mesh.normals, camera_mesh.indexes);
-                    }
-                    if (starts_with(dev_name, "Intel RealSense SR300"))
-                    {
-                        uncompress_sr300_obj(camera_mesh.positions, camera_mesh.normals, camera_mesh.indexes);
-                    }
+                    // if (starts_with(dev_name, "Intel RealSense D435"))
+                    // {
+                    //     uncompress_d435_obj(camera_mesh.positions, camera_mesh.normals, camera_mesh.indexes);
+                    // }
+                    // if (starts_with(dev_name, "Intel RealSense D415"))
+                    // {
+                    //     uncompress_d415_obj(camera_mesh.positions, camera_mesh.normals, camera_mesh.indexes);
+                    // }
+                    // if (starts_with(dev_name, "Intel RealSense SR300"))
+                    // {
+                    //     uncompress_sr300_obj(camera_mesh.positions, camera_mesh.normals, camera_mesh.indexes);
+                    // }
 
 					obj_mesh mesh = make_grid(height, width, 1.f / height, 1.f / height);
                     for (auto& xyz : camera_mesh.positions)
@@ -4188,24 +4188,24 @@ namespace rs2
                     uvs = std::unique_ptr<texture_buffer>(new texture_buffer());
 				}
 
-                pc_shader.begin();
-                pc_shader.set_mvp(identity_matrix(), view_mat, perspective_mat);
-                pc_shader.set_image_size(width, height);
+                // pc_shader.begin();
+                // pc_shader.set_mvp(identity_matrix(), view_mat, perspective_mat);
+                // pc_shader.set_image_size(width, height);
 
-                glActiveTexture(GL_TEXTURE0 + pc_shader.texture_slot());
-                tex = last_texture->get_gl_handle();
-                glBindTexture(GL_TEXTURE_2D, tex);
+                // glActiveTexture(GL_TEXTURE0 + pc_shader.texture_slot());
+                // tex = last_texture->get_gl_handle();
+                // glBindTexture(GL_TEXTURE_2D, tex);
 
-                glActiveTexture(GL_TEXTURE0 + pc_shader.geometry_slot());
-                auto pos_tex = positions->get_gl_handle();
-                glBindTexture(GL_TEXTURE_2D, pos_tex);
+                // glActiveTexture(GL_TEXTURE0 + pc_shader.geometry_slot());
+                // auto pos_tex = positions->get_gl_handle();
+                // glBindTexture(GL_TEXTURE_2D, pos_tex);
 
-                glActiveTexture(GL_TEXTURE0 + pc_shader.uvs_slot());
-                glBindTexture(GL_TEXTURE_2D, uvs->get_gl_handle());
-				model->draw();
-                glActiveTexture(GL_TEXTURE0 + pc_shader.texture_slot());
-                glBindTexture(GL_TEXTURE_2D, 0);
-                pc_shader.end();
+                // glActiveTexture(GL_TEXTURE0 + pc_shader.uvs_slot());
+                // glBindTexture(GL_TEXTURE_2D, uvs->get_gl_handle());
+				// model->draw();
+                // glActiveTexture(GL_TEXTURE0 + pc_shader.texture_slot());
+                // glBindTexture(GL_TEXTURE_2D, 0);
+                // pc_shader.end();
 
                 glDisable(GL_DEPTH_TEST);
                 glEnable(GL_BLEND);
@@ -4213,28 +4213,30 @@ namespace rs2
 
 
 
-                if (config_file::instance().get(configurations::performance::glsl_for_rendering))
-                {
-                    cam_shader.begin();
-                    cam_shader.set_mvp(identity_matrix(), view_mat, perspective_mat);
-                    camera->draw();
-                    cam_shader.end();
-                }
-                else
-                {
-                    glBegin(GL_TRIANGLES);
-                    for (auto& i : camera_mesh.indexes)
-                    {
-                        auto v0 = camera_mesh.positions[i.x];
-                        auto v1 = camera_mesh.positions[i.y];
-                        auto v2 = camera_mesh.positions[i.z];
-                        glVertex3fv(&v0.x);
-                        glVertex3fv(&v1.x);
-                        glVertex3fv(&v2.x);
-                        glColor4f(0.036f, 0.044f, 0.051f, 0.3f);
-                    }
-                    glEnd();
-                }
+                // if (config_file::instance().get(configurations::performance::glsl_for_rendering))
+                // {
+                //     cam_shader.begin();
+                //     cam_shader.set_mvp(identity_matrix(), view_mat, perspective_mat);
+                //     camera->draw();
+                //     cam_shader.end();
+                // }
+                // else
+                // {
+                //     glBegin(GL_TRIANGLES);
+                //     for (auto& i : camera_mesh.indexes)
+                //     {
+                //         auto v0 = camera_mesh.positions[i.x];
+                //         auto v1 = camera_mesh.positions[i.y];
+                //         auto v2 = camera_mesh.positions[i.z];
+                //         glVertex3fv(&v0.x);
+                //         glVertex3fv(&v1.x);
+                //         glVertex3fv(&v2.x);
+                //         glColor4f(0.036f, 0.044f, 0.051f, 0.3f);
+                //     }
+                //     glEnd();
+                // }
+
+                last_points.apply_filter(_cam_renderer);
 
                 glDisable(GL_BLEND);
                 glEnable(GL_DEPTH_TEST);

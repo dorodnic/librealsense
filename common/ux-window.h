@@ -11,10 +11,10 @@
 #include <atomic>
 #include <memory>
 
-#include <gl/texture-2d-shader.h>
-
 namespace rs2
 {
+    class visualizer_2d;
+
     class viewer_ui_traits
     {
     public:
@@ -56,8 +56,6 @@ namespace rs2
         void end_frame();
 
         void reset();
-
-        gl::context& get_processing_context() { return *_processing_context; }
 
         ImFont* get_large_font() const { return _font_18; }
         ImFont* get_font() const { return _font_14; }
@@ -109,7 +107,8 @@ namespace rs2
         bool                     _reload = false;
         bool                     _show_fps = false;
         bool                     _vsync = true;
-        bool                     _use_glsl = false;
+        bool                     _use_glsl_proc = false;
+        bool                     _use_glsl_render = false;
         bool                     _enable_msaa = false;
         int                      _msaa_samples = 0;
 
@@ -120,6 +119,5 @@ namespace rs2
         std::shared_ptr<visualizer_2d> _2d_vis;
 
         bool                     _is_ui_aligned = false;
-        std::shared_ptr<rs2::gl::context> _processing_context = nullptr;
     };
 }

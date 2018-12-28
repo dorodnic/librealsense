@@ -14,6 +14,7 @@
 #include <functional>
 #include <thread>
 #include <deque>
+#include <unordered_set>
 
 #define RS2_EXTENSION_VIDEO_FRAME_GL (rs2_extension)(RS2_EXTENSION_COUNT + RS2_GL_EXTENSION_VIDEO_FRAME)
 #define MAX_TEXTURES 2
@@ -30,18 +31,8 @@ namespace librealsense
         };
 
         class gpu_object;
-
-        class context_lane
-        {
-        public:
-            void register_gpu_object(std::weak_ptr<gpu_object> obj);
-            void unregister_gpu_object(gpu_object* obj);
-
-            std::weak_ptr<gpu_object> get_context();
-
-            void recreate(GLFWwindow* share_with, glfw_binding binding);
-
-        };
+        class gpu_processing_object;
+        class gpu_rendering_object;
 
         class context : public std::enable_shared_from_this<context>
         {
@@ -58,14 +49,171 @@ namespace librealsense
             std::mutex _lock;
         };
 
-        class gpu_object
+        struct lane
         {
-        public:
-            virtual void on_context_release() = 0;
-            virtual void on_context_recreate(context_lane& lane) = 0;
+            std::unordered_set<gpu_object*> objs;
+            std::mutex mutex;
+            std::atomic_bool active { false };
+
+            void register_gpu_object(gpu_object* obj)
+            {
+                std::lock_guard<std::mutex> lock(mutex);
+                objs.insert(obj);
+            }
+
+            void unregister_gpu_object(gpu_object* obj)
+            {
+                std::lock_guard<std::mutex> lock(mutex);
+                auto it = objs.find(obj);
+                objs.erase(it);
+            }
         };
 
-        class gpu_section
+        // This represents a persistent object that holds context and other GL stuff
+        // The context within it might change, but the lane will remain
+        // This is done to simplify GL objects lifetime management - 
+        // Once processing blocks are created and in use, and frames have been distributed
+        // to various queues and variables, it can be very hard to properly refresh 
+        // them if context changes (windows closes, resolution change or any other reason)
+
+        // Processing vs Rendering objects require slightly different handling
+
+        class rendering_lane
+        {
+        public:
+            void register_gpu_object(gpu_rendering_object* obj);
+
+            void unregister_gpu_object(gpu_rendering_object* obj);
+
+            void init(bool use_glsl);
+
+            void shutdown();
+
+            static rendering_lane& instance();
+
+            bool is_active() const { return _data.active; }
+        protected:
+            lane _data;
+        };
+
+        class processing_lane
+        {
+        public:
+            static processing_lane& instance();
+
+            void register_gpu_object(gpu_processing_object* obj);
+
+            void unregister_gpu_object(gpu_processing_object* obj);
+
+            void init(GLFWwindow* share_with, glfw_binding binding, bool use_glsl);
+
+            void shutdown();
+
+            bool is_active() const { return _data.active; }
+            std::shared_ptr<context> get_context() const { return _ctx; }
+        private:
+            lane _data;
+            std::shared_ptr<context> _ctx;
+        };
+
+        class gpu_object
+        {
+        private:
+            friend class processing_lane;
+            friend class rendering_lane;
+
+            void update_gpu_resources(bool use_glsl)
+            {
+                _use_glsl = use_glsl;
+                if (_needs_cleanup.fetch_xor(1))
+                    cleanup_gpu_resources();
+                else
+                    create_gpu_resources();
+            }
+        protected:
+            virtual void cleanup_gpu_resources() = 0;
+            virtual void create_gpu_resources() = 0;
+
+            bool glsl_enabled() const { return _use_glsl; }
+
+            bool need_cleanup() { _needs_cleanup = 1; }
+
+        private:
+            std::atomic_int _needs_cleanup { 0 };
+            bool _use_glsl = false;
+        };
+
+        class gpu_rendering_object : public gpu_object
+        {
+        public:
+            gpu_rendering_object()
+            {
+                rendering_lane::instance().register_gpu_object(this);
+            }
+            virtual ~gpu_rendering_object()
+            {
+                rendering_lane::instance().unregister_gpu_object(this);
+            }
+
+        protected:
+            void initialize() {
+                if (rendering_lane::instance().is_active())
+                    create_gpu_resources();
+            }
+
+            template<class T>
+            void perform_gl_action(T action)
+            {
+                if (rendering_lane::instance().is_active())
+                    action();
+            }
+        };
+
+        class gpu_processing_object : public gpu_object
+        {
+        public:
+            gpu_processing_object()
+            {
+                processing_lane::instance().register_gpu_object(this);
+            }
+            virtual ~gpu_processing_object()
+            {
+                processing_lane::instance().unregister_gpu_object(this);
+            }
+
+            void set_context(std::weak_ptr<context> ctx) { _ctx = ctx; }
+        protected:
+            void initialize() {
+                if (processing_lane::instance().is_active())
+                {
+                    _ctx = processing_lane::instance().get_context();
+                    perform_gl_action([this](){
+                        create_gpu_resources();
+                    }, []{});
+                    need_cleanup();
+                }
+            }
+
+            template<class T, class S>
+            void perform_gl_action(T action, S fallback)
+            {
+                auto ctx = _ctx.lock();
+                if (ctx)
+                {
+                    auto session = ctx->begin_session();
+                    if (processing_lane::instance().is_active())
+                        action();
+                    else
+                        fallback();
+                }
+                else fallback();
+            }
+
+        private:
+            std::weak_ptr<context> _ctx;
+        };
+
+        class gpu_section : public gpu_processing_object
         {
         public:
             gpu_section();
@@ -75,21 +223,27 @@ namespace librealsense
             void on_unpublish();
             void fetch_frame(void* to);
 
-            void catch_up();
-            void delay(std::function<void()> action);
-
             bool input_texture(int id, uint32_t* tex);
-            void output_texture(int id, uint32_t* tex, texture_type type, std::shared_ptr<gl::context> ctx);
+            void output_texture(int id, uint32_t* tex, texture_type type);
 
             void set_size(uint32_t width, uint32_t height);
+
+            void cleanup_gpu_resources() override;
+            void create_gpu_resources() override;
+
+            int get_frame_size() const;
+
+            bool on_gpu() const { return !backup.get(); }
+
+            operator bool();
 
         private:
             uint32_t textures[MAX_TEXTURES];
             texture_type types[MAX_TEXTURES];
             bool loaded[MAX_TEXTURES];
-            std::shared_ptr<gl::context> contexts[MAX_TEXTURES];
             uint32_t width, height;
-            std::deque<std::function<void()>> _delayed_actions;
+            bool backup_content = true;
+            std::unique_ptr<uint8_t[]> backup;
         };
 
         class gpu_addon_interface
@@ -131,20 +285,6 @@ namespace librealsense
             }
         private:
             mutable gpu_section _section;
-        };
-
-        class opengl_processing_block : public filter
-        {
-        public:
-            opengl_processing_block(std::shared_ptr<librealsense::gl::context> ctx)
-                : filter([this](frame f, frame_source& s) { func(f, s); })
-            {
-                register_simple_option(OPTION_COMPATIBILITY_MODE, option_range{ 0, 1, 0, 1 });
-            }
-
-            static const auto OPTION_COMPATIBILITY_MODE = rs2_option(RS2_OPTION_COUNT + 1);
-        private:
-            
         };
 
         class gpu_video_frame : public gpu_addon<video_frame> {};

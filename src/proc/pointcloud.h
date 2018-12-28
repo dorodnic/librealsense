@@ -12,9 +12,10 @@ namespace librealsense
     class EXTENSION_API pointcloud : public stream_filter_processing_block
     {
     public:
+        static std::shared_ptr<pointcloud> create();
+
         pointcloud();
-    protected:
-        virtual void preprocess() {}
+
         virtual const float3 * depth_to_points(
             rs2::points output,
             uint8_t* image, 
@@ -31,6 +32,9 @@ namespace librealsense
             float2* tex_ptr,
             float2* pixels_ptr);
         virtual rs2::points allocate_points(const rs2::frame_source& source, const rs2::frame& f);
+        virtual void preprocess() {}
+
+    protected:
 
         bool should_process(const rs2::frame& frame) override;
         rs2::frame process_frame(const rs2::frame_source& source, const rs2::frame& f) override;

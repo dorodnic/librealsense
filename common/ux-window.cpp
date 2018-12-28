@@ -15,7 +15,7 @@
 
 #include "ux-alignment.h"
 
-#include "gl/texture-2d-shader.h"
+#include <opengl3.h>
 
 #include <iostream>
 
@@ -133,7 +133,9 @@ namespace rs2
     {
         if (_win)
         {
-            _processing_context.reset();
+            if (_use_glsl_render) rs2::gl::shutdown_rendering();
+            if (_use_glsl_proc) rs2::gl::shutdown_processing();
+
             ImGui::GetIO().Fonts->ClearFonts();  // To be refactored into Viewer theme object
             ImGui_ImplGlfw_Shutdown();
             glfwDestroyWindow(_win);
@@ -159,7 +161,8 @@ namespace rs2
             glfwDestroyWindow(ctx);
         }
 
-        _use_glsl = config_file::instance().get(configurations::performance::glsl_for_rendering);
+        _use_glsl_render = config_file::instance().get(configurations::performance::glsl_for_rendering);
+        _use_glsl_proc = config_file::instance().get(configurations::performance::glsl_for_processing);
 
         _enable_msaa = config_file::instance().get(configurations::performance::enable_msaa);
         _msaa_samples = config_file::instance().get(configurations::performance::msaa_samples);
@@ -239,7 +242,7 @@ namespace rs2
 
         ImGui_ImplGlfw_Init(_win, true);
 
-        if (_use_glsl)
+        if (_use_glsl_render)
             _2d_vis = std::make_shared<visualizer_2d>(std::make_shared<splash_screen_shader>());
 
         // Load fonts to be used with the ImGui - TODO move to RAII
@@ -279,7 +282,8 @@ namespace rs2
             }
         });
 
-        _processing_context = std::make_shared<rs2::gl::context>(_win);
+        if (_use_glsl_render) rs2::gl::init_rendering();
+        if (_use_glsl_proc) rs2::gl::init_processing(_win, _use_glsl_proc);
 
         glfwShowWindow(_win);
         glfwFocusWindow(_win);
@@ -391,7 +395,7 @@ namespace rs2
             auto oy = 0.5f;
             auto power = std::sin(smoothstep(float(_splash_timer.elapsed_ms()), 150.f, 2200.f) * 3.14f) * 0.96f;
 
-            if (_use_glsl)
+            if (_use_glsl_render)
             {
                 auto shader = ((splash_screen_shader*)&_2d_vis->get_shader());
                 shader->begin();
@@ -498,7 +502,8 @@ namespace rs2
 
         end_frame();
 
-        _processing_context.reset();
+        if (_use_glsl_render) rs2::gl::shutdown_rendering();
+        if (_use_glsl_proc) rs2::gl::shutdown_processing();
 
         ImGui::GetIO().Fonts->ClearFonts();  // To be refactored into Viewer theme object
         ImGui_ImplGlfw_Shutdown();

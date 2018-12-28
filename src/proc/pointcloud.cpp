@@ -18,7 +18,7 @@
 #include "../cuda/cuda-pointcloud.cuh"
 #endif
 #ifdef __SSSE3__
-#include <tmmintrin.h> // For SSSE3 intrinsics
+#include "proc/sse/sse-pointcloud.h"
 #endif
 
 
@@ -310,5 +310,14 @@ namespace librealsense
             }
         }
         return rv;
+    }
+
+    std::shared_ptr<pointcloud> pointcloud::create()
+    {
+        #ifdef __SSSE3__
+            return std::make_shared<librealsense::pointcloud_sse>();
+        #else
+            return std::make_shared<librealsense::pointcloud>();
+        #endif
     }
 }
