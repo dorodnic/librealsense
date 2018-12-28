@@ -44,9 +44,9 @@ namespace librealsense
         private:
             void on_frame(frame f, frame_source& src);
 
-            rs2::obj_mesh camera_mesh;
+            std::vector<rs2::obj_mesh> camera_mesh;
             std::shared_ptr<camera_shader> _shader;
-            std::unique_ptr<rs2::vao> _camera_model;
+            std::vector<std::unique_ptr<rs2::vao>> _camera_model;
         };
 
         // class camera_renderer : public rs2::filter, public gpu_rendering_object

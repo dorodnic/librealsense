@@ -4243,7 +4243,8 @@ namespace rs2
                 glEnable(GL_BLEND);
                 glBlendFunc(GL_ONE, GL_ONE);
 
-                last_points.apply_filter(_cam_renderer);
+                auto source_frame = streams[selected_depth_source_uid].texture->get_last_frame();
+                source_frame.apply_filter(_cam_renderer);
 
                 glDisable(GL_BLEND);
                 glEnable(GL_DEPTH_TEST);

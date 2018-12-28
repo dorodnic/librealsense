@@ -1,9 +1,12 @@
 #include "camera-shader.h"
+#include "os.h"
 #include <glad/glad.h>
 
 using namespace rs2;
 
 #include <res/d435.h>
+#include <res/d415.h>
+#include <res/sr300.h>
 
 static const char* vertex_shader_text =
 "#version 110\n"
@@ -64,7 +67,7 @@ namespace librealsense
         void camera_renderer::cleanup_gpu_resources()
         {
             _shader.reset();
-            _camera_model.reset();
+            _camera_model.clear();
         }
 
         void camera_renderer::create_gpu_resources()
@@ -72,55 +75,95 @@ namespace librealsense
             if (glsl_enabled())
             {
                 _shader = std::make_shared<camera_shader>(); 
-                _camera_model = vao::create(camera_mesh);
+
+                for (auto&& mesh : camera_mesh)
+                {
+                    _camera_model.push_back(vao::create(mesh));
+                }
             }
         }
 
         camera_renderer::camera_renderer()
         {
-            uncompress_d435_obj(camera_mesh.positions, camera_mesh.normals, camera_mesh.indexes);
-
-            for (auto& xyz : camera_mesh.positions)
             {
-                xyz = xyz / 1000.f;
-                xyz.x *= -1;
-                xyz.y *= -1;
+                obj_mesh d415;
+                uncompress_d415_obj(d415.positions, d415.normals, d415.indexes);
+                camera_mesh.push_back(d415);
             }
+
+            {
+                obj_mesh d435;
+                uncompress_d435_obj(d435.positions, d435.normals, d435.indexes);
+                camera_mesh.push_back(d435);
+            }
+
+            {
+                obj_mesh sr300;
+                uncompress_sr300_obj(sr300.positions, sr300.normals, sr300.indexes);
+                camera_mesh.push_back(sr300);
+            }
+
+            for (auto&& mesh : camera_mesh)
+            {
+                for (auto& xyz : mesh.positions)
+                {
+                    xyz = xyz / 1000.f;
+                    xyz.x *= -1;
+                    xyz.y *= -1;
+                }
+            }
+
 
             initialize();
         }
 
         rs2::frame camera_renderer::process_frame(const rs2::frame_source& src, const rs2::frame& f)
         {
-            perform_gl_action([&]()
+            const auto& dev = ((frame_interface*)f.get())->get_sensor()->get_device();
+
+            int index = -1;
+
+            if (dev.supports_info(RS2_CAMERA_INFO_NAME))
             {
-                if (glsl_enabled())
+                auto dev_name = dev.get_info(RS2_CAMERA_INFO_NAME);
+                if (starts_with(dev_name, "Intel RealSense D415")) index = 0;
+                if (starts_with(dev_name, "Intel RealSense D435")) index = 1;
+                if (starts_with(dev_name, "Intel RealSense SR300")) index = 2;
+            };
+
+            if (index >= 0)
+            {
+                perform_gl_action([&]()
                 {
-                    _shader->begin();
-                    _shader->set_mvp(get_matrix(
-                        RS2_GL_MATRIX_TRANSFORMATION), 
-                        get_matrix(RS2_GL_MATRIX_CAMERA), 
-                        get_matrix(RS2_GL_MATRIX_PROJECTION)
-                    );
-                    _camera_model->draw();
-                    _shader->end();
-                }
-                else
-                {
-                    glBegin(GL_TRIANGLES);
-                    for (auto& i : camera_mesh.indexes)
+                    if (glsl_enabled())
                     {
-                        auto v0 = camera_mesh.positions[i.x];
-                        auto v1 = camera_mesh.positions[i.y];
-                        auto v2 = camera_mesh.positions[i.z];
-                        glVertex3fv(&v0.x);
-                        glVertex3fv(&v1.x);
-                        glVertex3fv(&v2.x);
-                        glColor4f(0.036f, 0.044f, 0.051f, 0.3f);
+                        _shader->begin();
+                        _shader->set_mvp(get_matrix(
+                            RS2_GL_MATRIX_TRANSFORMATION), 
+                            get_matrix(RS2_GL_MATRIX_CAMERA), 
+                            get_matrix(RS2_GL_MATRIX_PROJECTION)
+                        );
+                        _camera_model[index]->draw();
+                        _shader->end();
                     }
-                    glEnd();
-                }
-            }); 
+                    else
+                    {
+                        glBegin(GL_TRIANGLES);
+                        auto& mesh = camera_mesh[index];
+                        for (auto& i : mesh.indexes)
+                        {
+                            auto v0 = mesh.positions[i.x];
+                            auto v1 = mesh.positions[i.y];
+                            auto v2 = mesh.positions[i.z];
+                            glVertex3fv(&v0.x);
+                            glVertex3fv(&v1.x);
+                            glVertex3fv(&v2.x);
+                            glColor4f(0.036f, 0.044f, 0.051f, 0.3f);
+                        }
+                        glEnd();
+                    }
+                }); 
+            }
 
             return f;
         }
