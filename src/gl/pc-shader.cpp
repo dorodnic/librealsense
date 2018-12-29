@@ -152,14 +152,19 @@ namespace librealsense
             _uvs_texture.reset();
         }
 
+        pointcloud_renderer::~pointcloud_renderer()
+        {
+            perform_gl_action([&]()
+            {
+                cleanup_gpu_resources();
+            });
+        }
+
         void pointcloud_renderer::create_gpu_resources()
         {
             if (glsl_enabled())
             {
                 _shader = std::make_shared<pointcloud_shader>();
-
-                obj_mesh mesh = make_grid(_height, _width, 1.f / _height, 1.f / _height);
-                _model = vao::create(mesh);
 
                 _vertex_texture = std::make_shared<rs2::texture_buffer>();
                 _uvs_texture = std::make_shared<rs2::texture_buffer>();

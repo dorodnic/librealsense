@@ -198,6 +198,14 @@ void pointcloud_gl::create_gpu_resources()
     _enabled = glsl_enabled() ? 1 : 0;
 }
 
+pointcloud_gl::~pointcloud_gl()
+{
+    perform_gl_action([&]()
+    {
+        cleanup_gpu_resources();
+    }, []{});
+}
+
 pointcloud_gl::pointcloud_gl()
     : pointcloud()
 {

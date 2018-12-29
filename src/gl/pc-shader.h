@@ -50,6 +50,7 @@ namespace librealsense
         {
         public:
             pointcloud_renderer();
+            ~pointcloud_renderer() override;
 
             static const auto OPTION_FILLED = rs2_option(RS2_OPTION_COUNT + 1);
 

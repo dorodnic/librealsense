@@ -14,6 +14,7 @@ namespace librealsense
         {
         public:
             pointcloud_gl();
+            ~pointcloud_gl() override;
 
         private:
             void cleanup_gpu_resources() override;

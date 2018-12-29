@@ -112,6 +112,14 @@ yuy2rgb::yuy2rgb()
     initialize();
 }
 
+yuy2rgb::~yuy2rgb()
+{
+    perform_gl_action([&]()
+    {
+        cleanup_gpu_resources();
+    }, []{});
+}
+
 rs2::frame yuy2rgb::process_frame(const rs2::frame_source& src, const rs2::frame& f)
 {
     if (f.get_profile().get() != _input_profile.get())

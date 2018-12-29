@@ -83,6 +83,14 @@ namespace librealsense
             }
         }
 
+        camera_renderer::~camera_renderer()
+        {
+            perform_gl_action([&]()
+            {
+                cleanup_gpu_resources();
+            });
+        }
+
         camera_renderer::camera_renderer()
         {
             {

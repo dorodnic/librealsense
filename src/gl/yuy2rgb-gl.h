@@ -28,6 +28,7 @@ namespace librealsense
         {
         public:
             yuy2rgb();
+            ~yuy2rgb() override;
 
             void cleanup_gpu_resources() override;
             void create_gpu_resources() override;

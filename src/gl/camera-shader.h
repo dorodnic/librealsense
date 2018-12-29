@@ -36,6 +36,7 @@ namespace librealsense
         {
         public:
             camera_renderer();
+            ~camera_renderer() override;
 
             void cleanup_gpu_resources() override;
             void create_gpu_resources() override;
