@@ -46,6 +46,8 @@ static const char* project_fragment_text =
 "uniform float width2;\n"
 "uniform float height2;\n"
 "\n"
+"uniform float needs_projection;\n"
+"\n"
 "void main(void) {\n"
 "    float px = textCoords.x * width1;\n"
 "    float py = (1.0 - textCoords.y) * height1;\n"
@@ -66,6 +68,7 @@ static const char* project_fragment_text =
 "    vec4 xyz = vec4(x * depth, y * depth, depth, 1.0);\n"
 "    output_xyz = xyz;\n"
 ""
+"    if (needs_projection > 0) {"
 "    vec4 trans = extrinsics * xyz;\n"
 "    x = trans.x / trans.z;\n"
 "    y = trans.y / trans.z;\n"
@@ -93,6 +96,9 @@ static const char* project_fragment_text =
 "    float u = (x * focal2.x + principal2.x) / width2;\n"
 "    float v = (y * focal2.y + principal2.y) / height2;\n"
 "    output_uv = vec4(u, v, 0.0, 1.0);\n"
+"    } else {\n"
+"       output_uv = vec4(textCoords.x, 1.0 - textCoords.y, 0.0, 1.0);\n"
+"    }\n"
 "}";
 
 class project_shader : public texture_2d_shader
@@ -119,6 +125,13 @@ public:
         _width_location[1] = _shader->get_uniform_location("width2");
         _height_location[1] = _shader->get_uniform_location("height2");
         _extrinsics_location = _shader->get_uniform_location("extrinsics");
+
+        _requires_projection_location = _shader->get_uniform_location("needs_projection");
+    }
+
+    void requires_projection(bool val)
+    {
+        _shader->load_uniform(_requires_projection_location, val ? 1.f : 0.f);
     }
 
     void set_size(int id, int w, int h)
@@ -135,7 +148,7 @@ public:
         _shader->load_uniform(_focal_location[idx], focal);
         _shader->load_uniform(_principal_location[idx], principal);
         _shader->load_uniform(_is_bc_location[idx], is_bc);
-        glUniform1fv(_shader->get_id(), 5, intr.coeffs);
+        glUniform1fv(_coeffs_location[idx], 5, intr.coeffs);
     }
 
     void set_depth_scale(float depth_scale)
@@ -167,6 +180,8 @@ private:
     uint32_t _height_location[2];
 
     uint32_t _extrinsics_location;
+
+    uint32_t _requires_projection_location;
 };
 
 void pointcloud_gl::cleanup_gpu_resources()
@@ -176,7 +191,10 @@ void pointcloud_gl::cleanup_gpu_resources()
 }
 void pointcloud_gl::create_gpu_resources()
 {
-    _projection_renderer = std::make_shared<visualizer_2d>(std::make_shared<project_shader>());
+    if (glsl_enabled())
+    {
+        _projection_renderer = std::make_shared<visualizer_2d>(std::make_shared<project_shader>());
+    }
     _enabled = glsl_enabled() ? 1 : 0;
 }
 
@@ -268,14 +286,19 @@ void pointcloud_gl::get_texture_map(
 
         auto& shader = (project_shader&)viz->get_shader();
         shader.begin();
+
+        shader.requires_projection(!(_depth_intr == other_intrinsics && 
+            extr == identity_matrix()));
+
         shader.set_depth_scale(_depth_scale);
         shader.set_intrinsics(0, _depth_intr);
         shader.set_intrinsics(1, other_intrinsics);
         shader.set_extrinsics(extr);
         shader.set_size(0, width, height);
         shader.set_size(1, other_intrinsics.width, other_intrinsics.height);
-        shader.end();
+        
         viz->draw_texture(depth_texture);
+        shader.end();
 
         fbo.unbind();
 

@@ -472,6 +472,17 @@ namespace librealsense
                 r.rotation[j * 3 + i] = (i == j) ? 1.f : 0.f;
         return r;
     }
+    inline bool operator==(const rs2_extrinsics& a, const rs2_extrinsics& b)
+    {
+        for (int i = 0; i < 3; i++) 
+            if (a.translation[i] != b.translation[i]) 
+                return false;
+        for (int j = 0; j < 3; j++)
+            for (int i = 0; i < 3; i++)
+                if (a.rotation[j * 3 + i] != b.rotation[j * 3 + i]) 
+                    return false;
+        return true;
+    }
     inline rs2_extrinsics inverse(const rs2_extrinsics& a) { auto p = to_pose(a); return from_pose(inverse(p)); }
 
     ///////////////////
