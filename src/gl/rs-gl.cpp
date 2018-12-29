@@ -115,7 +115,11 @@ rs2_processing_block* rs2_gl_create_pointcloud(int api_version, rs2_error** erro
 {
     verify_version_compatibility(api_version);
     auto block = std::make_shared<librealsense::gl::pointcloud_gl>();
-    return new rs2_processing_block { block };
+    auto backup = pointcloud::create();
+    auto dual = std::make_shared<librealsense::gl::dual_processing_block>();
+    dual->add(block);
+    dual->add(backup);
+    return new rs2_processing_block { dual };
 }
 NOARGS_HANDLE_EXCEPTIONS_AND_RETURN(nullptr)
 

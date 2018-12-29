@@ -4538,7 +4538,10 @@ namespace rs2
                 if (tab == 1)
                 {
                     int font_samples = temp_cfg.get(configurations::performance::font_oversample);
-                    ImGui::Text("Font Samples: "); ImGui::SameLine();
+                    ImGui::Text("Font Samples: "); 
+                    if (ImGui::IsItemHovered())
+                        ImGui::SetTooltip("Increased font samples produce nicer text, but require more GPU memory, sometimes resulting in boxes instead of font characters");
+                    ImGui::SameLine();
                     ImGui::PushItemWidth(80);
                     if (ImGui::SliderInt("##font_samples", &font_samples, 1, 8))
                     {
@@ -4554,12 +4557,23 @@ namespace rs2
                         refresh_required = true;
                         temp_cfg.set(configurations::performance::glsl_for_rendering, gpu_rendering);
                     }
+                    if (ImGui::IsItemHovered())
+                        ImGui::SetTooltip("Using OpenGL 3 shaders is a widely supported way to boost rendering speeds on modern GPUs.");
 
                     bool gpu_processing = temp_cfg.get(configurations::performance::glsl_for_processing);
                     if (ImGui::Checkbox("Use GLSL for Processing", &gpu_processing))
                     {
                         refresh_required = true;
                         temp_cfg.set(configurations::performance::glsl_for_processing, gpu_processing);
+                    }
+                    if (ImGui::IsItemHovered())
+                        ImGui::SetTooltip("Using OpenGL 3 shaders for depth data processing can reduce CPU utilisation.");
+
+                    if (gpu_processing && !gpu_rendering)
+                    {
+                        ImGui::PushStyleColor(ImGuiCol_Text, light_grey);
+                        ImGui::Text(u8"\uf071 Using GLSL for processing but not for rendering can reduce CPU utilisation, but is likely to hurt overall performance!");
+                        ImGui::PopStyleColor();
                     }
 #endif
 
@@ -4569,6 +4583,8 @@ namespace rs2
                         reload_required = true;
                         temp_cfg.set(configurations::performance::enable_msaa, msaa);
                     }
+                    if (ImGui::IsItemHovered())
+                        ImGui::SetTooltip("MSAA will improve the rendering quality of edges at expense of greater GPU memory utilisation.");
 
                     if (msaa)
                     {
@@ -4596,9 +4612,11 @@ namespace rs2
                         reload_required = true;
                         temp_cfg.set(configurations::performance::vsync, vsync);
                     }
+                    if (ImGui::IsItemHovered())
+                        ImGui::SetTooltip("Vertical sync will try to synchronize application framerate to the monitor refresh-rate (usually limiting the framerate to 60)");
 
                     bool fullscreen = temp_cfg.get(configurations::window::is_fullscreen);
-                    if (ImGui::Checkbox("Fullscreen", &fullscreen))
+                    if (ImGui::Checkbox("Fullscreen (F8)", &fullscreen))
                     {
                         reload_required = true;
                         temp_cfg.set(configurations::window::is_fullscreen, fullscreen);
@@ -4706,7 +4724,7 @@ namespace rs2
                 if (reload_required)
                 {
                     ImGui::PushStyleColor(ImGuiCol_Text, light_grey);
-                    ImGui::Text("* The application will be restarted in order for new settings to take effect");
+                    ImGui::Text(u8"\uf071 The application will be restarted in order for new settings to take effect");
                     ImGui::PopStyleColor();
                 }
 

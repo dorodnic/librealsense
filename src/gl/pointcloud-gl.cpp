@@ -172,23 +172,24 @@ private:
 void pointcloud_gl::cleanup_gpu_resources()
 {
     _projection_renderer.reset();
+    _enabled = 0;
 }
 void pointcloud_gl::create_gpu_resources()
 {
     _projection_renderer = std::make_shared<visualizer_2d>(std::make_shared<project_shader>());
+    _enabled = glsl_enabled() ? 1 : 0;
 }
 
 pointcloud_gl::pointcloud_gl()
     : pointcloud()
 {
     _source.add_extension<gl::gpu_points_frame>(RS2_EXTENSION_VIDEO_FRAME_GL);
-    _backup = pointcloud::create();
-    initialize();
-}
 
-void pointcloud_gl::preprocess()
-{
-    //_backup->preprocess();
+    auto opt = std::make_shared<librealsense::ptr_option<int>>(
+        0, 1, 0, 1, &_enabled, "GLSL enabled"); 
+    register_option(RS2_OPTION_COUNT, opt);
+
+    initialize();
 }
 
 const librealsense::float3* pointcloud_gl::depth_to_points(
@@ -198,17 +199,12 @@ const librealsense::float3* pointcloud_gl::depth_to_points(
         const uint16_t * depth_image, 
         float depth_scale)
 {
-    if (!glsl_enabled())
-    {
-        return _backup->depth_to_points(output, points, depth_intrinsics, depth_image, depth_scale);
-    }
-
     perform_gl_action([&]{
         _depth_data = depth_image;
         _depth_scale = depth_scale;
         _depth_intr = depth_intrinsics;
     }, [&]{
-        _backup->depth_to_points(output, points, depth_intrinsics, depth_image, depth_scale);
+        _enabled = false;
     });
     return (librealsense::float3*)points;
 }
@@ -223,12 +219,6 @@ void pointcloud_gl::get_texture_map(
     librealsense::float2* tex_ptr,
     librealsense::float2* pixels_ptr)
 {
-    if (!glsl_enabled())
-    {
-        _backup->get_texture_map(output, points, width, height, other_intrinsics, extr, tex_ptr, pixels_ptr);
-        return;
-    }
-
     perform_gl_action([&]{
         auto start = std::chrono::high_resolution_clock::now();
 
@@ -296,7 +286,7 @@ void pointcloud_gl::get_texture_map(
         auto ms = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
     }, [&]{
-        _backup->get_texture_map(output, points, width, height, other_intrinsics, extr, tex_ptr, pixels_ptr);
+        _enabled = false;
     });
 }
 
@@ -304,11 +294,6 @@ rs2::points pointcloud_gl::allocate_points(
     const rs2::frame_source& source, 
     const rs2::frame& f)
 {
-    if (!glsl_enabled())
-    {
-        return _backup->allocate_points(source, f);
-    }
-
     auto prof = std::dynamic_pointer_cast<librealsense::stream_profile_interface>(
         _output_stream.get()->profile->shared_from_this());
     auto frame_ref = _source_wrapper.allocate_points(prof, (frame_interface*)f.get(),

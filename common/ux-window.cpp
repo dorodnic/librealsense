@@ -345,14 +345,6 @@ namespace rs2
             temp_title << ", FPS: " << fps;
         }
 
-        // If we detect really unacceptably low Viewer FPS...
-        if (fps > 0.f && fps < 15.f && _enable_msaa && !debug)
-        {
-            // Not much we can do at the moment, but for the next run, 
-            // its probably a good idea to disable anti-aliasing
-            config_file::instance().set(configurations::performance::enable_msaa, false);
-        }
-
         glfwSetWindowTitle(_win, temp_title.str().c_str());
 
         // Yield the CPU

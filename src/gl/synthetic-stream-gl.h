@@ -17,6 +17,7 @@
 #include <deque>
 #include <unordered_set>
 
+#include "proc/synthetic-stream.h"
 
 #define RS2_EXTENSION_VIDEO_FRAME_GL (rs2_extension)(RS2_EXTENSION_COUNT + RS2_GL_EXTENSION_VIDEO_FRAME)
 #define MAX_TEXTURES 2
@@ -319,5 +320,97 @@ namespace librealsense
 
         class gpu_video_frame : public gpu_addon<video_frame> {};
         class gpu_points_frame : public gpu_addon<points> {};
+
+        // Dual processing block is a helper class (TODO: move to core LRS)
+        // that represents several blocks doing the same exact thing
+        // behaving absolutely equally from API point of view,
+        // but only one of them actually getting the calls from frames
+        // This lets us easily create "backup" behaviour where GL block
+        // can fall back on the best CPU implementation if GLSL is not available
+        class dual_processing_block : public processing_block
+        {
+        public:
+            class bypass_option : public option
+            {
+            public:
+                bypass_option(dual_processing_block* parent, rs2_option opt) 
+                    : _parent(parent), _opt(opt) {}
+
+                void set(float value) override { 
+                    // While query and other read operations
+                    // will only read from the currently selected
+                    // block, setting an option will propogate
+                    // to all blocks in the group
+                    for(int i = 0; i < _parent->_blocks.size(); i++)
+                    {
+                        if (_parent->_blocks[i]->supports_option(_opt))
+                        {
+                            _parent->_blocks[i]->get_option(_opt).set(value);
+                        }
+                    }
+                }
+                float query() const override { return get().query(); }
+                option_range get_range() const override { return get().get_range(); }
+                bool is_enabled() const override { return get().is_enabled(); }
+                bool is_read_only() const override { return get().is_read_only(); }
+                const char* get_description() const override { return get().get_description(); }
+                const char* get_value_description(float v) const override { return get().get_value_description(v); }
+                void enable_recording(std::function<void(const option &)> record_action) override {}
+
+                option& get() { return _parent->get().get_option(_opt); }
+                const option& get() const { return _parent->get().get_option(_opt); }
+            private:
+                dual_processing_block* _parent;
+                rs2_option _opt;
+            };
+
+            dual_processing_block(){}
+
+            processing_block& get() 
+            { 
+                for(int i = 0; i < _blocks.size(); i++)
+                {
+                    index = i;
+                    if (_blocks[i]->supports_option(RS2_OPTION_COUNT))
+                    {
+                        auto val = _blocks[i]->get_option(RS2_OPTION_COUNT).query();
+                        if (val > 0.f) break;
+                    }
+                }
+                return *_blocks[index]; 
+            }
+
+            void add(std::shared_ptr<processing_block> block)
+            {
+                _blocks.push_back(block);
+
+                for (int i = 0; i < RS2_OPTION_COUNT; i++)
+                {
+                    auto opt = (rs2_option)i;
+                    if (block->supports_option(opt))
+                        register_option(opt, std::make_shared<bypass_option>(this, opt));
+                }
+            }
+
+            void set_processing_callback(frame_processor_callback_ptr callback) override
+            {
+                for (auto&& pb : _blocks) pb->set_processing_callback(callback);
+            }
+            void set_output_callback(frame_callback_ptr callback) override
+            {
+                for (auto&& pb : _blocks) pb->set_output_callback(callback);
+            }
+            void invoke(frame_holder frames) override
+            {
+                get().invoke(std::move(frames));
+            }
+            synthetic_source_interface& get_source() override
+            {
+                return get().get_source();
+            }
+        protected:
+            std::vector<std::shared_ptr<processing_block>> _blocks;
+            int index = 0;
+        };
    }
 }

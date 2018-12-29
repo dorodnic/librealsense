@@ -36,15 +36,13 @@ namespace librealsense
             rs2::points allocate_points(
                 const rs2::frame_source& source, 
                 const rs2::frame& f) override;
-            void preprocess() override;
 
             std::shared_ptr<rs2::visualizer_2d> _projection_renderer;
 
             const uint16_t* _depth_data;
             float _depth_scale;
             rs2_intrinsics _depth_intr;
-
-            std::shared_ptr<pointcloud> _backup;
+            int _enabled = 0;
         };
     }
 }
