@@ -12,18 +12,16 @@
 #include <regex>
 #include <cmath>
 
+#include <opengl3.h>
+
 #include <librealsense2/rs_advanced_mode.hpp>
 #include <librealsense2/rsutil.h>
 
 #include "model-views.h"
 #include <imgui_internal.h>
 
-#include <opengl3.h>
-
 #define ARCBALL_CAMERA_IMPLEMENTATION
 #include <arcball_camera.h>
-
-#include "rendering.h"
 
 #include "os.h"
 
@@ -1796,6 +1794,14 @@ namespace rs2
                 i++;
             }
         }
+
+        for (int i = 0; i < tex_sources_str.size(); i++)
+        {
+            auto it = std::find(_prev_tex_sources.begin(), _prev_tex_sources.end(), tex_sources_str[i]);
+            if (it == _prev_tex_sources.end())
+                selected_tex_source = i;
+        }
+        _prev_tex_sources = tex_sources_str;
 
         if (tex_sources_str.size() && depth_sources_str.size())
         {
@@ -3946,16 +3952,13 @@ namespace rs2
 
     void viewer_model::render_3d_view(const rect& viewer_rect, texture_buffer* texture, rs2::points points)
     {
-        //if(!paused)
+        if(points)
         {
-            if(points)
-            {
-                last_points = points;
-            }
-            if(texture)
-            {
-                last_texture = texture;
-            }
+            last_points = points;
+        }
+        if(texture)
+        {
+            last_texture = texture;
         }
 
         static std::unique_ptr<texture_buffer> uvs = nullptr;
@@ -4124,135 +4127,140 @@ namespace rs2
 
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, texture_border_mode);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, texture_border_mode);
+
+            _pc_renderer.set_matrix(RS2_GL_MATRIX_CAMERA,     view_mat);
+            _pc_renderer.set_matrix(RS2_GL_MATRIX_PROJECTION, perspective_mat);
+            _pc_renderer.set_option(gl::pointcloud_renderer::OPTION_FILLED, render_quads ? 1.f : 0.f);
+
+            last_points.apply_filter(_pc_renderer);
             
-            if (!render_quads)
-            {
-                auto vertices = last_points.get_vertices();
-                auto tex_coords = last_points.get_texture_coordinates();
+            // if (!render_quads)
+            // {
+            //     auto vertices = last_points.get_vertices();
+            //     auto tex_coords = last_points.get_texture_coordinates();
 
-                glBegin(GL_POINTS);
-                for (int i = 0; i < last_points.size(); i++)
-                {
-                    if (vertices[i].z)
-                    {
-                        glVertex3fv(vertices[i]);
-                        glTexCoord2fv(tex_coords[i + 1]);
-                    }
-                }
-                glEnd();
-            }
-            else
-            {
-				auto width = vf_profile.width(), height = vf_profile.height();
+            //     glBegin(GL_POINTS);
+            //     for (int i = 0; i < last_points.size(); i++)
+            //     {
+            //         if (vertices[i].z)
+            //         {
+            //             glVertex3fv(vertices[i]);
+            //             glTexCoord2fv(tex_coords[i + 1]);
+            //         }
+            //     }
+            //     glEnd();
+            // }
+            // else
+            // {
+			// 	auto width = vf_profile.width(), height = vf_profile.height();
 				
-				//static int last_w = 0;
-				//static int last_h = 0;
+			// 	//static int last_w = 0;
+			// 	//static int last_h = 0;
 				
-				//static std::unique_ptr<vao> model;
-                //static std::unique_ptr<vao> camera;
+			// 	//static std::unique_ptr<vao> model;
+            //     //static std::unique_ptr<vao> camera;
 
-                //static obj_mesh camera_mesh;
+            //     //static obj_mesh camera_mesh;
                 
-				// if (width != last_w || height != last_h)
-				// {
-                //     std::string dev_name = "";
-                //     auto dev = streams[selected_depth_source_uid].dev->dev;
-                //     if (dev.supports(RS2_CAMERA_INFO_NAME)) dev_name = dev.get_info(RS2_CAMERA_INFO_NAME);
+			// 	// if (width != last_w || height != last_h)
+			// 	// {
+            //     //     std::string dev_name = "";
+            //     //     auto dev = streams[selected_depth_source_uid].dev->dev;
+            //     //     if (dev.supports(RS2_CAMERA_INFO_NAME)) dev_name = dev.get_info(RS2_CAMERA_INFO_NAME);
 
-                //     // if (starts_with(dev_name, "Intel RealSense D435"))
-                //     // {
-                //     //     uncompress_d435_obj(camera_mesh.positions, camera_mesh.normals, camera_mesh.indexes);
-                //     // }
-                //     // if (starts_with(dev_name, "Intel RealSense D415"))
-                //     // {
-                //     //     uncompress_d415_obj(camera_mesh.positions, camera_mesh.normals, camera_mesh.indexes);
-                //     // }
-                //     // if (starts_with(dev_name, "Intel RealSense SR300"))
-                //     // {
-                //     //     uncompress_sr300_obj(camera_mesh.positions, camera_mesh.normals, camera_mesh.indexes);
-                //     // }
+            //     //     // if (starts_with(dev_name, "Intel RealSense D435"))
+            //     //     // {
+            //     //     //     uncompress_d435_obj(camera_mesh.positions, camera_mesh.normals, camera_mesh.indexes);
+            //     //     // }
+            //     //     // if (starts_with(dev_name, "Intel RealSense D415"))
+            //     //     // {
+            //     //     //     uncompress_d415_obj(camera_mesh.positions, camera_mesh.normals, camera_mesh.indexes);
+            //     //     // }
+            //     //     // if (starts_with(dev_name, "Intel RealSense SR300"))
+            //     //     // {
+            //     //     //     uncompress_sr300_obj(camera_mesh.positions, camera_mesh.normals, camera_mesh.indexes);
+            //     //     // }
 
-				// 	obj_mesh mesh = make_grid(height, width, 1.f / height, 1.f / height);
-                //     for (auto& xyz : camera_mesh.positions)
-                //     {
-                //         xyz = xyz / 1000.f;
-                //         xyz.x *= -1;
-                //     }
+			// 	// 	obj_mesh mesh = make_grid(height, width, 1.f / height, 1.f / height);
+            //     //     for (auto& xyz : camera_mesh.positions)
+            //     //     {
+            //     //         xyz = xyz / 1000.f;
+            //     //         xyz.x *= -1;
+            //     //     }
 
-                //     model.reset(); camera.reset();
-                //     positions.reset(); uvs.reset();
-				// 	model = vao::create(mesh);
-                //     camera = vao::create(camera_mesh);
-				// 	last_w = width; last_h = height;
-				// 	positions = std::unique_ptr<texture_buffer>(new texture_buffer());
-                //     uvs = std::unique_ptr<texture_buffer>(new texture_buffer());
-				// }
+            //     //     model.reset(); camera.reset();
+            //     //     positions.reset(); uvs.reset();
+			// 	// 	model = vao::create(mesh);
+            //     //     camera = vao::create(camera_mesh);
+			// 	// 	last_w = width; last_h = height;
+			// 	// 	positions = std::unique_ptr<texture_buffer>(new texture_buffer());
+            //     //     uvs = std::unique_ptr<texture_buffer>(new texture_buffer());
+			// 	// }
 
-                // pc_shader.begin();
-                // pc_shader.set_mvp(identity_matrix(), view_mat, perspective_mat);
-                // pc_shader.set_image_size(width, height);
+            //     // pc_shader.begin();
+            //     // pc_shader.set_mvp(identity_matrix(), view_mat, perspective_mat);
+            //     // pc_shader.set_image_size(width, height);
 
-                // glActiveTexture(GL_TEXTURE0 + pc_shader.texture_slot());
-                // tex = last_texture->get_gl_handle();
-                // glBindTexture(GL_TEXTURE_2D, tex);
+            //     // glActiveTexture(GL_TEXTURE0 + pc_shader.texture_slot());
+            //     // tex = last_texture->get_gl_handle();
+            //     // glBindTexture(GL_TEXTURE_2D, tex);
 
-                // glActiveTexture(GL_TEXTURE0 + pc_shader.geometry_slot());
-                // auto pos_tex = positions->get_gl_handle();
-                // glBindTexture(GL_TEXTURE_2D, pos_tex);
+            //     // glActiveTexture(GL_TEXTURE0 + pc_shader.geometry_slot());
+            //     // auto pos_tex = positions->get_gl_handle();
+            //     // glBindTexture(GL_TEXTURE_2D, pos_tex);
 
-                // glActiveTexture(GL_TEXTURE0 + pc_shader.uvs_slot());
-                // glBindTexture(GL_TEXTURE_2D, uvs->get_gl_handle());
-				// model->draw();
-                // glActiveTexture(GL_TEXTURE0 + pc_shader.texture_slot());
-                // glBindTexture(GL_TEXTURE_2D, 0);
-                // pc_shader.end();
+            //     // glActiveTexture(GL_TEXTURE0 + pc_shader.uvs_slot());
+            //     // glBindTexture(GL_TEXTURE_2D, uvs->get_gl_handle());
+			// 	// model->draw();
+            //     // glActiveTexture(GL_TEXTURE0 + pc_shader.texture_slot());
+            //     // glBindTexture(GL_TEXTURE_2D, 0);
+            //     // pc_shader.end();
 
                 
 
 
 
-                // if (config_file::instance().get(configurations::performance::glsl_for_rendering))
-                // {
-                //     cam_shader.begin();
-                //     cam_shader.set_mvp(identity_matrix(), view_mat, perspective_mat);
-                //     camera->draw();
-                //     cam_shader.end();
-                // }
-                // else
-                // {
-                //     glBegin(GL_TRIANGLES);
-                //     for (auto& i : camera_mesh.indexes)
-                //     {
-                //         auto v0 = camera_mesh.positions[i.x];
-                //         auto v1 = camera_mesh.positions[i.y];
-                //         auto v2 = camera_mesh.positions[i.z];
-                //         glVertex3fv(&v0.x);
-                //         glVertex3fv(&v1.x);
-                //         glVertex3fv(&v2.x);
-                //         glColor4f(0.036f, 0.044f, 0.051f, 0.3f);
-                //     }
-                //     glEnd();
-                // }
+            //     // if (config_file::instance().get(configurations::performance::glsl_for_rendering))
+            //     // {
+            //     //     cam_shader.begin();
+            //     //     cam_shader.set_mvp(identity_matrix(), view_mat, perspective_mat);
+            //     //     camera->draw();
+            //     //     cam_shader.end();
+            //     // }
+            //     // else
+            //     // {
+            //     //     glBegin(GL_TRIANGLES);
+            //     //     for (auto& i : camera_mesh.indexes)
+            //     //     {
+            //     //         auto v0 = camera_mesh.positions[i.x];
+            //     //         auto v1 = camera_mesh.positions[i.y];
+            //     //         auto v2 = camera_mesh.positions[i.z];
+            //     //         glVertex3fv(&v0.x);
+            //     //         glVertex3fv(&v1.x);
+            //     //         glVertex3fv(&v2.x);
+            //     //         glColor4f(0.036f, 0.044f, 0.051f, 0.3f);
+            //     //     }
+            //     //     glEnd();
+            //     // }
 
-                _cam_renderer.set_matrix(RS2_GL_MATRIX_CAMERA,     view_mat);
-                _cam_renderer.set_matrix(RS2_GL_MATRIX_PROJECTION, perspective_mat);
+            //     //positions->show(rect{ 0.f, 0.f, 1.f, 1.f }, 1.f);
+            //     //uvs->show(rect{ 1.f, 0.f, 1.f, 1.f }, 1.f);
+            // }
 
-                glDisable(GL_TEXTURE_2D);
+            glDisable(GL_TEXTURE_2D);
 
-                glDisable(GL_DEPTH_TEST);
-                glEnable(GL_BLEND);
-                glBlendFunc(GL_ONE, GL_ONE);
+            glDisable(GL_DEPTH_TEST);
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_ONE, GL_ONE);
 
-                auto source_frame = streams[selected_depth_source_uid].texture->get_last_frame();
-                source_frame.apply_filter(_cam_renderer);
+            _cam_renderer.set_matrix(RS2_GL_MATRIX_CAMERA,     view_mat);
+            _cam_renderer.set_matrix(RS2_GL_MATRIX_PROJECTION, perspective_mat);
 
-                glDisable(GL_BLEND);
-                glEnable(GL_DEPTH_TEST);
+            auto source_frame = streams[selected_depth_source_uid].texture->get_last_frame();
+            source_frame.apply_filter(_cam_renderer);
 
-
-                //positions->show(rect{ 0.f, 0.f, 1.f, 1.f }, 1.f);
-                //uvs->show(rect{ 1.f, 0.f, 1.f, 1.f }, 1.f);
-            }
+            glDisable(GL_BLEND);
+            glEnable(GL_DEPTH_TEST);
         }
 
         glDisable(GL_DEPTH_TEST);
@@ -4402,6 +4410,8 @@ namespace rs2
 
         static config_file temp_cfg;
         static bool reload_required = false;
+        static bool refresh_required = false;
+
         static int tab = 0;
 
         if (open_settings_popup) 
@@ -4409,6 +4419,7 @@ namespace rs2
             temp_cfg = config_file::instance();
             ImGui::OpenPopup(settings);   
             reload_required = false;    
+            refresh_required = false;
             tab = config_file::instance().get_or_default(configurations::viewer::settings_tab, 0);             
         }
 
@@ -4540,14 +4551,14 @@ namespace rs2
                     bool gpu_rendering = temp_cfg.get(configurations::performance::glsl_for_rendering);
                     if (ImGui::Checkbox("Use GLSL for Rendering", &gpu_rendering))
                     {
-                        reload_required = true;
+                        refresh_required = true;
                         temp_cfg.set(configurations::performance::glsl_for_rendering, gpu_rendering);
                     }
 
                     bool gpu_processing = temp_cfg.get(configurations::performance::glsl_for_processing);
                     if (ImGui::Checkbox("Use GLSL for Processing", &gpu_processing))
                     {
-                        reload_required = true;
+                        refresh_required = true;
                         temp_cfg.set(configurations::performance::glsl_for_processing, gpu_processing);
                     }
 #endif
@@ -4698,14 +4709,19 @@ namespace rs2
                     ImGui::Text("* The application will be restarted in order for new settings to take effect");
                     ImGui::PopStyleColor();
                 }
+
+                auto apply = [&](){
+                    config_file::instance() = temp_cfg;
+                    if (reload_required) window.reload();
+                    else if (refresh_required) window.refresh();
+                    update_configuration();
+                };
         
                 ImGui::SetCursorScreenPos({ (float)(x0 + w / 2 - 190), (float)(y0 + h - 30) });
                 if (ImGui::Button("OK", ImVec2(120, 0)))
                 {
-                    config_file::instance() = temp_cfg;
                     ImGui::CloseCurrentPopup();
-                    if (reload_required) window.reload();
-                    update_configuration();
+                    apply();
                 }
                 if (ImGui::IsItemHovered())
                 {
@@ -4718,9 +4734,7 @@ namespace rs2
                 ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, configs_same ? light_grey : light_blue);
                 if (ImGui::Button("Apply", ImVec2(120, 0)))
                 {
-                    config_file::instance() = temp_cfg;
-                    if (reload_required) window.reload();
-                    update_configuration();
+                    apply();
                 }
                 ImGui::PopStyleColor(2);
                 if (ImGui::IsItemHovered())

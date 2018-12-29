@@ -88,6 +88,7 @@ namespace rs2
         void upload(int attribute, const float* xyz, int size, int count, bool dynamic = false);
         void upload(const int3* indx, int count);
 
+        void draw_points();
         void draw_triangles();
         void draw_indexed_triangles();
 
@@ -121,6 +122,7 @@ namespace rs2
         void bind();
         void unbind();
         void draw();
+        void draw_points();
 
         // void update_uvs(const float2* uvs);
         void update_positions(const float3* vert);

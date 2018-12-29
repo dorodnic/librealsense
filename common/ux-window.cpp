@@ -94,6 +94,18 @@ namespace rs2
         _reload = true;
     }
 
+    void ux_window::refresh()
+    {
+        if (_use_glsl_proc) rs2::gl::shutdown_processing();
+        rs2::gl::shutdown_rendering();
+
+        _use_glsl_render = config_file::instance().get(configurations::performance::glsl_for_rendering);
+        _use_glsl_proc = config_file::instance().get(configurations::performance::glsl_for_processing);
+
+        rs2::gl::init_rendering(_use_glsl_render);
+        if (_use_glsl_proc) rs2::gl::init_processing(_win, _use_glsl_proc);
+    }
+
     void ux_window::link_hovered()
     {
         _link_hovered = true;

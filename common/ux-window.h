@@ -71,6 +71,7 @@ namespace rs2
         texture_buffer& get_splash() { return _splash_tex; }
 
         void reload();
+        void refresh();
 
         void link_hovered();
     private:

@@ -49,6 +49,14 @@ void vbo::upload(const int3* indx, int count)
     _size = count;
 }
 
+void vbo::draw_points()
+{
+    assert(_type == vbo_type::array_buffer);
+    bind();
+    glDrawArrays(GL_POINTS, 0, _size);
+    unbind();
+}
+
 void vbo::draw_triangles()
 {
     assert(_type == vbo_type::array_buffer);
@@ -127,6 +135,25 @@ void vao::bind()
 void vao::unbind()
 {
     glBindVertexArray(0);
+}
+
+void vao::draw_points()
+{
+    bind();
+
+    glEnableVertexAttribArray(0); // vertex
+    if (_uvs.size())        glEnableVertexAttribArray(1); // uv
+    if (_normals.size())    glEnableVertexAttribArray(2); // normals
+    if (_tangents.size())   glEnableVertexAttribArray(3); // tangents
+
+    _vertexes.draw_points();
+
+    glDisableVertexAttribArray(0);
+    if (_uvs.size())        glDisableVertexAttribArray(1);
+    if (_normals.size())    glDisableVertexAttribArray(2);
+    if (_tangents.size())   glDisableVertexAttribArray(3);
+
+    unbind();
 }
 
 void vao::draw()

@@ -78,6 +78,12 @@ unsigned int rs2_gl_frame_get_texture_id(const rs2_frame* f, unsigned int id, rs
 rs2_processing_block* rs2_gl_create_camera_renderer(int api_version, rs2_error** error);
 
 /**
+ * Pointcloud renderer will render texture pointcloud as either points
+ * or connected polygons
+ */
+rs2_processing_block* rs2_gl_create_pointcloud_renderer(int api_version, rs2_error** error);
+
+/**
 * Creates Point-Cloud processing block. This block accepts depth frames and outputs Points frames
 * In addition, given non-depth frame, the block will align texture coordinate to the non-depth stream
 * \param[out] error  if non-null, receives any error that occurs during this call, otherwise, errors are ignored

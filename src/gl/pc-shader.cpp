@@ -1,5 +1,8 @@
 #include "pc-shader.h"
+#include "synthetic-stream-gl.h"
 #include <glad/glad.h>
+
+#include "option.h"
 
 static const char* vertex_shader_text =
 "#version 110\n"
@@ -72,67 +75,201 @@ static const char* fragment_shader_text =
 
 using namespace rs2;
 
-pointcloud_shader::pointcloud_shader(std::unique_ptr<shader_program> shader)
-    : _shader(std::move(shader))
+namespace librealsense
 {
-    init();
-}
+    namespace gl
+    {
+        pointcloud_shader::pointcloud_shader(std::unique_ptr<shader_program> shader)
+            : _shader(std::move(shader))
+        {
+            init();
+        }
 
-pointcloud_shader::pointcloud_shader()
-{
-    _shader = shader_program::load(
-        vertex_shader_text,
-        fragment_shader_text);
+        pointcloud_shader::pointcloud_shader()
+        {
+            _shader = shader_program::load(
+                vertex_shader_text,
+                fragment_shader_text);
 
-    init();
-}
+            init();
+        }
 
-void pointcloud_shader::init()
-{
-    _shader->bind_attribute(0, "position");
-    _shader->bind_attribute(1, "textureCoords");
-    _shader->bind_attribute(2, "normal");
-    _shader->bind_attribute(3, "tangent");
+        void pointcloud_shader::init()
+        {
+            _shader->bind_attribute(0, "position");
+            _shader->bind_attribute(1, "textureCoords");
+            _shader->bind_attribute(2, "normal");
+            _shader->bind_attribute(3, "tangent");
 
-    _transformation_matrix_location = _shader->get_uniform_location("transformationMatrix");
-    _projection_matrix_location = _shader->get_uniform_location("projectionMatrix");
-    _camera_matrix_location = _shader->get_uniform_location("cameraMatrix");
+            _transformation_matrix_location = _shader->get_uniform_location("transformationMatrix");
+            _projection_matrix_location = _shader->get_uniform_location("projectionMatrix");
+            _camera_matrix_location = _shader->get_uniform_location("cameraMatrix");
 
-    _width_location = _shader->get_uniform_location("imageWidth");
-    _height_location = _shader->get_uniform_location("imageHeight");
-    _min_delta_z_location = _shader->get_uniform_location("minDeltaZ");
+            _width_location = _shader->get_uniform_location("imageWidth");
+            _height_location = _shader->get_uniform_location("imageHeight");
+            _min_delta_z_location = _shader->get_uniform_location("minDeltaZ");
 
-    auto texture0_sampler_location = _shader->get_uniform_location("textureSampler");
-    auto texture1_sampler_location = _shader->get_uniform_location("positionsSampler");
-    auto texture2_sampler_location = _shader->get_uniform_location("uvsSampler");
+            auto texture0_sampler_location = _shader->get_uniform_location("textureSampler");
+            auto texture1_sampler_location = _shader->get_uniform_location("positionsSampler");
+            auto texture2_sampler_location = _shader->get_uniform_location("uvsSampler");
 
-    _shader->begin();
-    _shader->load_uniform(_min_delta_z_location, 0.2f);
-    _shader->load_uniform(texture0_sampler_location, texture_slot());
-    _shader->load_uniform(texture1_sampler_location, geometry_slot());
-    _shader->load_uniform(texture2_sampler_location, uvs_slot());
-    _shader->end();
-}
+            _shader->begin();
+            _shader->load_uniform(_min_delta_z_location, 0.2f);
+            _shader->load_uniform(texture0_sampler_location, texture_slot());
+            _shader->load_uniform(texture1_sampler_location, geometry_slot());
+            _shader->load_uniform(texture2_sampler_location, uvs_slot());
+            _shader->end();
+        }
 
-void pointcloud_shader::begin() { _shader->begin(); }
-void pointcloud_shader::end() { _shader->end(); }
+        void pointcloud_shader::begin() { _shader->begin(); }
+        void pointcloud_shader::end() { _shader->end(); }
 
-void pointcloud_shader::set_mvp(const matrix4& model,
-    const matrix4& view,
-    const matrix4& projection)
-{
-    _shader->load_uniform(_transformation_matrix_location, model);
-    _shader->load_uniform(_camera_matrix_location, view);
-    _shader->load_uniform(_projection_matrix_location, projection);
-}
+        void pointcloud_shader::set_mvp(const matrix4& model,
+            const matrix4& view,
+            const matrix4& projection)
+        {
+            _shader->load_uniform(_transformation_matrix_location, model);
+            _shader->load_uniform(_camera_matrix_location, view);
+            _shader->load_uniform(_projection_matrix_location, projection);
+        }
 
-void pointcloud_shader::set_image_size(int width, int height)
-{
-    _shader->load_uniform(_width_location, (float)width);
-    _shader->load_uniform(_height_location, (float)height);
-}
+        void pointcloud_shader::set_image_size(int width, int height)
+        {
+            _shader->load_uniform(_width_location, (float)width);
+            _shader->load_uniform(_height_location, (float)height);
+        }
 
-void pointcloud_shader::set_min_delta_z(float min_delta_z)
-{
-    _shader->load_uniform(_min_delta_z_location, min_delta_z);
+        void pointcloud_shader::set_min_delta_z(float min_delta_z)
+        {
+            _shader->load_uniform(_min_delta_z_location, min_delta_z);
+        }
+
+        void pointcloud_renderer::cleanup_gpu_resources()
+        {
+            _shader.reset();
+            _model.reset();
+        }
+
+        void pointcloud_renderer::create_gpu_resources()
+        {
+            if (glsl_enabled())
+            {
+                _shader = std::make_shared<pointcloud_shader>();
+
+                obj_mesh mesh = make_grid(_height, _width, 1.f / _height, 1.f / _width);
+                _model = vao::create(mesh);
+            }
+        }
+
+        pointcloud_renderer::pointcloud_renderer()
+        {
+            std::shared_ptr<option> opt = std::make_shared<librealsense::float_option>(option_range{ 0, 1, 0, 1 });
+            register_option(OPTION_FILLED, opt);
+            _filled_opt = &get_option(OPTION_FILLED);
+
+            initialize();
+        }
+
+        rs2::frame pointcloud_renderer::process_frame(const rs2::frame_source& src, const rs2::frame& f)
+        {
+            if (auto points = f.as<rs2::points>())
+            {
+                perform_gl_action([&]()
+                {
+                    auto vf_profile = f.get_profile().as<video_stream_profile>();
+                    int width = vf_profile.width();
+                    int height = vf_profile.height();
+                    
+                    if (glsl_enabled())
+                    {
+                        if (_width != width || _height != height)
+                        {
+                            obj_mesh mesh = make_grid(_height, _width, 1.f / _height, 1.f / _width);
+                            _model = vao::create(mesh);
+
+                            _width = width;
+                            _height = height;
+                        }
+
+                        _shader->begin();
+                        _shader->set_mvp(get_matrix(
+                            RS2_GL_MATRIX_TRANSFORMATION), 
+                            get_matrix(RS2_GL_MATRIX_CAMERA), 
+                            get_matrix(RS2_GL_MATRIX_PROJECTION)
+                        );
+                        _shader->set_image_size(vf_profile.width(), vf_profile.height());
+
+                        //glActiveTexture(GL_TEXTURE0 + _shader->texture_slot());
+                        //tex = last_texture->get_gl_handle();
+                        //glBindTexture(GL_TEXTURE_2D, tex);
+
+                        auto gf = points.as<rs2::gl::gpu_frame>();
+                        
+                        if (gf)
+                        {
+                            glActiveTexture(GL_TEXTURE0 + _shader->geometry_slot());
+                            glBindTexture(GL_TEXTURE_2D, gf.get_texture_id(0));
+
+                            glActiveTexture(GL_TEXTURE0 + _shader->uvs_slot());
+                            glBindTexture(GL_TEXTURE_2D, gf.get_texture_id(1));
+
+                            if (_filled_opt->query() > 0.f) _model->draw();
+                            else _model->draw_points();
+                            
+                            glActiveTexture(GL_TEXTURE0 + _shader->texture_slot());
+                            glBindTexture(GL_TEXTURE_2D, 0);
+                        }
+                        _shader->end();
+                    }
+                    else
+                    {
+                        GLint curr_tex;
+                        glGetIntegerv(GL_TEXTURE_BINDING_2D, &curr_tex);
+
+                        auto vertices = points.get_vertices();
+                        auto tex_coords = points.get_texture_coordinates();
+
+                        glBindTexture(GL_TEXTURE_2D, curr_tex);
+
+                        if (_filled_opt->query() > 0.f)
+                        {
+                            glBegin(GL_QUADS);
+
+                            const auto threshold = 0.05f;
+                            for (int x = 0; x < width - 1; ++x) {
+                                for (int y = 0; y < height - 1; ++y) {
+                                    auto a = y * width + x, b = y * width + x + 1, c = (y + 1)*width + x, d = (y + 1)*width + x + 1;
+                                    if (vertices[a].z && vertices[b].z && vertices[c].z && vertices[d].z
+                                        && abs(vertices[a].z - vertices[b].z) < threshold && abs(vertices[a].z - vertices[c].z) < threshold
+                                        && abs(vertices[b].z - vertices[d].z) < threshold && abs(vertices[c].z - vertices[d].z) < threshold) {
+                                        glVertex3fv(vertices[a]); glTexCoord2fv(tex_coords[a]);
+                                        glVertex3fv(vertices[b]); glTexCoord2fv(tex_coords[b]);
+                                        glVertex3fv(vertices[d]); glTexCoord2fv(tex_coords[d]);
+                                        glVertex3fv(vertices[c]); glTexCoord2fv(tex_coords[c]);
+                                    }
+                                }
+                            }
+
+                            glEnd();
+                        }
+                        else
+                        {
+                            glBegin(GL_POINTS);
+                            for (int i = 0; i < points.size(); i++)
+                            {
+                                if (vertices[i].z)
+                                {
+                                    glVertex3fv(vertices[i]);
+                                    glTexCoord2fv(tex_coords[i + 1]);
+                                }
+                            }
+                            glEnd();
+                        }
+                    }
+                }); 
+            }
+
+            return f;
+        }
+    }
 }

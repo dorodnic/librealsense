@@ -1040,6 +1040,8 @@ namespace rs2
         texture_buffer texture;
 
         rs2::gl::camera_renderer _cam_renderer;
+        rs2::gl::pointcloud_renderer _pc_renderer;
+        std::vector<std::string> _prev_tex_sources;
     };
 
     void export_to_ply(const std::string& file_name, notifications_model& ns, frameset points, video_frame texture, bool notify = true);

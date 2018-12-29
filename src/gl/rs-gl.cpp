@@ -8,6 +8,7 @@
 #include "../include/librealsense2/h/rs_types.h"
 #include "../include/librealsense2-gl/rs_processing_gl.h"
 #include "camera-shader.h"
+#include "pc-shader.h"
 #include <assert.h>
 
 #include <GLFW/glfw3.h>
@@ -179,6 +180,14 @@ rs2_processing_block* rs2_gl_create_camera_renderer(int api_version, rs2_error**
 {
     verify_version_compatibility(api_version);
     auto block = std::make_shared<librealsense::gl::camera_renderer>();
+    return new rs2_processing_block { block };
+}
+HANDLE_EXCEPTIONS_AND_RETURN(nullptr, api_version)
+
+rs2_processing_block* rs2_gl_create_pointcloud_renderer(int api_version, rs2_error** error) BEGIN_API_CALL
+{
+    verify_version_compatibility(api_version);
+    auto block = std::make_shared<librealsense::gl::pointcloud_renderer>();
     return new rs2_processing_block { block };
 }
 HANDLE_EXCEPTIONS_AND_RETURN(nullptr, api_version)

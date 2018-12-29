@@ -180,6 +180,35 @@ namespace rs2
                 return block;
             }
         };
+
+        class pointcloud_renderer : public rs2::filter
+        {
+        public:
+            pointcloud_renderer() : rs2::filter(init()) {}
+
+            void set_matrix(rs2_gl_matrix_type type, float* m4x4)
+            {
+                rs2_error* e = nullptr;
+                rs2_gl_set_matrix(get(), type, m4x4, &e);
+                error::handle(e);
+            }
+
+            static const auto OPTION_FILLED = rs2_option(RS2_OPTION_COUNT + 1);
+        private:
+            friend class context;
+
+            std::shared_ptr<rs2_processing_block> init()
+            {
+                rs2_error* e = nullptr;
+
+                auto block = std::shared_ptr<rs2_processing_block>(
+                    rs2_gl_create_pointcloud_renderer(RS2_API_VERSION, &e),
+                    rs2_delete_processing_block);
+
+                error::handle(e);
+                return block;
+            }
+        };
     }
 }
 #endif // LIBREALSENSE_RS2_PROCESSING_GL_HPP

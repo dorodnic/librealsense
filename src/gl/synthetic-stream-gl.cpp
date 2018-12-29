@@ -37,22 +37,29 @@ namespace librealsense
         void rendering_lane::init(bool use_glsl)
         {
             std::lock_guard<std::mutex> lock(_data.mutex);
+
+            LOG_WARNING("Initializing rendering, GLSL=" << use_glsl);
+
             for (auto&& obj : _data.objs)
             {
                 obj->update_gpu_resources(use_glsl);
             }
             _data.active = true;
             _data.use_glsl = use_glsl;
+
+            LOG_WARNING(" " << _data.objs.size() << " GPU objects initialized");
         }
 
         void rendering_lane::shutdown()
         {
             std::lock_guard<std::mutex> lock(_data.mutex);
+            LOG_WARNING("Shutting down rendering");
             for (auto&& obj : _data.objs)
             {
                 obj->update_gpu_resources(false);
             }
             _data.active = false;
+            LOG_WARNING(" " << _data.objs.size() << " GPU objects cleaned-up");
         }
 
         rendering_lane& rendering_lane::instance()
@@ -81,6 +88,8 @@ namespace librealsense
         {
             std::lock_guard<std::mutex> lock(_data.mutex);
 
+            LOG_WARNING("Initializing processing, GLSL=" << use_glsl);
+
             _data.active = true;
             _data.use_glsl = use_glsl;
 
@@ -92,11 +101,15 @@ namespace librealsense
                 ((gpu_processing_object*)obj)->set_context(_ctx);
                 obj->update_gpu_resources(use_glsl);
             }
+
+            LOG_WARNING(" " << _data.objs.size() << " GPU objects initialized");
         }
 
         void processing_lane::shutdown()
         {
             std::lock_guard<std::mutex> lock(_data.mutex);
+
+            LOG_WARNING("Shutting down processing");
 
             _data.active = false;
             auto session = _ctx->begin_session();
@@ -106,6 +119,8 @@ namespace librealsense
                 ((gpu_processing_object*)obj)->set_context({});
                 obj->update_gpu_resources(false);
             }
+
+            LOG_WARNING(" " << _data.objs.size() << " GPU objects cleaned-up");
             
             _ctx.reset();
         }
@@ -122,6 +137,7 @@ namespace librealsense
                 if (textures[i])
                 {
                     glDeleteTextures(1, &textures[i]);
+                    textures[i] = 0;
                 }
             }
         }
@@ -270,7 +286,18 @@ namespace librealsense
                         rs2::fbo fbo(width, height);
                         uint32_t res;
                         glGenTextures(1, &res);
-                        fbo.createTextureAttachment(res);
+                        glBindTexture(GL_TEXTURE_2D, res);
+                        if (types[i] == texture_type::RGB)
+                        {
+                            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
+                        } else if (types[i] == texture_type::XYZ)
+                        {
+                            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, nullptr);
+                        } else if (types[i] == texture_type::UV)
+                        {
+                            glTexImage2D(GL_TEXTURE_2D, 0, GL_RG32F, width, height, 0, GL_RG, GL_FLOAT, nullptr);
+                        }
+                        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, res, 0);
 
                         fbo.bind();
                         glViewport(0, 0, width, height);

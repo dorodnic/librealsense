@@ -152,6 +152,8 @@ namespace librealsense
                     create_gpu_resources();
             }
         protected:
+            gpu_object() = default;
+            
             virtual void cleanup_gpu_resources() = 0;
             virtual void create_gpu_resources() = 0;
 
@@ -161,6 +163,9 @@ namespace librealsense
             void use_glsl(bool val) { _use_glsl = val; }
 
         private:
+            gpu_object(const gpu_object&) = delete;
+            gpu_object& operator=(const gpu_object&) = delete;
+
             std::atomic_int _needs_cleanup { 0 };
             bool _use_glsl = false;
         };
