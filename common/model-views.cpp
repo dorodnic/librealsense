@@ -755,7 +755,7 @@ namespace rs2
         : s(s), dev(dev), ui(), last_valid_ui(),
         streaming(false), _pause(false),
         depth_colorizer(std::make_shared<rs2::colorizer>()),
-        yuy_decoder(std::make_shared<rs2::gl::yuy_to_rgb>()),
+        yuy2rgb(std::make_shared<rs2::gl::yuy_decoder>()),
         decimation_filter(),
         spatial_filter(),
         temporal_filter(),
@@ -1595,7 +1595,7 @@ namespace rs2
 
         profile = p;
         texture->colorize = d->depth_colorizer;
-        texture->yuy_decoder = d->yuy_decoder;
+        texture->yuy2rgb = d->yuy2rgb;
 
         if (auto vd = p.as<video_stream_profile>())
         {

@@ -26,7 +26,8 @@
 #include "proc/decimation-filter.h"
 #include "proc/spatial-filter.h"
 #include "proc/hole-filling-filter.h"
-#include "proc/rates_printer.h"
+#include "proc/rates-printer.h"
+#include "proc/yuy2rgb.h"
 #include "media/playback/playback_device.h"
 #include "stream.h"
 #include "../include/librealsense2/h/rs_types.h"
@@ -1751,6 +1752,12 @@ HANDLE_EXCEPTIONS_AND_RETURN(0, frame)
 rs2_processing_block* rs2_create_pointcloud(rs2_error** error) BEGIN_API_CALL
 {
     return new rs2_processing_block { pointcloud::create() };
+}
+NOARGS_HANDLE_EXCEPTIONS_AND_RETURN(nullptr)
+
+rs2_processing_block* rs2_create_yuy_decoder(rs2_error** error) BEGIN_API_CALL
+{
+    return new rs2_processing_block { std::make_shared<yuy2rgb>() };
 }
 NOARGS_HANDLE_EXCEPTIONS_AND_RETURN(nullptr)
 

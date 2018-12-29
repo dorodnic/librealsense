@@ -92,20 +92,20 @@ namespace rs2
             }
         };
 
-        class yuy_to_rgb : public filter
+        class yuy_decoder : public rs2::yuy_decoder
         {
         public:
             /**
             * 
             */
-            yuy_to_rgb() : filter(init(), 1) { }
+            yuy_decoder() : rs2::yuy_decoder(init()) { }
 
         private:
             std::shared_ptr<rs2_processing_block> init()
             {
                 rs2_error* e = nullptr;
                 auto block = std::shared_ptr<rs2_processing_block>(
-                    rs2_gl_create_yuy_to_rgb(RS2_API_VERSION, &e),
+                    rs2_gl_create_yuy_decoder(RS2_API_VERSION, &e),
                     rs2_delete_processing_block);
                 error::handle(e);
 

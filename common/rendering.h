@@ -1003,7 +1003,7 @@ namespace rs2
         mutable rs2::frame last[2];
     public:
         std::shared_ptr<colorizer> colorize;
-        std::shared_ptr<gl::yuy_to_rgb> yuy_decoder;
+        std::shared_ptr<yuy_decoder> yuy2rgb;
         bool zoom_preview = false;
         rect curr_preview_rect{};
         int texture_id = 0;
@@ -1140,7 +1140,7 @@ namespace rs2
 					glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_FLOAT, data);
 					break;
 				case RS2_FORMAT_YUYV:
-					if (auto colorized_frame = yuy_decoder->process(frame).as<video_frame>())
+					if (auto colorized_frame = yuy2rgb->process(frame).as<video_frame>())
                     {
                         if (!colorized_frame.is<gl::gpu_frame>())
                         {

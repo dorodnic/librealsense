@@ -63,7 +63,7 @@ struct glfw_binding
 * This is specifically useful for rendering the RGB frame to the screen (since the output is ready for rendering on the GPU)
 * \param[out] error  if non-null, receives any error that occurs during this call, otherwise, errors are ignored
 */
-rs2_processing_block* rs2_gl_create_yuy_to_rgb(int api_version, rs2_error** error);
+rs2_processing_block* rs2_gl_create_yuy_decoder(int api_version, rs2_error** error);
 
 void rs2_gl_set_matrix(rs2_processing_block* block, rs2_gl_matrix_type type, float* m4x4, rs2_error** error);
 

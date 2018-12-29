@@ -9,6 +9,7 @@
 #include "../include/librealsense2-gl/rs_processing_gl.h"
 #include "camera-shader.h"
 #include "pc-shader.h"
+#include "proc/yuy2rgb.h"
 #include <assert.h>
 
 #include <GLFW/glfw3.h>
@@ -59,15 +60,16 @@ namespace librealsense
 
 const char* rs2_gl_matrix_type_to_string(rs2_gl_matrix_type type) { return librealsense::get_string(type); }
 
-rs2_processing_block* rs2_gl_create_yuy_to_rgb(int api_version, rs2_error** error) BEGIN_API_CALL
+rs2_processing_block* rs2_gl_create_yuy_decoder(int api_version, rs2_error** error) BEGIN_API_CALL
 {
     verify_version_compatibility(api_version);
 
     auto block = std::make_shared<librealsense::gl::yuy2rgb>();
-
-    auto res = new rs2_processing_block{ block };
-
-    return res;
+    auto backup = std::make_shared<librealsense::yuy2rgb>();
+    auto dual = std::make_shared<librealsense::gl::dual_processing_block>();
+    dual->add(block);
+    dual->add(backup);
+    return new rs2_processing_block { dual };
 }
 NOARGS_HANDLE_EXCEPTIONS_AND_RETURN(nullptr)
 
