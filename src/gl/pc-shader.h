@@ -61,6 +61,8 @@ namespace librealsense
         private:
             std::shared_ptr<pointcloud_shader> _shader;
             std::shared_ptr<rs2::vao> _model;
+            std::shared_ptr<rs2::texture_buffer> _vertex_texture;
+            std::shared_ptr<rs2::texture_buffer> _uvs_texture;
             int _width = 0;
             int _height = 0;
             option* _filled_opt;

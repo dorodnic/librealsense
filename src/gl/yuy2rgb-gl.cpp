@@ -7,6 +7,7 @@
 
 #include "proc/synthetic-stream.h"
 #include "yuy2rgb-gl.h"
+#include "option.h"
 
 #define NOMINMAX
 
@@ -91,16 +92,22 @@ private:
 void yuy2rgb::cleanup_gpu_resources()
 {
     _viz.reset();
+    _enabled = 0;
 }
 
 void yuy2rgb::create_gpu_resources()
 {
     _viz = std::make_shared<visualizer_2d>(std::make_shared<yuy2rgb_shader>());
+    _enabled = glsl_enabled() ? 1 : 0;
 }
 
 yuy2rgb::yuy2rgb()
 {
     _source.add_extension<gpu_video_frame>(RS2_EXTENSION_VIDEO_FRAME_GL);
+
+    auto opt = std::make_shared<librealsense::ptr_option<int>>(
+        0, 1, 0, 1, &_enabled, "GLSL enabled"); 
+    register_option(RS2_OPTION_COUNT, opt);
 
     initialize();
 }
@@ -160,9 +167,9 @@ rs2::frame yuy2rgb::process_frame(const rs2::frame_source& src, const rs2::frame
         glBindTexture(GL_TEXTURE_2D, 0);
         glDeleteTextures(1, &yuy_texture);
     }, 
-    []{
-        std::cout << "CPU YUY 2 RGB not implemented yet :(" << std::endl;
-    }); // TODO: Add fallback
+    [this]{
+        _enabled = false;
+    }); 
 
     auto end = std::chrono::high_resolution_clock::now();
     auto ms = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();

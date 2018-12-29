@@ -148,6 +148,8 @@ namespace librealsense
         {
             _shader.reset();
             _model.reset();
+            _vertex_texture.reset();
+            _uvs_texture.reset();
         }
 
         void pointcloud_renderer::create_gpu_resources()
@@ -156,8 +158,11 @@ namespace librealsense
             {
                 _shader = std::make_shared<pointcloud_shader>();
 
-                obj_mesh mesh = make_grid(_height, _width, 1.f / _height, 1.f / _width);
+                obj_mesh mesh = make_grid(_height, _width, 1.f / _height, 1.f / _height);
                 _model = vao::create(mesh);
+
+                _vertex_texture = std::make_shared<rs2::texture_buffer>();
+                _uvs_texture = std::make_shared<rs2::texture_buffer>();
             }
         }
 
@@ -176,6 +181,9 @@ namespace librealsense
             {
                 perform_gl_action([&]()
                 {
+                    GLint curr_tex;
+                    glGetIntegerv(GL_TEXTURE_BINDING_2D, &curr_tex);
+
                     auto vf_profile = f.get_profile().as<video_stream_profile>();
                     int width = vf_profile.width();
                     int height = vf_profile.height();
@@ -184,12 +192,13 @@ namespace librealsense
                     {
                         if (_width != width || _height != height)
                         {
-                            obj_mesh mesh = make_grid(_height, _width, 1.f / _height, 1.f / _width);
+                            obj_mesh mesh = make_grid(height, width, 1.f / height, 1.f / height);
                             _model = vao::create(mesh);
 
                             _width = width;
                             _height = height;
                         }
+                        //glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
 
                         _shader->begin();
                         _shader->set_mvp(get_matrix(
@@ -199,33 +208,45 @@ namespace librealsense
                         );
                         _shader->set_image_size(vf_profile.width(), vf_profile.height());
 
-                        //glActiveTexture(GL_TEXTURE0 + _shader->texture_slot());
-                        //tex = last_texture->get_gl_handle();
-                        //glBindTexture(GL_TEXTURE_2D, tex);
-
                         auto gf = points.as<rs2::gl::gpu_frame>();
+
+                        auto vertex_tex_id = 0;
+                        auto uv_tex_id = 0;
                         
                         if (gf)
                         {
-                            glActiveTexture(GL_TEXTURE0 + _shader->geometry_slot());
-                            glBindTexture(GL_TEXTURE_2D, gf.get_texture_id(0));
-
-                            glActiveTexture(GL_TEXTURE0 + _shader->uvs_slot());
-                            glBindTexture(GL_TEXTURE_2D, gf.get_texture_id(1));
-
-                            if (_filled_opt->query() > 0.f) _model->draw();
-                            else _model->draw_points();
-                            
-                            glActiveTexture(GL_TEXTURE0 + _shader->texture_slot());
-                            glBindTexture(GL_TEXTURE_2D, 0);
+                            vertex_tex_id = gf.get_texture_id(0);
+                            uv_tex_id = gf.get_texture_id(1);
                         }
+                        else
+                        {
+                            _vertex_texture->upload(points, RS2_FORMAT_XYZ32F);
+                            vertex_tex_id = _vertex_texture->get_gl_handle();
+
+                            _uvs_texture->upload(points, RS2_FORMAT_Y16);
+                            uv_tex_id = _uvs_texture->get_gl_handle();
+                        }
+
+                        glActiveTexture(GL_TEXTURE0 + _shader->texture_slot());
+                        glBindTexture(GL_TEXTURE_2D, curr_tex);
+
+                        glActiveTexture(GL_TEXTURE0 + _shader->geometry_slot());
+                        glBindTexture(GL_TEXTURE_2D, vertex_tex_id);
+
+                        glActiveTexture(GL_TEXTURE0 + _shader->uvs_slot());
+                        glBindTexture(GL_TEXTURE_2D, uv_tex_id);
+
+                        if (_filled_opt->query() > 0.f) _model->draw();
+                        else _model->draw_points();
+                        
+                        glActiveTexture(GL_TEXTURE0 + _shader->texture_slot());
+
                         _shader->end();
+
+                        //glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
                     }
                     else
                     {
-                        GLint curr_tex;
-                        glGetIntegerv(GL_TEXTURE_BINDING_2D, &curr_tex);
-
                         auto vertices = points.get_vertices();
                         auto tex_coords = points.get_texture_coordinates();
 
@@ -233,6 +254,8 @@ namespace librealsense
 
                         if (_filled_opt->query() > 0.f)
                         {
+                            // glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
+
                             glBegin(GL_QUADS);
 
                             const auto threshold = 0.05f;
@@ -251,6 +274,8 @@ namespace librealsense
                             }
 
                             glEnd();
+
+                            // glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
                         }
                         else
                         {
