@@ -1487,7 +1487,7 @@ namespace rs2
         _stream_not_alive(std::chrono::milliseconds(1500))
     {}
 
-    texture_buffer* stream_model::upload_frame(frame&& f)
+    std::shared_ptr<texture_buffer> stream_model::upload_frame(frame&& f)
     {
         if (dev && dev->is_paused() && !dev->dev.is<playback>()) return nullptr;
 
@@ -1515,7 +1515,7 @@ namespace rs2
         }
 
         texture->upload(f);
-        return texture.get();
+        return texture;
     }
 
     void outline_rect(const rect& r)
@@ -1736,7 +1736,6 @@ namespace rs2
         for (auto&& s : streams)
         {
             if (s.second.is_stream_visible() &&
-                s.second.texture->get_last_frame() &&
                 s.second.profile.stream_type() == RS2_STREAM_DEPTH)
             {
                 if (selected_depth_source_uid == -1)
@@ -1767,7 +1766,6 @@ namespace rs2
         for (auto&& s : streams)
         {
             if (s.second.is_stream_visible() &&
-                s.second.texture->get_last_frame() &&
                 (s.second.profile.stream_type() == RS2_STREAM_COLOR ||
                  s.second.profile.stream_type() == RS2_STREAM_INFRARED ||
                  s.second.profile.stream_type() == RS2_STREAM_DEPTH ||
@@ -1795,13 +1793,18 @@ namespace rs2
             }
         }
 
+        auto candidate = 0;
         for (int i = 0; i < tex_sources_str.size(); i++)
         {
             auto it = std::find(_prev_tex_sources.begin(), _prev_tex_sources.end(), tex_sources_str[i]);
             if (it == _prev_tex_sources.end())
-                selected_tex_source = i;
+                candidate = i;
         }
-        _prev_tex_sources = tex_sources_str;
+        if (tex_sources.size() && tex_sources[candidate] != 0)
+        {
+            selected_tex_source = candidate;
+            _prev_tex_sources = tex_sources_str;
+        }
 
         if (tex_sources_str.size() && depth_sources_str.size())
         {
@@ -1820,6 +1823,7 @@ namespace rs2
         auto flags = ImGuiWindowFlags_NoResize |
             ImGuiWindowFlags_NoMove |
             ImGuiWindowFlags_NoCollapse |
+            ImGuiWindowFlags_NoBringToFrontOnFocus |
             ImGuiWindowFlags_NoTitleBar;
 
         ImGui::PushFont(font);
@@ -1880,7 +1884,6 @@ namespace rs2
             ImGui::PushItemWidth(combo_box_width);
             draw_combo_box("##Tex Source", tex_sources_str, selected_tex_source);
             selected_tex_source_uid = tex_sources[selected_tex_source];
-            texture.colorize = streams[tex_sources[selected_tex_source]].texture->colorize;
             ImGui::PopItemWidth();
 
             ImGui::SameLine();
@@ -3533,7 +3536,7 @@ namespace rs2
 
     rs2::frame viewer_model::handle_ready_frames(const rect& viewer_rect, ux_window& window, int devices, std::string& error_message)
     {
-        texture_buffer* texture_frame = nullptr;
+        std::shared_ptr<texture_buffer> texture_frame = nullptr;
         points p;
         frame f{}, depth{};
 
@@ -3565,7 +3568,8 @@ namespace rs2
 
                         auto texture = upload_frame(std::move(frame));
 
-                        if ((selected_tex_source_uid == -1 && frame.get_profile().format() == RS2_FORMAT_Z16) || frame.get_profile().format() != RS2_FORMAT_ANY && is_3d_texture_source(frame))
+                        if ((selected_tex_source_uid == -1 && frame.get_profile().format() == RS2_FORMAT_Z16) || 
+                            frame.get_profile().format() != RS2_FORMAT_ANY && is_3d_texture_source(frame))
                         {
                             texture_frame = texture;
                         }
@@ -3950,7 +3954,8 @@ namespace rs2
         }
     }
 
-    void viewer_model::render_3d_view(const rect& viewer_rect, texture_buffer* texture, rs2::points points)
+    void viewer_model::render_3d_view(const rect& viewer_rect, 
+        std::shared_ptr<texture_buffer> texture, rs2::points points)
     {
         if(points)
         {
@@ -3959,16 +3964,6 @@ namespace rs2
         if(texture)
         {
             last_texture = texture;
-        }
-
-        static std::unique_ptr<texture_buffer> uvs = nullptr;
-        static std::unique_ptr<texture_buffer> positions = nullptr;
-        static int last_fn = -1;
-        if (last_points && uvs && last_points.get_frame_number() != last_fn)
-        {
-            positions->upload(last_points, RS2_FORMAT_XYZ32F);
-            uvs->upload(last_points, RS2_FORMAT_Z16);
-            last_fn = last_points.get_frame_number();
         }
 
         glViewport(static_cast<GLint>(viewer_rect.x), static_cast<GLint>(viewer_rect.y),
@@ -4133,119 +4128,6 @@ namespace rs2
             _pc_renderer.set_option(gl::pointcloud_renderer::OPTION_FILLED, render_quads ? 1.f : 0.f);
 
             last_points.apply_filter(_pc_renderer);
-            
-            // if (!render_quads)
-            // {
-            //     auto vertices = last_points.get_vertices();
-            //     auto tex_coords = last_points.get_texture_coordinates();
-
-            //     glBegin(GL_POINTS);
-            //     for (int i = 0; i < last_points.size(); i++)
-            //     {
-            //         if (vertices[i].z)
-            //         {
-            //             glVertex3fv(vertices[i]);
-            //             glTexCoord2fv(tex_coords[i + 1]);
-            //         }
-            //     }
-            //     glEnd();
-            // }
-            // else
-            // {
-			// 	auto width = vf_profile.width(), height = vf_profile.height();
-				
-			// 	//static int last_w = 0;
-			// 	//static int last_h = 0;
-				
-			// 	//static std::unique_ptr<vao> model;
-            //     //static std::unique_ptr<vao> camera;
-
-            //     //static obj_mesh camera_mesh;
-                
-			// 	// if (width != last_w || height != last_h)
-			// 	// {
-            //     //     std::string dev_name = "";
-            //     //     auto dev = streams[selected_depth_source_uid].dev->dev;
-            //     //     if (dev.supports(RS2_CAMERA_INFO_NAME)) dev_name = dev.get_info(RS2_CAMERA_INFO_NAME);
-
-            //     //     // if (starts_with(dev_name, "Intel RealSense D435"))
-            //     //     // {
-            //     //     //     uncompress_d435_obj(camera_mesh.positions, camera_mesh.normals, camera_mesh.indexes);
-            //     //     // }
-            //     //     // if (starts_with(dev_name, "Intel RealSense D415"))
-            //     //     // {
-            //     //     //     uncompress_d415_obj(camera_mesh.positions, camera_mesh.normals, camera_mesh.indexes);
-            //     //     // }
-            //     //     // if (starts_with(dev_name, "Intel RealSense SR300"))
-            //     //     // {
-            //     //     //     uncompress_sr300_obj(camera_mesh.positions, camera_mesh.normals, camera_mesh.indexes);
-            //     //     // }
-
-			// 	// 	obj_mesh mesh = make_grid(height, width, 1.f / height, 1.f / height);
-            //     //     for (auto& xyz : camera_mesh.positions)
-            //     //     {
-            //     //         xyz = xyz / 1000.f;
-            //     //         xyz.x *= -1;
-            //     //     }
-
-            //     //     model.reset(); camera.reset();
-            //     //     positions.reset(); uvs.reset();
-			// 	// 	model = vao::create(mesh);
-            //     //     camera = vao::create(camera_mesh);
-			// 	// 	last_w = width; last_h = height;
-			// 	// 	positions = std::unique_ptr<texture_buffer>(new texture_buffer());
-            //     //     uvs = std::unique_ptr<texture_buffer>(new texture_buffer());
-			// 	// }
-
-            //     // pc_shader.begin();
-            //     // pc_shader.set_mvp(identity_matrix(), view_mat, perspective_mat);
-            //     // pc_shader.set_image_size(width, height);
-
-            //     // glActiveTexture(GL_TEXTURE0 + pc_shader.texture_slot());
-            //     // tex = last_texture->get_gl_handle();
-            //     // glBindTexture(GL_TEXTURE_2D, tex);
-
-            //     // glActiveTexture(GL_TEXTURE0 + pc_shader.geometry_slot());
-            //     // auto pos_tex = positions->get_gl_handle();
-            //     // glBindTexture(GL_TEXTURE_2D, pos_tex);
-
-            //     // glActiveTexture(GL_TEXTURE0 + pc_shader.uvs_slot());
-            //     // glBindTexture(GL_TEXTURE_2D, uvs->get_gl_handle());
-			// 	// model->draw();
-            //     // glActiveTexture(GL_TEXTURE0 + pc_shader.texture_slot());
-            //     // glBindTexture(GL_TEXTURE_2D, 0);
-            //     // pc_shader.end();
-
-                
-
-
-
-            //     // if (config_file::instance().get(configurations::performance::glsl_for_rendering))
-            //     // {
-            //     //     cam_shader.begin();
-            //     //     cam_shader.set_mvp(identity_matrix(), view_mat, perspective_mat);
-            //     //     camera->draw();
-            //     //     cam_shader.end();
-            //     // }
-            //     // else
-            //     // {
-            //     //     glBegin(GL_TRIANGLES);
-            //     //     for (auto& i : camera_mesh.indexes)
-            //     //     {
-            //     //         auto v0 = camera_mesh.positions[i.x];
-            //     //         auto v1 = camera_mesh.positions[i.y];
-            //     //         auto v2 = camera_mesh.positions[i.z];
-            //     //         glVertex3fv(&v0.x);
-            //     //         glVertex3fv(&v1.x);
-            //     //         glVertex3fv(&v2.x);
-            //     //         glColor4f(0.036f, 0.044f, 0.051f, 0.3f);
-            //     //     }
-            //     //     glEnd();
-            //     // }
-
-            //     //positions->show(rect{ 0.f, 0.f, 1.f, 1.f }, 1.f);
-            //     //uvs->show(rect{ 1.f, 0.f, 1.f, 1.f }, 1.f);
-            // }
 
             glDisable(GL_TEXTURE_2D);
 
@@ -4256,8 +4138,11 @@ namespace rs2
             _cam_renderer.set_matrix(RS2_GL_MATRIX_CAMERA,     view_mat);
             _cam_renderer.set_matrix(RS2_GL_MATRIX_PROJECTION, perspective_mat);
 
-            auto source_frame = streams[selected_depth_source_uid].texture->get_last_frame();
-            source_frame.apply_filter(_cam_renderer);
+            if (streams.find(selected_depth_source_uid) != streams.end())
+            {
+                auto source_frame = streams[selected_depth_source_uid].texture->get_last_frame();
+                if (source_frame) source_frame.apply_filter(_cam_renderer);
+            }
 
             glDisable(GL_BLEND);
             glEnable(GL_DEPTH_TEST);
@@ -5021,7 +4906,7 @@ namespace rs2
         return false;
     }
 
-    texture_buffer* viewer_model::upload_frame(frame&& f)
+    std::shared_ptr<texture_buffer> viewer_model::upload_frame(frame&& f)
     {
         if (f.get_profile().stream_type() == RS2_STREAM_DEPTH)
             ppf.depth_stream_active = true;
@@ -7158,8 +7043,9 @@ namespace rs2
         }
     }
 
-
-    void viewer_model::draw_viewport(const rect& viewer_rect, ux_window& window, int devices, std::string& error_message, texture_buffer* texture, points points)
+    void viewer_model::draw_viewport(const rect& viewer_rect, 
+        ux_window& window, int devices, std::string& error_message, 
+        std::shared_ptr<texture_buffer> texture, points points)
     {
         static bool first = true;
         if (first)

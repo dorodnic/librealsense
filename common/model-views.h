@@ -507,7 +507,7 @@ namespace rs2
     {
     public:
         stream_model();
-        texture_buffer* upload_frame(frame&& f);
+        std::shared_ptr<texture_buffer> upload_frame(frame&& f);
         bool is_stream_visible();
         void update_ae_roi_rect(const rect& stream_rect, const mouse_info& mouse, std::string& error_message);
         void show_frame(const rect& stream_rect, const mouse_info& g, std::string& error_message);
@@ -524,7 +524,7 @@ namespace rs2
 
         void begin_stream(std::shared_ptr<subdevice_model> d, rs2::stream_profile p);
         rect layout;
-        std::unique_ptr<texture_buffer> texture;
+        std::shared_ptr<texture_buffer> texture;
         float2 size;
         float2 original_size;
         rect get_stream_bounds() const { return { 0, 0, size.x, size.y };}
@@ -935,7 +935,7 @@ namespace rs2
         bool is_3d_depth_source(frame f);
         bool is_3d_texture_source(frame f);
 
-        texture_buffer* upload_frame(frame&& f);
+        std::shared_ptr<texture_buffer> upload_frame(frame&& f);
 
         std::map<int, rect> calc_layout(const rect& r);
 
@@ -958,7 +958,8 @@ namespace rs2
 
         void show_top_bar(ux_window& window, const rect& viewer_rect, const std::vector<device_model>& devices);
 
-        void render_3d_view(const rect& view_rect, texture_buffer* texture, rs2::points points);
+        void render_3d_view(const rect& view_rect, 
+            std::shared_ptr<texture_buffer> texture, rs2::points points);
 
         void render_2d_view(const rect& view_rect, ux_window& win, int output_height,
             ImFont *font1, ImFont *font2, size_t dev_model_num, const mouse_info &mouse, std::string& error_message);
@@ -980,7 +981,9 @@ namespace rs2
         bool paused = false;
 
 
-        void draw_viewport(const rect& viewer_rect, ux_window& window, int devices, std::string& error_message, texture_buffer* texture, rs2::points  f = rs2::points());
+        void draw_viewport(const rect& viewer_rect, 
+            ux_window& window, int devices, std::string& error_message, 
+            std::shared_ptr<texture_buffer> texture, rs2::points  f = rs2::points());
 
         bool allow_3d_source_change = true;
         bool allow_stream_close = true;
@@ -1036,8 +1039,7 @@ namespace rs2
         GLint texture_border_mode = GL_CLAMP_TO_EDGE; // GL_CLAMP_TO_BORDER
 
         rs2::points last_points;
-        texture_buffer* last_texture;
-        texture_buffer texture;
+        std::shared_ptr<texture_buffer> last_texture;
 
         rs2::gl::camera_renderer _cam_renderer;
         rs2::gl::pointcloud_renderer _pc_renderer;
