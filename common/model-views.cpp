@@ -1489,6 +1489,7 @@ namespace rs2
 
     std::shared_ptr<texture_buffer> stream_model::upload_frame(frame&& f)
     {
+        scoped_timer t("upload_frame()");
         if (dev && dev->is_paused() && !dev->dev.is<playback>()) return nullptr;
 
         last_frame = std::chrono::high_resolution_clock::now();
@@ -3536,6 +3537,8 @@ namespace rs2
 
     rs2::frame viewer_model::handle_ready_frames(const rect& viewer_rect, ux_window& window, int devices, std::string& error_message)
     {
+        scoped_timer t("handle_ready_frames");
+
         std::shared_ptr<texture_buffer> texture_frame = nullptr;
         points p;
         frame f{}, depth{};
@@ -3555,6 +3558,7 @@ namespace rs2
                 frameset frames;
                 if (frames = f.as<frameset>())
                 {
+                    scoped_timer t("upload frameset");
                     for (auto&& frame : frames)
                     {
                         if (frame.is<points>() && !paused)  // find and store the 3d points frame for later use
@@ -3577,6 +3581,7 @@ namespace rs2
                 }
                 else if (!p)
                 {
+                    scoped_timer t("!p upload_frame");
                     upload_frame(std::move(f));
                 }
             }
@@ -3590,16 +3595,18 @@ namespace rs2
             error_message = ex.what();
         }
 
+        {
+            scoped_timer t("other junk");
+            gc_streams();
 
-        gc_streams();
+            window.begin_viewport();
 
-        window.begin_viewport();
+            draw_viewport(viewer_rect, window, devices, error_message, texture_frame, p);
 
-        draw_viewport(viewer_rect, window, devices, error_message, texture_frame, p);
+            not_model.draw(window.get_font(), static_cast<int>(window.width()), static_cast<int>(window.height()));
 
-        not_model.draw(window.get_font(), static_cast<int>(window.width()), static_cast<int>(window.height()));
-
-        popup_if_error(window.get_font(), error_message);
+            popup_if_error(window.get_font(), error_message);
+        }
 
         return f;
     }
@@ -3957,6 +3964,8 @@ namespace rs2
     void viewer_model::render_3d_view(const rect& viewer_rect, 
         std::shared_ptr<texture_buffer> texture, rs2::points points)
     {
+        scoped_timer t("render_3d_view");
+
         if(points)
         {
             last_points = points;
@@ -4112,6 +4121,8 @@ namespace rs2
 
         if (last_points && last_texture)
         {
+            scoped_timer t("render pointcloud");
+
             auto vf_profile = last_points.get_profile().as<video_stream_profile>();
             // Non-linear correspondence customized for non-flat surface exploration
             glPointSize(std::sqrt(viewer_rect.w / vf_profile.width()));
@@ -4127,7 +4138,10 @@ namespace rs2
             _pc_renderer.set_matrix(RS2_GL_MATRIX_PROJECTION, perspective_mat);
             _pc_renderer.set_option(gl::pointcloud_renderer::OPTION_FILLED, render_quads ? 1.f : 0.f);
 
-            last_points.apply_filter(_pc_renderer);
+            {
+                scoped_timer t("_pc_renderer");
+                last_points.apply_filter(_pc_renderer);
+            }
 
             glDisable(GL_TEXTURE_2D);
 
@@ -4140,6 +4154,7 @@ namespace rs2
 
             if (streams.find(selected_depth_source_uid) != streams.end())
             {
+                scoped_timer t("_cam_renderer");
                 auto source_frame = streams[selected_depth_source_uid].texture->get_last_frame();
                 if (source_frame) source_frame.apply_filter(_cam_renderer);
             }

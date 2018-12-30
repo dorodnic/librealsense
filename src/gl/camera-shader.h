@@ -48,5 +48,6 @@ namespace librealsense
             std::shared_ptr<camera_shader> _shader;
             std::vector<std::unique_ptr<rs2::vao>> _camera_model;
         };
+
     }
 }

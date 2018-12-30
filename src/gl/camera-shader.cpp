@@ -1,5 +1,4 @@
 #include "camera-shader.h"
-#include "os.h"
 #include <glad/glad.h>
 
 using namespace rs2;
@@ -29,6 +28,10 @@ static const char* fragment_shader_text =
 "}\n";
 
 using namespace rs2;
+
+std::unordered_map<const char*, double> rs2::scoped_timer::_duration;
+std::unordered_map<const char*, int>    rs2::scoped_timer::_counts;
+std::unordered_map<const char*, std::chrono::high_resolution_clock::time_point> rs2::scoped_timer::_lasts;
 
 namespace librealsense
 {
@@ -132,6 +135,7 @@ namespace librealsense
                 i++, j++);
             return j == prefix.end();
         }
+
         rs2::frame camera_renderer::process_frame(const rs2::frame_source& src, const rs2::frame& f)
         {
             const auto& dev = ((frame_interface*)f.get())->get_sensor()->get_device();
@@ -163,7 +167,7 @@ namespace librealsense
                     }
                     else
                     {
-                        glBegin(GL_TRIANGLES);
+                        /*glBegin(GL_TRIANGLES);
                         auto& mesh = camera_mesh[index];
                         for (auto& i : mesh.indexes)
                         {
@@ -175,7 +179,7 @@ namespace librealsense
                             glVertex3fv(&v2.x);
                             glColor4f(0.036f, 0.044f, 0.051f, 0.3f);
                         }
-                        glEnd();
+                        glEnd();*/
                     }
                 }); 
             }

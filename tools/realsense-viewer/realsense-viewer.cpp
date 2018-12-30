@@ -22,6 +22,10 @@
 // We use NOC file helper function for cross-platform file dialogs
 #include <noc_file_dialog.h>
 
+std::unordered_map<const char*, double> rs2::scoped_timer::_duration;
+std::unordered_map<const char*, int>    rs2::scoped_timer::_counts;
+std::unordered_map<const char*, std::chrono::high_resolution_clock::time_point> rs2::scoped_timer::_lasts;
+
 using namespace rs2;
 using namespace rs400;
 
@@ -286,6 +290,7 @@ int main(int argv, const char** argc) try
     // Closing the window
     while (window)
     {
+        scoped_timer t("=======================");
         if (!window.is_ui_aligned())
 		{
 			viewer_model.popup_if_ui_not_aligned(window.get_font());
