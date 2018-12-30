@@ -125,6 +125,13 @@ namespace librealsense
             initialize();
         }
 
+        bool starts_with(const std::string& s, const std::string& prefix)
+        {
+            auto i = s.begin(), j = prefix.begin();
+            for (; i != s.end() && j != prefix.end() && *i == *j;
+                i++, j++);
+            return j == prefix.end();
+        }
         rs2::frame camera_renderer::process_frame(const rs2::frame_source& src, const rs2::frame& f)
         {
             const auto& dev = ((frame_interface*)f.get())->get_sensor()->get_device();

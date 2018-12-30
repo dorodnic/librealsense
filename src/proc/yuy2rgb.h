@@ -12,7 +12,7 @@ namespace rs2
 
 namespace librealsense 
 {
-    class yuy2rgb : public stream_filter_processing_block
+    class EXTENSION_API yuy2rgb : public stream_filter_processing_block
     {
     public:
         yuy2rgb();

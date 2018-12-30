@@ -160,7 +160,7 @@ namespace librealsense
 
             bool glsl_enabled() const { return _use_glsl; }
 
-            bool need_cleanup() { _needs_cleanup = 1; }
+            void need_cleanup() { _needs_cleanup = 1; }
             void use_glsl(bool val) { _use_glsl = val; }
 
         private:
