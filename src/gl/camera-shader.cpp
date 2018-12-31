@@ -29,10 +29,6 @@ static const char* fragment_shader_text =
 
 using namespace rs2;
 
-std::unordered_map<const char*, double> rs2::scoped_timer::_duration;
-std::unordered_map<const char*, int>    rs2::scoped_timer::_counts;
-std::unordered_map<const char*, std::chrono::high_resolution_clock::time_point> rs2::scoped_timer::_lasts;
-
 namespace librealsense
 {
     namespace gl

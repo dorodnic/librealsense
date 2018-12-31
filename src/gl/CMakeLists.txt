@@ -20,6 +20,8 @@ set(REALSENSE_GL_CPP
     pc-shader.h
     camera-shader.cpp
     camera-shader.h
+    upload.h
+    upload.cpp
     ${LZ4_DIR}/lz4.h
     ${LZ4_DIR}/lz4.c
 )
