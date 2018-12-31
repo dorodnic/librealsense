@@ -1227,10 +1227,10 @@ namespace rs2
 							rendered_frame = colorized_frame;
 						}
 
-                        {
-                            scoped_timer t("upload raw data");
-                            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_LUMINANCE, GL_UNSIGNED_SHORT, data);
-                        }
+                       // {
+                            //scoped_timer t("upload raw data");
+                            //glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_LUMINANCE, GL_UNSIGNED_SHORT, data);
+                        //}
 					}
 					else glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_LUMINANCE, GL_UNSIGNED_SHORT, data);
 

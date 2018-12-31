@@ -65,7 +65,7 @@ void config_file::save(const char* filename)
     {
         j[kvp.first] = kvp.second; 
     }
-    std::string s = j.dump();
+    std::string s = j.dump(2);
     try
     {
         std::ofstream out(filename);

@@ -16,19 +16,40 @@ namespace rs2
         class pointcloud;
         class yuy_to_rgb;
 
-        inline void init_rendering(bool use_glsl = true)
-        {
-            rs2_error* e = nullptr;
-            rs2_gl_init_rendering(RS2_API_VERSION, use_glsl ? 1 : 0, &e);
-            error::handle(e);
-        }
-
         inline void shutdown_rendering()
         {
             rs2_error* e = nullptr;
             rs2_gl_shutdown_rendering(RS2_API_VERSION, &e);
             error::handle(e);
         }
+
+#ifdef _glfw3_h_
+        inline void init_rendering(bool use_glsl = true)
+        {
+            rs2_error* e = nullptr;
+
+            glfw_binding binding{
+                nullptr,
+                &glfwWindowHint,
+                &glfwCreateWindow,
+                &glfwDestroyWindow,
+                &glfwMakeContextCurrent,
+                &glfwGetCurrentContext,
+                &glfwSwapInterval,
+                &glfwGetProcAddress
+            };
+
+            rs2_gl_init_rendering_glfw(RS2_API_VERSION, binding, use_glsl ? 1 : 0, &e);
+            error::handle(e);
+        }
+#else
+        inline void init_rendering(bool use_glsl = true)
+        {
+            rs2_error* e = nullptr;
+            rs2_gl_init_rendering(RS2_API_VERSION, use_glsl ? 1 : 0, &e);
+            error::handle(e);
+        }
+#endif
 
         inline void init_processing(bool use_glsl = true)
         {

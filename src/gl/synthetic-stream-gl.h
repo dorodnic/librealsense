@@ -89,7 +89,7 @@ namespace librealsense
 
             void unregister_gpu_object(gpu_rendering_object* obj);
 
-            void init(bool use_glsl);
+            void init(glfw_binding binding, bool use_glsl);
 
             void shutdown();
 

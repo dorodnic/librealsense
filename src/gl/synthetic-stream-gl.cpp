@@ -34,9 +34,22 @@ namespace librealsense
             _data.unregister_gpu_object(obj);
         }
 
-        void rendering_lane::init(bool use_glsl)
+        void rendering_lane::init(glfw_binding binding, bool use_glsl)
         {
             std::lock_guard<std::mutex> lock(_data.mutex);
+
+            {
+                //auto old = binding.glfwGetCurrentContext();
+                //binding.glfwWindowHint(GLFW_VISIBLE, 0);
+                //auto ctx = binding.glfwCreateWindow(640, 480, "Offscreen Rendering Context", nullptr, nullptr);
+                //if (!ctx) throw std::runtime_error("Could not initialize offscreen context!");
+                //binding.glfwMakeContextCurrent(ctx);
+
+                gladLoadGLLoader((GLADloadproc)binding.glfwGetProcAddress);
+
+                /* binding.glfwDestroyWindow(ctx);
+                binding.glfwMakeContextCurrent(old);*/
+            }
 
             LOG_WARNING("Initializing rendering, GLSL=" << use_glsl);
 

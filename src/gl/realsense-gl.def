@@ -8,6 +8,7 @@ EXPORTS
     rs2_gl_create_yuy_decoder
     rs2_gl_create_pointcloud_renderer
     rs2_gl_init_rendering
+    rs2_gl_init_rendering_glfw
     rs2_gl_init_processing
     rs2_gl_init_processing_glfw
     rs2_gl_shutdown_rendering

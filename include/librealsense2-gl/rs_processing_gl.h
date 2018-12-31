@@ -103,6 +103,8 @@ rs2_processing_block* rs2_gl_create_pointcloud(int api_version, rs2_error** erro
  */
 void rs2_gl_init_rendering(int api_version, int use_glsl, rs2_error** error);
 
+void rs2_gl_init_rendering_glfw(int api_version, glfw_binding bindings, int use_glsl, rs2_error** error);
+
 /**
  * Initialize processing pipeline. This function allows GL processing blocks to 
  * run on the GPU. Until initialized, all GL processing blocks will fall back

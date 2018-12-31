@@ -139,7 +139,24 @@ HANDLE_EXCEPTIONS_AND_RETURN(, block, type, m4x4)
 void rs2_gl_init_rendering(int api_version, int use_glsl, rs2_error** error) BEGIN_API_CALL
 {
     verify_version_compatibility(api_version);
-    librealsense::gl::rendering_lane::instance().init(use_glsl > 0);
+    glfw_binding binding{
+        &glfwInit,
+        &glfwWindowHint,
+        &glfwCreateWindow,
+        &glfwDestroyWindow,
+        &glfwMakeContextCurrent,
+        &glfwGetCurrentContext,
+        &glfwSwapInterval,
+        &glfwGetProcAddress
+    };
+    librealsense::gl::rendering_lane::instance().init(binding, use_glsl > 0);
+}
+HANDLE_EXCEPTIONS_AND_RETURN(, api_version, use_glsl)
+
+void rs2_gl_init_rendering_glfw(int api_version, glfw_binding bindings, int use_glsl, rs2_error** error) BEGIN_API_CALL
+{
+    verify_version_compatibility(api_version);
+    librealsense::gl::rendering_lane::instance().init(bindings, use_glsl > 0);
 }
 HANDLE_EXCEPTIONS_AND_RETURN(, api_version, use_glsl)
 
