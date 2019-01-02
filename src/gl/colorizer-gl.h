@@ -39,8 +39,6 @@ namespace librealsense
             rs2::frame process_frame(const rs2::frame_source& source, const rs2::frame& f) override;
         private:
             int _enabled = 0;
-            rs2::stream_profile _input_profile;
-            rs2::stream_profile _output_profile;
 
             int _width, _height;
 
