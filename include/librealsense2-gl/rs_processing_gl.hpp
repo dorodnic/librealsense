@@ -137,6 +137,30 @@ namespace rs2
             }
         };
 
+        class colorizer : public rs2::colorizer
+        {
+        public:
+            /**
+            * 
+            */
+            colorizer() : rs2::colorizer(init()) { }
+
+        private:
+            std::shared_ptr<rs2_processing_block> init()
+            {
+                rs2_error* e = nullptr;
+                auto block = std::shared_ptr<rs2_processing_block>(
+                    rs2_gl_create_colorizer(RS2_API_VERSION, &e),
+                    rs2_delete_processing_block);
+                error::handle(e);
+
+                // Redirect options API to the processing block
+                //options::operator=(pb);
+
+                return block;
+            }
+        };
+
         class uploader : public rs2::filter
         {
         public:

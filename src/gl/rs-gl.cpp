@@ -10,7 +10,9 @@
 #include "camera-shader.h"
 #include "upload.h"
 #include "pc-shader.h"
+#include "colorizer-gl.h"
 #include "proc/yuy2rgb.h"
+#include "proc/colorizer.h"
 #include <assert.h>
 
 #include <GLFW/glfw3.h>
@@ -113,6 +115,18 @@ int rs2_gl_is_frame_extendable_to(const rs2_frame* f, rs2_gl_extension extension
     }
 }
 HANDLE_EXCEPTIONS_AND_RETURN(0, f, extension_type)
+
+rs2_processing_block* rs2_gl_create_colorizer(int api_version, rs2_error** error) BEGIN_API_CALL
+{
+    verify_version_compatibility(api_version);
+    auto block = std::make_shared<librealsense::gl::colorizer>();
+    auto backup = std::make_shared<librealsense::colorizer>();
+    auto dual = std::make_shared<librealsense::gl::dual_processing_block>();
+    dual->add(block);
+    dual->add(backup);
+    return new rs2_processing_block { dual };
+}
+NOARGS_HANDLE_EXCEPTIONS_AND_RETURN(nullptr)
 
 rs2_processing_block* rs2_gl_create_pointcloud(int api_version, rs2_error** error) BEGIN_API_CALL
 {

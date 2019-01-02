@@ -22,6 +22,8 @@ set(REALSENSE_GL_CPP
     camera-shader.h
     upload.h
     upload.cpp
+    colorizer-gl.h
+    colorizer-gl.cpp
     ${LZ4_DIR}/lz4.h
     ${LZ4_DIR}/lz4.c
 )

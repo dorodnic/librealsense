@@ -754,7 +754,7 @@ namespace rs2
         std::shared_ptr<sensor> s, std::string& error_message)
         : s(s), dev(dev), ui(), last_valid_ui(),
         streaming(false), _pause(false),
-        depth_colorizer(std::make_shared<rs2::colorizer>()),
+        depth_colorizer(std::make_shared<rs2::gl::colorizer>()),
         yuy2rgb(std::make_shared<rs2::gl::yuy_decoder>()),
         decimation_filter(),
         spatial_filter(),
@@ -3919,40 +3919,42 @@ namespace rs2
                 RS2_STREAM_DEPTH == stream_mv.profile.stream_type() &&
                 RS2_FORMAT_Z16 == stream_mv.profile.format())
             {
-                assert(RS2_FORMAT_RGB8 == textured_frame.get_profile().format());
-                static const std::string depth_units = "m";
-                float ruler_length = 0.f;
-                auto depth_vid_profile = stream_mv.profile.as<video_stream_profile>();
-                auto depth_width = depth_vid_profile.width();
-                auto depth_height = depth_vid_profile.height();
-                auto num_of_pixels = depth_width * depth_height;
-                auto depth_data = static_cast<const uint16_t*>(frame.get_data());
-                auto textured_depth_data = static_cast<const uint8_t*>(textured_frame.get_data());
-                static const auto skip_pixels_factor = 30;
-                std::vector<rgb_per_distance> rgb_per_distance_vec;
-                std::vector<float> distances;
-                for (uint64_t i = 0; i < depth_height; i+= skip_pixels_factor)
+                if(RS2_FORMAT_RGB8 == textured_frame.get_profile().format())
                 {
-                    for (uint64_t j = 0; j < depth_width; j+= skip_pixels_factor)
+                    static const std::string depth_units = "m";
+                    float ruler_length = 0.f;
+                    auto depth_vid_profile = stream_mv.profile.as<video_stream_profile>();
+                    auto depth_width = depth_vid_profile.width();
+                    auto depth_height = depth_vid_profile.height();
+                    auto num_of_pixels = depth_width * depth_height;
+                    auto depth_data = static_cast<const uint16_t*>(frame.get_data());
+                    auto textured_depth_data = static_cast<const uint8_t*>(textured_frame.get_data());
+                    static const auto skip_pixels_factor = 30;
+                    std::vector<rgb_per_distance> rgb_per_distance_vec;
+                    std::vector<float> distances;
+                    for (uint64_t i = 0; i < depth_height; i+= skip_pixels_factor)
                     {
-                        auto depth_index = i*depth_width + j;
-                        auto length = depth_data[depth_index] * stream_mv.dev->depth_units;
-                        if (length > 0.f)
+                        for (uint64_t j = 0; j < depth_width; j+= skip_pixels_factor)
                         {
-                            auto textured_depth_index = depth_index * 3;
-                            auto r = textured_depth_data[textured_depth_index];
-                            auto g = textured_depth_data[textured_depth_index + 1];
-                            auto b = textured_depth_data[textured_depth_index + 2];
-                            rgb_per_distance_vec.push_back({ length, { r, g, b } });
-                            distances.push_back(length);
+                            auto depth_index = i*depth_width + j;
+                            auto length = depth_data[depth_index] * stream_mv.dev->depth_units;
+                            if (length > 0.f)
+                            {
+                                auto textured_depth_index = depth_index * 3;
+                                auto r = textured_depth_data[textured_depth_index];
+                                auto g = textured_depth_data[textured_depth_index + 1];
+                                auto b = textured_depth_data[textured_depth_index + 2];
+                                rgb_per_distance_vec.push_back({ length, { r, g, b } });
+                                distances.push_back(length);
+                            }
                         }
                     }
-                }
 
-                if (!distances.empty())
-                {
-                    ruler_length = calculate_ruler_max_distance(distances);
-                    draw_color_ruler(mouse, streams[stream], stream_rect, rgb_per_distance_vec, ruler_length, depth_units);
+                    if (!distances.empty())
+                    {
+                        ruler_length = calculate_ruler_max_distance(distances);
+                        draw_color_ruler(mouse, streams[stream], stream_rect, rgb_per_distance_vec, ruler_length, depth_units);
+                    }
                 }
             }
         }

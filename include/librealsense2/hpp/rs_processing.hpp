@@ -599,6 +599,9 @@ namespace rs2
             return process(depth);
         }
 
+    protected:
+        colorizer(std::shared_ptr<rs2_processing_block> block) : filter(block, 1) {}
+
     private:
         std::shared_ptr<rs2_processing_block> init()
         {
