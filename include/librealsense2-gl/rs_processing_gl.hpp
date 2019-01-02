@@ -137,6 +137,26 @@ namespace rs2
             }
         };
 
+        class uploader : public rs2::filter
+        {
+        public:
+            /**
+            *
+            */
+            uploader() : rs2::filter(init()) { }
+
+        private:
+            std::shared_ptr<rs2_processing_block> init()
+            {
+                rs2_error* e = nullptr;
+                auto block = std::shared_ptr<rs2_processing_block>(
+                    rs2_gl_create_uploader(RS2_API_VERSION, &e),
+                    rs2_delete_processing_block);
+                error::handle(e);
+                return block;
+            }
+        };
+
         /**
         * Generating the 3D point cloud base on depth frame also create the mapped texture.
         */

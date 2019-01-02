@@ -30,7 +30,8 @@ namespace librealsense
         {
             RGB,
             XYZ,
-            UV
+            UV,
+            UINT16
         };
 
         class gpu_object;
@@ -49,7 +50,7 @@ namespace librealsense
         private:
             GLFWwindow* _ctx;
             glfw_binding _binding;
-            std::mutex _lock;
+            std::recursive_mutex _lock;
         };
 
         struct lane
@@ -291,16 +292,19 @@ namespace librealsense
             virtual gpu_section& get_gpu_section() override { return _section; }
             frame_interface* publish(std::shared_ptr<archive_interface> new_owner) override
             {
+                scoped_timer t("gpu_addon :: publish");
                 _section.on_publish();
                 return T::publish(new_owner);
             }
             void unpublish() override
             {
+                scoped_timer t("gpu_addon :: unpublish");
                 _section.on_unpublish();
                 T::unpublish();
             }
             const byte* get_frame_data() const override
             {
+                scoped_timer t("gpu_addon :: get_frame_data");
                 auto res = T::get_frame_data();
                 _section.fetch_frame((void*)res);
                 return res;

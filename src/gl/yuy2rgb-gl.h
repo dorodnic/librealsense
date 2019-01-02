@@ -42,6 +42,7 @@ namespace librealsense
             int _width, _height;
 
             std::shared_ptr<rs2::visualizer_2d> _viz;
+            std::shared_ptr<rs2::fbo> _fbo;
         };
     }
 }

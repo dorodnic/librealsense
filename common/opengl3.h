@@ -291,7 +291,7 @@ namespace rs2
 
         int get_width() const { return _w; }
         int get_height() const { return _h; }
-
+        uint32_t get() const { return _id; }
     private:
         uint32_t _id;
         uint32_t _db = 0;

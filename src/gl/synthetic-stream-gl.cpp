@@ -6,6 +6,8 @@
 #include "option.h"
 #include "opengl3.h"
 
+#include "tiny-profiler.h"
+
 #include <GLFW/glfw3.h>
 
 #define NOMINMAX
@@ -188,6 +190,11 @@ namespace librealsense
                         glTexImage2D(GL_TEXTURE_2D, 0, GL_RG32F, width, height, 0, GL_RG, GL_FLOAT, ptr);
                         ptr += width * height * 8;
                     }
+                    else if (types[i] == texture_type::UINT16)
+                    {
+                        glTexImage2D(GL_TEXTURE_2D, 0, GL_RG8, width, height, 0, GL_RG, GL_UNSIGNED_BYTE, ptr);
+                        ptr += width * height * 2;
+                    }
 
                     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
                     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -277,6 +284,10 @@ namespace librealsense
                     {
                         res += width * height * 8;
                     }
+                    else if (types[i] == texture_type::UINT16)
+                    {
+                        res += width * height * 2;
+                    }
                 }
             return res;
         }
@@ -303,12 +314,18 @@ namespace librealsense
                         if (types[i] == texture_type::RGB)
                         {
                             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
-                        } else if (types[i] == texture_type::XYZ)
+                        } 
+                        else if (types[i] == texture_type::XYZ)
                         {
                             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, nullptr);
-                        } else if (types[i] == texture_type::UV)
+                        } 
+                        else if (types[i] == texture_type::UV)
                         {
                             glTexImage2D(GL_TEXTURE_2D, 0, GL_RG32F, width, height, 0, GL_RG, GL_FLOAT, nullptr);
+                        }
+                        else if (types[i] == texture_type::UINT16)
+                        {
+                            glTexImage2D(GL_TEXTURE_2D, 0, GL_RG8, width, height, 0, GL_RG, GL_UNSIGNED_BYTE, nullptr);
                         }
                         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, res, 0);
 
@@ -333,6 +350,11 @@ namespace librealsense
                         {
                             glReadPixels(0, 0, width, height, GL_RG, GL_FLOAT, ptr);
                             ptr += width * height * 8;
+                        }
+                        else if (types[i] == texture_type::UINT16)
+                        {
+                            glReadPixels(0, 0, width, height, GL_RG, GL_UNSIGNED_BYTE, ptr);
+                            ptr += width * height * 2;
                         }
 
                         glDeleteTextures(1, &res);
@@ -372,6 +394,8 @@ namespace librealsense
         std::shared_ptr<void> context::begin_session()
         {
             auto curr = _binding.glfwGetCurrentContext();
+            if (curr == _ctx) return nullptr;
+
             _lock.lock();
             _binding.glfwMakeContextCurrent(_ctx);
             auto me = shared_from_this();

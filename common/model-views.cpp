@@ -3303,6 +3303,9 @@ namespace rs2
         std::vector<rs2::frame> res;
 
         auto filtered = apply_filters(f);
+
+        filtered = uploader->process(filtered);
+
         map_id(filtered, f);
 
         if (auto composite = filtered.as<rs2::frameset>())
@@ -3314,6 +3317,7 @@ namespace rs2
         }
         else
             res.push_back(filtered);
+
         if(viewer.is_3d_view)
         {
             if(auto depth = viewer.get_3d_depth_source(filtered))

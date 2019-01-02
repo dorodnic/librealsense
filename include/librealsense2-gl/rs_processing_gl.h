@@ -90,6 +90,8 @@ rs2_processing_block* rs2_gl_create_pointcloud_renderer(int api_version, rs2_err
 */
 rs2_processing_block* rs2_gl_create_pointcloud(int api_version, rs2_error** error);
 
+rs2_processing_block* rs2_gl_create_uploader(int api_version, rs2_error** error);
+
 /** 
  * Initialize rendering pipeline. This function must be called before executing
  * any of the rendering blocks.

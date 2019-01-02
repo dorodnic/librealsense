@@ -734,7 +734,8 @@ namespace rs2
             resulting_queue(static_cast<unsigned int>(resulting_queue_max_size)),
             render_thread(),
             render_thread_active(false),
-            pc(new gl::pointcloud())
+            pc(new gl::pointcloud()),
+            uploader(new gl::uploader())
         {
             std::string s;
             pc_gen = std::make_shared<processing_block_model>(nullptr, "Pointcloud Engine", pc, [=](rs2::frame f) { return pc->calculate(f); }, s);
@@ -797,6 +798,7 @@ namespace rs2
         rs2::frame last_tex_frame;
         rs2::processing_block processing_block;
         std::shared_ptr<pointcloud> pc;
+        std::shared_ptr<gl::uploader> uploader;
         rs2::frameset model;
         std::shared_ptr<processing_block_model> pc_gen;
 
