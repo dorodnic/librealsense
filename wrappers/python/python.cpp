@@ -374,6 +374,25 @@ PYBIND11_MODULE(NAME, m) {
         .def("get_bytes_per_pixel", &rs2::video_frame::get_bytes_per_pixel, "Retrieve bytes per pixel.")
         .def("get_bytes_per_pixel", &rs2::video_frame::get_bytes_per_pixel, "Retrieve bytes per pixel.");
 
+
+    py::class_<rs2_vector> vector(m, "vector");
+    vector.def(py::init<>())
+        .def_readwrite("x", &rs2_vector::x)
+        .def_readwrite("y", &rs2_vector::y)
+        .def_readwrite("z", &rs2_vector::z)
+        .def("__repr__", [](const rs2_vector& self)
+    {
+        std::stringstream ss;
+        ss << "x: " << self.x << ", ";
+        ss << "y: " << self.y << ", ";
+        ss << "z: " << self.z;
+        return ss.str();
+    });
+
+    py::class_<rs2::motion_frame, rs2::frame> motion_frame(m, "motion_frame");
+    motion_frame.def(py::init<rs2::frame>())
+        .def("get_motion_data", &rs2::motion_frame::get_motion_data, "Returns motion info of frame.");
+
     py::class_<rs2::vertex> vertex(m, "vertex");
     vertex.def_readwrite("x", &rs2::vertex::x)
         .def_readwrite("y", &rs2::vertex::y)
@@ -574,8 +593,8 @@ PYBIND11_MODULE(NAME, m) {
 
     /* rs_export.hpp */
     py::class_<rs2::save_to_ply, rs2::filter> save_to_ply(m, "save_to_ply");
-    save_to_ply.def(py::init<std::string, rs2::pointcloud>(), "filename"_a = "RealSense Pointcloud ", "pc"_a = rs2::pointcloud())
-               .def_readonly_static("option_ignore_color", &rs2::save_to_ply::OPTION_IGNORE_COLOR);
+    save_to_ply.def(py::init<std::string, rs2::pointcloud>(), "filename"_a = "RealSense Pointcloud ", "pc"_a = rs2::pointcloud());
+    //TODO - Fix Linux/Python3_6 .def_readonly_static("option_ignore_color", &rs2::save_to_ply::OPTION_IGNORE_COLOR);
 
     py::class_<rs2::save_single_frameset, rs2::filter> save_single_frameset(m, "save_single_frameset");
     save_single_frameset.def(py::init<std::string>(), "filename"_a = "RealSense Frameset ");
@@ -611,6 +630,7 @@ PYBIND11_MODULE(NAME, m) {
         .def("clone", &rs2::stream_profile::clone, "type"_a, "index"_a, "format"_a)
         .def(BIND_DOWNCAST(stream_profile, stream_profile))
         .def(BIND_DOWNCAST(stream_profile, video_stream_profile))
+        .def(BIND_DOWNCAST(stream_profile, motion_stream_profile))
         .def("stream_name", &rs2::stream_profile::stream_name)
         .def("is_default", &rs2::stream_profile::is_default)
         .def("__nonzero__", &rs2::stream_profile::operator bool)
