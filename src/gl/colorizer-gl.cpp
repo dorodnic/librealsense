@@ -34,11 +34,12 @@ static const char* fragment_shader_text =
 "uniform float max_depth;\n"
 "uniform float colors;\n"
 "void main(void) {\n"
-"    vec4 depth = texture2D(textureSampler, textCoords);\n"
+"    vec2 tex = vec2(textCoords.x, 1.0 - textCoords.y);\n"
+"    vec4 depth = texture2D(textureSampler, tex);\n"
 "    float d = (depth.x + depth.y * 256.0) * 256.0;\n"
 "    if (d > 0.0){\n"
 "        float f = (d * depth_units - min_depth) / (max_depth - min_depth);"
-"        f = clamp(f, 0.0, 1.0) * colors;\n"
+"        f = clamp(f, 0.0, 0.99);\n"
 "        vec4 color = texture2D(cmSampler, vec2(f, 0.0));\n"
 "        gl_FragColor = vec4(color.x / 256.0, color.y / 256.0, color.z / 256.0, opacity);\n"
 "    } else {\n"
@@ -99,6 +100,9 @@ namespace librealsense
         {
             _viz.reset();
             _fbo.reset();
+
+            if (_cm_texture) glDeleteTextures(1, &_cm_texture);
+
             _enabled = 0;
         }
 
@@ -107,10 +111,18 @@ namespace librealsense
             _viz = std::make_shared<visualizer_2d>(std::make_shared<colorize_shader>());
             _fbo = std::make_shared<fbo>(_width, _height);
 
+            glGenTextures(1, &_cm_texture);
+            auto& curr_map = _maps[_map_index]->get_cache();
+            _last_selected_cm = _map_index;
+            glBindTexture(GL_TEXTURE_2D, _cm_texture);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, curr_map.size(), 1, 0, GL_RGB, GL_FLOAT, curr_map.data());
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
             _enabled = glsl_enabled() ? 1 : 0;
         }
 
-        colorizer::colorizer()
+        colorizer::colorizer() : _cm_texture(0)
         {
             _source.add_extension<gpu_video_frame>(RS2_EXTENSION_VIDEO_FRAME_GL);
 
@@ -131,41 +143,11 @@ namespace librealsense
 
         rs2::frame colorizer::process_frame(const rs2::frame_source& src, const rs2::frame& f)
         {
-            // auto make_value_cropped_frame = [this](const rs2::video_frame& depth, rs2::video_frame rgb)
-            // {
-            //     const auto w = depth.get_width(), h = depth.get_height();
-            //     const auto depth_data = reinterpret_cast<const uint16_t*>(depth.get_data());
-            //     auto rgb_data = reinterpret_cast<uint8_t*>(const_cast<void *>(rgb.get_data()));
-
-            //     auto fi = (frame_interface*)depth.get();
-            //     auto df = dynamic_cast<librealsense::depth_frame*>(fi);
-            //     auto depth_units = df->get_units();
-
-            //     for (auto i = 0; i < w*h; ++i)
-            //     {
-            //         auto d = depth_data[i];
-
-            //         if (d)
-            //         {
-            //             auto f = (d * depth_units - _min) / (_max - _min);
-
-            //             auto c = _maps[_map_index]->get(f);
-            //             rgb_data[i * 3 + 0] = (uint8_t)c.x;
-            //             rgb_data[i * 3 + 1] = (uint8_t)c.y;
-            //             rgb_data[i * 3 + 2] = (uint8_t)c.z;
-            //         }
-            //         else
-            //         {
-            //             rgb_data[i * 3 + 0] = 0;
-            //             rgb_data[i * 3 + 1] = 0;
-            //             rgb_data[i * 3 + 2] = 0;
-            //         }
-            //     }
-            // };
-
+            scoped_timer c("colorizer body");
 
             if (f.get_profile().get() != _source_stream_profile.get())
             {
+                scoped_timer c("prefix");
                 _source_stream_profile = f.get_profile();
                 _target_stream_profile = _source_stream_profile.clone(
                                             _source_stream_profile.stream_type(), 
@@ -186,30 +168,43 @@ namespace librealsense
 
             perform_gl_action([&]()
             {
+                scoped_timer c("colorizer");
+                auto& curr_map = _maps[_map_index]->get_cache();
+
+                if (_last_selected_cm != _map_index)
+                {
+                    glBindTexture(GL_TEXTURE_2D, _cm_texture);
+                    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, curr_map.size(), 1, 0, GL_RGB, GL_FLOAT, curr_map.data());
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
+                    _last_selected_cm = _map_index;
+                }
+
                 res = src.allocate_video_frame(_target_stream_profile, f, 3, _width, _height, _width * 3, RS2_EXTENSION_VIDEO_FRAME_GL);
                 
+                if (!res) return;
+
                 auto fi = (frame_interface*)f.get();
                 auto df = dynamic_cast<librealsense::depth_frame*>(fi);
                 auto depth_units = df->get_units();
 
                 auto gf = dynamic_cast<gpu_addon_interface*>((frame_interface*)res.get());
-                
+
                 uint32_t depth_texture;
-                glGenTextures(1, &depth_texture);
-                glBindTexture(GL_TEXTURE_2D, depth_texture);
-                glTexImage2D(GL_TEXTURE_2D, 0, GL_RG8, _width, _height, 0, GL_RG, GL_UNSIGNED_BYTE, f.get_data());
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-
-                auto& curr_map = _maps[_map_index]->get_cache();
-
-                uint32_t cm_texture;
-                glGenTextures(1, &cm_texture);
-                glBindTexture(GL_TEXTURE_2D, cm_texture);
-                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, curr_map.size(), 1, 0, GL_RGB, GL_FLOAT, curr_map.data());
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-
+                if (auto input_frame = f.as<rs2::gl::gpu_frame>())
+                {
+                    depth_texture = input_frame.get_texture_id(0);
+                }
+                else
+                {
+                    glGenTextures(1, &depth_texture);
+                    glBindTexture(GL_TEXTURE_2D, depth_texture);
+                    glTexImage2D(GL_TEXTURE_2D, 0, GL_RG8, _width, _height, 0, GL_RG, GL_UNSIGNED_BYTE, f.get_data());
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+                }
+                
                 uint32_t output_rgb;
                 gf->get_gpu_section().output_texture(0, &output_rgb, texture_type::RGB);
                 glBindTexture(GL_TEXTURE_2D, output_rgb);
@@ -229,29 +224,32 @@ namespace librealsense
                 glClearColor(1, 0, 0, 1);
                 glClear(GL_COLOR_BUFFER_BIT);
 
-                auto& shader = (colorize_shader&)_viz->get_shader();
-                shader.begin();
-                shader.set_params(depth_units, _min, _max, curr_map.size());
-                shader.end();
-                
-                glActiveTexture(GL_TEXTURE0 + shader.texture_slot());
-                glBindTexture(GL_TEXTURE_2D, depth_texture);
+                {
+                    scoped_timer c("colorizer shader");
 
-                glActiveTexture(GL_TEXTURE0 + shader.color_map_slot());
-                glBindTexture(GL_TEXTURE_2D, cm_texture);
+                    auto& shader = (colorize_shader&)_viz->get_shader();
+                    shader.begin();
+                    shader.set_params(depth_units, _min, _max, curr_map.size());
+                    shader.end();
 
-                _viz->draw_texture(depth_texture);
+                    glActiveTexture(GL_TEXTURE0 + shader.texture_slot());
+                    glBindTexture(GL_TEXTURE_2D, depth_texture);
 
-                glActiveTexture(GL_TEXTURE0 + shader.texture_slot());
+                    glActiveTexture(GL_TEXTURE0 + shader.color_map_slot());
+                    glBindTexture(GL_TEXTURE_2D, _cm_texture);
 
-                _fbo->unbind();
+                    _viz->draw_texture(depth_texture);
+
+                    glActiveTexture(GL_TEXTURE0 + shader.texture_slot());
+
+                    _fbo->unbind();
+                }
 
                 glBindTexture(GL_TEXTURE_2D, 0);
 
-                //if (!f.is<rs2::gl::gpu_frame>())
+                if (!f.is<rs2::gl::gpu_frame>())
                 {
                     glDeleteTextures(1, &depth_texture);
-                    glDeleteTextures(1, &cm_texture);
                 }
             }, 
             [this]{

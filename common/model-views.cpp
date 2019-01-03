@@ -3562,7 +3562,6 @@ namespace rs2
                 frameset frames;
                 if (frames = f.as<frameset>())
                 {
-                    scoped_timer t("upload frameset");
                     for (auto&& frame : frames)
                     {
                         if (frame.is<points>() && !paused)  // find and store the 3d points frame for later use
@@ -3585,7 +3584,6 @@ namespace rs2
                 }
                 else if (!p)
                 {
-                    scoped_timer t("!p upload_frame");
                     upload_frame(std::move(f));
                 }
             }
@@ -3600,7 +3598,7 @@ namespace rs2
         }
 
         {
-            scoped_timer t("other junk");
+            scoped_timer t("viewport rendering");
             gc_streams();
 
             window.begin_viewport();
@@ -4144,10 +4142,7 @@ namespace rs2
             _pc_renderer.set_matrix(RS2_GL_MATRIX_PROJECTION, perspective_mat);
             _pc_renderer.set_option(gl::pointcloud_renderer::OPTION_FILLED, render_quads ? 1.f : 0.f);
 
-            {
-                scoped_timer t("_pc_renderer");
-                last_points.apply_filter(_pc_renderer);
-            }
+            last_points.apply_filter(_pc_renderer);
 
             glDisable(GL_TEXTURE_2D);
 
@@ -4160,7 +4155,6 @@ namespace rs2
 
             if (streams.find(selected_depth_source_uid) != streams.end())
             {
-                scoped_timer t("_cam_renderer");
                 auto source_frame = streams[selected_depth_source_uid].texture->get_last_frame();
                 if (source_frame) source_frame.apply_filter(_cam_renderer);
             }

@@ -168,6 +168,9 @@ namespace librealsense
 
                 _vertex_texture = std::make_shared<rs2::texture_buffer>();
                 _uvs_texture = std::make_shared<rs2::texture_buffer>();
+
+                obj_mesh mesh = make_grid(_height, _width, 1.f / _height, 1.f / _height);
+                _model = vao::create(mesh);
             }
         }
 

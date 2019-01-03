@@ -332,18 +332,6 @@ namespace librealsense
             return _depth_units.value();
         }
 
-        const frame_interface* get_original_depth() const
-        {
-            auto res = _original.frame;
-            auto df = dynamic_cast<depth_frame*>(res);
-            if (df)
-            {
-                auto prev = df->get_original_depth();
-                if (prev) return prev;
-            }
-            return res;
-        }
-
         void set_original(frame_holder h)
         {
             _original = std::move(h);

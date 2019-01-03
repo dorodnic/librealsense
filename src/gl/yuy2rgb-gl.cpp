@@ -148,6 +148,7 @@ rs2::frame yuy2rgb::process_frame(const rs2::frame_source& src, const rs2::frame
     perform_gl_action([&]()
     {
         res = src.allocate_video_frame(_output_profile, f, 3, _width, _height, _width * 3, RS2_EXTENSION_VIDEO_FRAME_GL);
+        if (!res) return;
         
         auto gf = dynamic_cast<gpu_addon_interface*>((frame_interface*)res.get());
         

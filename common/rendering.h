@@ -1121,7 +1121,6 @@ namespace rs2
 				case RS2_FORMAT_DISPARITY16:
 					if (frame.is<depth_frame>())
 					{
-                        scoped_timer t("upload depth frame");
                         rs2::frame abc;
                         {
                             scoped_timer t("colorize");
@@ -1129,24 +1128,21 @@ namespace rs2
                         }
 						if (auto colorized_frame = abc.as<video_frame>())
 						{
-							data = colorized_frame.get_data();
-							// Override the first pixel in the colorized image for occlusion invalidation.
-							memset((void*)data,0, colorized_frame.get_bytes_per_pixel());
+                            if (!colorized_frame.is<gl::gpu_frame>())
                             {
-                                scoped_timer t("actual upload");
-                                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
-                                    colorized_frame.get_width(),
-                                    colorized_frame.get_height(),
-                                    0, GL_RGB, GL_UNSIGNED_BYTE,
-                                    colorized_frame.get_data());
+                                data = colorized_frame.get_data();
+                                // Override the first pixel in the colorized image for occlusion invalidation.
+                                memset((void*)data, 0, colorized_frame.get_bytes_per_pixel());
+                                {
+                                    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
+                                        colorized_frame.get_width(),
+                                        colorized_frame.get_height(),
+                                        0, GL_RGB, GL_UNSIGNED_BYTE,
+                                        data);
+                                }
                             }
 							rendered_frame = colorized_frame;
 						}
-
-                        // {
-                        //     scoped_timer t("upload raw data");
-                        //     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_LUMINANCE, GL_UNSIGNED_SHORT, data);
-                        // }
 					}
 					else glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_LUMINANCE, GL_UNSIGNED_SHORT, data);
 
