@@ -101,6 +101,8 @@ namespace librealsense {
         colorizer();
 
     protected:
+        void update_histogram(const uint16_t* depth_data, int w, int h);
+
         rs2::frame process_frame(const rs2::frame_source& source, const rs2::frame& f) override;
 
         float _min, _max;
@@ -108,6 +110,10 @@ namespace librealsense {
 
         std::vector<color_map*> _maps;
         int _map_index = 0;
+
+        std::vector<int> _histogram;
+        int* _hist_data;
+        const int MAX_DEPTH = 0x10000;
 
         int _preset = 0;
         rs2::stream_profile _target_stream_profile;

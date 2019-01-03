@@ -27,20 +27,35 @@ static const char* fragment_shader_text =
 "#version 110\n"
 "varying vec2 textCoords;\n"
 "uniform sampler2D textureSampler;\n"
-"uniform sampler2D cmSampler;\n"
+"uniform sampler1D cmSampler;\n"
+"uniform sampler1D histSampler;\n"
 "uniform float opacity;\n"
 "uniform float depth_units;\n"
 "uniform float min_depth;\n"
 "uniform float max_depth;\n"
-"uniform float colors;\n"
+"uniform float equalize;\n"
 "void main(void) {\n"
-"    vec4 depth = texture2D(textureSampler, textCoords);\n"
+// "    vec4 depth = texture1D(cmSampler, textCoords.x);\n"
+// "    gl_FragColor = vec4(depth.x, 0.0, 0.0, opacity);\n"
+"    vec2 tex = vec2(textCoords.x, 1.0 - textCoords.y);\n"
+"    vec4 depth = texture2D(textureSampler, tex);\n"
 "    float d = (depth.x + depth.y * 256.0) * 256.0;\n"
 "    if (d > 0.0){\n"
-"        float f = (d * depth_units - min_depth) / (max_depth - min_depth);"
-"        f = clamp(f, 0.0, 1.0) * colors;\n"
-"        vec4 color = texture2D(cmSampler, vec2(f, 0.0));\n"
-"        gl_FragColor = vec4(color.x / 256.0, color.y / 256.0, color.z / 256.0, opacity);\n"
+"        float f = 0.0;\n"
+"        if (equalize < 0.0) {\n"
+"            d = d / 1024.0;\n"
+"            vec4 max = texture1D(histSampler, 0.9);\n"
+"            vec4 curr = texture1D(histSampler, d);\n"
+"            d = max.x;\n"
+"            gl_FragColor = vec4(d, d, d, opacity);\n"
+"        }\n"
+"        else {\n" 
+"            f = (d * depth_units - min_depth) / (max_depth - min_depth);\n"
+"            f = clamp(f, 0.0, 1.0);\n"
+"            gl_FragColor = vec4(f, f, f, opacity);\n"
+"            vec4 color = texture1D(cmSampler, f);\n"
+"            gl_FragColor = vec4(color.x / 256.0, color.y / 256.0, color.z / 256.0, opacity);\n"
+"        }\n"
 "    } else {\n"
 "        gl_FragColor = vec4(0.0, 0.0, 0.0, opacity);\n"
 "    }\n"
@@ -60,33 +75,36 @@ public:
         _depth_units_location = _shader->get_uniform_location("depth_units");
         _min_depth_location = _shader->get_uniform_location("min_depth");
         _max_depth_location = _shader->get_uniform_location("max_depth");
-        _colors_location = _shader->get_uniform_location("colors");
+        _equalize_location = _shader->get_uniform_location("equalize");
 
         auto texture0_sampler_location = _shader->get_uniform_location("textureSampler");
         auto texture1_sampler_location = _shader->get_uniform_location("cmSampler");
+        auto texture2_sampler_location = _shader->get_uniform_location("histSampler");
 
         _shader->begin();
         _shader->load_uniform(texture0_sampler_location, texture_slot());
         _shader->load_uniform(texture1_sampler_location, color_map_slot());
+        _shader->load_uniform(texture2_sampler_location, histogram_slot());
         _shader->end();
     }
 
     int texture_slot() const { return 0; }
     int color_map_slot() const { return 1; }
+    int histogram_slot() const { return 2; }
 
-    void set_params(float units, float min, float max, int colors)
+    void set_params(float units, float min, float max, bool equalize)
     {
         _shader->load_uniform(_depth_units_location, units);
         _shader->load_uniform(_min_depth_location, min);
         _shader->load_uniform(_max_depth_location, max);
-        _shader->load_uniform(_colors_location, (float)colors);
+        _shader->load_uniform(_equalize_location, equalize ? 1.f : 0.f);
     }
 
 private:
     uint32_t _depth_units_location;
     uint32_t _min_depth_location;
     uint32_t _max_depth_location;
-    uint32_t _colors_location;
+    uint32_t _equalize_location;
 };
 
 using namespace rs2;
@@ -131,39 +149,6 @@ namespace librealsense
 
         rs2::frame colorizer::process_frame(const rs2::frame_source& src, const rs2::frame& f)
         {
-            // auto make_value_cropped_frame = [this](const rs2::video_frame& depth, rs2::video_frame rgb)
-            // {
-            //     const auto w = depth.get_width(), h = depth.get_height();
-            //     const auto depth_data = reinterpret_cast<const uint16_t*>(depth.get_data());
-            //     auto rgb_data = reinterpret_cast<uint8_t*>(const_cast<void *>(rgb.get_data()));
-
-            //     auto fi = (frame_interface*)depth.get();
-            //     auto df = dynamic_cast<librealsense::depth_frame*>(fi);
-            //     auto depth_units = df->get_units();
-
-            //     for (auto i = 0; i < w*h; ++i)
-            //     {
-            //         auto d = depth_data[i];
-
-            //         if (d)
-            //         {
-            //             auto f = (d * depth_units - _min) / (_max - _min);
-
-            //             auto c = _maps[_map_index]->get(f);
-            //             rgb_data[i * 3 + 0] = (uint8_t)c.x;
-            //             rgb_data[i * 3 + 1] = (uint8_t)c.y;
-            //             rgb_data[i * 3 + 2] = (uint8_t)c.z;
-            //         }
-            //         else
-            //         {
-            //             rgb_data[i * 3 + 0] = 0;
-            //             rgb_data[i * 3 + 1] = 0;
-            //             rgb_data[i * 3 + 2] = 0;
-            //         }
-            //     }
-            // };
-
-
             if (f.get_profile().get() != _source_stream_profile.get())
             {
                 _source_stream_profile = f.get_profile();
@@ -191,6 +176,7 @@ namespace librealsense
                 auto fi = (frame_interface*)f.get();
                 auto df = dynamic_cast<librealsense::depth_frame*>(fi);
                 auto depth_units = df->get_units();
+                const auto depth_data = reinterpret_cast<const uint16_t*>(f.get_data());
 
                 auto gf = dynamic_cast<gpu_addon_interface*>((frame_interface*)res.get());
                 
@@ -203,10 +189,12 @@ namespace librealsense
 
                 auto& curr_map = _maps[_map_index]->get_cache();
 
+                auto x = sizeof(float3);
+
                 uint32_t cm_texture;
                 glGenTextures(1, &cm_texture);
                 glBindTexture(GL_TEXTURE_2D, cm_texture);
-                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, curr_map.size(), 1, 0, GL_RGB, GL_FLOAT, curr_map.data());
+                glTexImage1D(GL_TEXTURE_2D, 0, GL_RGB32F, curr_map.size(), 0, GL_RGB, GL_FLOAT, curr_map.data());
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
@@ -216,6 +204,18 @@ namespace librealsense
                 glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, _width, _height, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+
+                uint32_t hist_texture = cm_texture;
+                if (_equalize)
+                {
+                    update_histogram(depth_data, _width, _height);
+
+                    // glGenTextures(1, &hist_texture);
+                    // glBindTexture(GL_TEXTURE_2D, hist_texture);
+                    // glTexImage1D(GL_TEXTURE_2D, 0, GL_R32I, MAX_DEPTH, 0, GL_R, GL_INT, _hist_data);
+                    // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+                    // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+                }
 
                 gf->get_gpu_section().set_size(_width, _height);
 
@@ -231,7 +231,7 @@ namespace librealsense
 
                 auto& shader = (colorize_shader&)_viz->get_shader();
                 shader.begin();
-                shader.set_params(depth_units, _min, _max, curr_map.size());
+                shader.set_params(depth_units, _min, _max, _equalize);
                 shader.end();
                 
                 glActiveTexture(GL_TEXTURE0 + shader.texture_slot());
@@ -239,6 +239,9 @@ namespace librealsense
 
                 glActiveTexture(GL_TEXTURE0 + shader.color_map_slot());
                 glBindTexture(GL_TEXTURE_2D, cm_texture);
+
+                glActiveTexture(GL_TEXTURE0 + shader.histogram_slot());
+                glBindTexture(GL_TEXTURE_2D, hist_texture);
 
                 _viz->draw_texture(depth_texture);
 
@@ -251,6 +254,8 @@ namespace librealsense
                 //if (!f.is<rs2::gl::gpu_frame>())
                 {
                     glDeleteTextures(1, &depth_texture);
+                    if (hist_texture != cm_texture)
+                        glDeleteTextures(1, &hist_texture);
                     glDeleteTextures(1, &cm_texture);
                 }
             }, 
