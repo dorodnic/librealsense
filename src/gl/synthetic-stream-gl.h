@@ -19,7 +19,8 @@
 
 #include "proc/synthetic-stream.h"
 
-#define RS2_EXTENSION_VIDEO_FRAME_GL (rs2_extension)(RS2_EXTENSION_COUNT + RS2_GL_EXTENSION_VIDEO_FRAME)
+#define RS2_EXTENSION_VIDEO_FRAME_GL (rs2_extension)(RS2_EXTENSION_COUNT)
+#define RS2_EXTENSION_DEPTH_FRAME_GL (rs2_extension)(RS2_EXTENSION_COUNT + 1)
 #define MAX_TEXTURES 2
 
 namespace librealsense
@@ -292,19 +293,16 @@ namespace librealsense
             virtual gpu_section& get_gpu_section() override { return _section; }
             frame_interface* publish(std::shared_ptr<archive_interface> new_owner) override
             {
-                scoped_timer t("gpu_addon :: publish");
                 _section.on_publish();
                 return T::publish(new_owner);
             }
             void unpublish() override
             {
-                scoped_timer t("gpu_addon :: unpublish");
                 _section.on_unpublish();
                 T::unpublish();
             }
             const byte* get_frame_data() const override
             {
-                scoped_timer t("gpu_addon :: get_frame_data");
                 auto res = T::get_frame_data();
                 _section.fetch_frame((void*)res);
                 return res;
@@ -324,6 +322,7 @@ namespace librealsense
 
         class gpu_video_frame : public gpu_addon<video_frame> {};
         class gpu_points_frame : public gpu_addon<points> {};
+        class gpu_depth_frame : public gpu_addon<depth_frame> {};
 
         // Dual processing block is a helper class (TODO: move to core LRS)
         // that represents several blocks doing the same exact thing

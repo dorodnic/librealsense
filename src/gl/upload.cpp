@@ -27,7 +27,9 @@ namespace librealsense
     {
         upload::upload()
         {
-            _source.add_extension<gl::gpu_video_frame>(RS2_EXTENSION_VIDEO_FRAME_GL);
+            _source.add_extension<gpu_video_frame>(RS2_EXTENSION_VIDEO_FRAME_GL);
+            _source.add_extension<gpu_depth_frame>(RS2_EXTENSION_DEPTH_FRAME_GL);
+
             initialize();
         }
 
@@ -58,9 +60,9 @@ namespace librealsense
                 auto width = vf.get_width();
                 auto height = vf.get_height();
                 auto new_f = source.allocate_video_frame(f.get_profile(), f,
-                    vf.get_bits_per_pixel(), width, height, vf.get_stride_in_bytes(), RS2_EXTENSION_VIDEO_FRAME_GL);
+                    vf.get_bytes_per_pixel(), width, height, vf.get_stride_in_bytes(), RS2_EXTENSION_VIDEO_FRAME_GL);
 
-                perform_gl_action([&]()
+                if (new_f) perform_gl_action([&]()
                 {
                     auto gf = dynamic_cast<gpu_addon_interface*>((frame_interface*)new_f.get());
 
@@ -77,6 +79,44 @@ namespace librealsense
                 }, []() {
                     
                 });
+            }
+
+            if (f.is<rs2::depth_frame>())
+            {
+                auto vf = f.as<rs2::depth_frame>();
+                auto width = vf.get_width();
+                auto height = vf.get_height();
+                auto new_f = source.allocate_video_frame(f.get_profile(), f,
+                    vf.get_bytes_per_pixel(), width, height, vf.get_stride_in_bytes(), RS2_EXTENSION_DEPTH_FRAME_GL);
+
+                if (new_f)
+                {
+                    auto ptr = dynamic_cast<librealsense::depth_frame*>((librealsense::frame_interface*)new_f.get());
+
+                    auto orig = (librealsense::frame_interface*)f.get();
+                    ptr->set_sensor(orig->get_sensor());
+                    orig->acquire();
+                    frame_holder h{ orig };
+                    ptr->set_original(std::move(h));
+
+                    perform_gl_action([&]()
+                    {
+                        auto gf = dynamic_cast<gpu_addon_interface*>((frame_interface*)new_f.get());
+
+                        uint32_t depth_texture;
+                        gf->get_gpu_section().output_texture(0, &depth_texture, texture_type::UINT16);
+                        glBindTexture(GL_TEXTURE_2D, depth_texture);
+                        glTexImage2D(GL_TEXTURE_2D, 0, GL_RG8, width, height, 0, GL_RG, GL_UNSIGNED_BYTE, f.get_data());
+                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
+                        gf->get_gpu_section().set_size(width, height);
+
+                        res = new_f;
+                    }, []() {
+
+                    });
+                }
             }
 
             return res;

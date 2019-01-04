@@ -75,7 +75,7 @@ namespace rs2
         {
             config_file::instance().set_default(configurations::performance::font_oversample, 8);
             config_file::instance().set_default(configurations::performance::enable_msaa, true);
-            config_file::instance().set_default(configurations::performance::msaa_samples, 4);
+            config_file::instance().set_default(configurations::performance::msaa_samples, 2);
             config_file::instance().set_default(configurations::performance::glsl_for_processing, true);
             config_file::instance().set_default(configurations::performance::glsl_for_rendering, true);
         }

@@ -42,6 +42,9 @@ namespace librealsense
 
             int _width, _height;
 
+            uint32_t _cm_texture;
+            int _last_selected_cm = 0;
+
             std::shared_ptr<rs2::visualizer_2d> _viz;
             std::shared_ptr<rs2::fbo> _fbo;
         };
