@@ -19,9 +19,9 @@ struct float3
     float x, y, z;
 };
 
-struct int3
+struct short3
 {
-    int x, y, z;
+    uint16_t x, y, z;
 };
 
 //#include "d435_new.h"
@@ -40,12 +40,12 @@ struct int6
 };
 
 void uncompress(const uint8_t* ptr, int original_size, int vertex_count, int index_count,
-    std::vector<float3>& vertex_data, std::vector<float3>& normals, std::vector<int3>& index_data)
+    std::vector<float3>& vertex_data, std::vector<float3>& normals, std::vector<short3>& index_data)
 {
     std::vector<char> uncompressed(original_size, 0);
     LZ4_uncompress((const char*)ptr, uncompressed.data(), original_size);
     const int vertex_size = vertex_count * sizeof(float3);
-    const int index_size = index_count * sizeof(int3);
+    const int index_size = index_count * sizeof(short3);
     vertex_data.resize(vertex_count);
     memcpy(vertex_data.data(), uncompressed.data(), vertex_size);
     index_data.resize(index_count);
@@ -60,12 +60,6 @@ bool ends_with(const std::string& s, const std::string& suffix)
     for (; i != s.rend() && j != suffix.rend() && *i == *j;
         i++, j++);
     return j == suffix.rend();
-}
-
-std::string to_lower(std::string x)
-{
-    transform(x.begin(), x.end(), x.begin(), tolower);
-    return x;
 }
 
 int main(int argc, char** argv) try
@@ -85,13 +79,17 @@ int main(int argc, char** argv) try
     auto output = outputFilename.getValue();
     auto name = objectName.getValue();
 
-    if (ends_with(to_lower(input), ".obj"))
+    //auto input = "/home/dorodnic/Downloads/d435_detailed.obj";
+    //auto output = "/home/dorodnic/librealsense/common/res/d435.h";
+    //auto name ="d435";
+
+    if (ends_with(input, ".obj"))
     {
         std::vector<float3> vertex_data;
         std::vector<float3> normals_raw_data;
         std::vector<float3> normals_data;
         std::vector<int6> index_raw_data;
-        std::vector<int3> index_data;
+        std::vector<short3> index_data;
 
         if (file_exists(input))
         {
@@ -135,7 +133,7 @@ int main(int argc, char** argv) try
         }
 
         size_t vertex_data_size = vertex_data.size() * sizeof(float3);
-        size_t index_data_size = index_data.size() * sizeof(int3);
+        size_t index_data_size = index_data.size() * sizeof(short3);
         //size_t normals_data_size = normals_data.size() * sizeof(float3);
 
         std::vector<uint8_t> data(vertex_data_size + index_data_size, 0);
@@ -164,12 +162,12 @@ int main(int argc, char** argv) try
         myfile << "#include <lz4.h>\n";
         myfile << "#include <vector>\n";
 
-        myfile << "inline void uncompress_" << name << "_obj(std::vector<float3>& vertex_data, std::vector<float3>& normals, std::vector<int3>& index_data)\n";
+        myfile << "inline void uncompress_" << name << "_obj(std::vector<float3>& vertex_data, std::vector<float3>& normals, std::vector<short3>& index_data)\n";
         myfile << "{\n";
         myfile << "    std::vector<char> uncompressed(0x" << std::hex << data.size() << ", 0);\n";
         myfile << "    LZ4_uncompress((const char*)" << name << "_obj_data, uncompressed.data(), 0x" << std::hex << data.size() << ");\n";
         myfile << "    const int vertex_size = 0x" << std::hex << vertex_data.size() << " * sizeof(float3);\n";
-        myfile << "    const int index_size = 0x" << std::hex << index_data.size() << " * sizeof(int3);\n";
+        myfile << "    const int index_size = 0x" << std::hex << index_data.size() << " * sizeof(short3);\n";
         myfile << "    vertex_data.resize(0x" << std::hex << vertex_data.size() << ");\n";
         myfile << "    memcpy(vertex_data.data(), uncompressed.data(), vertex_size);\n";
         myfile << "    index_data.resize(0x" << std::hex << index_data.size() << ");\n";
@@ -181,7 +179,7 @@ int main(int argc, char** argv) try
         myfile.close();
     }
 
-    if (ends_with(to_lower(input), ".png"))
+    if (ends_with(input, ".png"))
     {
         ifstream ifs(input, ios::binary | ios::ate);
         ifstream::pos_type pos = ifs.tellg();

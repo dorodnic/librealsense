@@ -3,6 +3,11 @@
 
 using namespace rs2;
 
+struct short3
+{
+    uint16_t x, y, z;
+};
+
 #include <res/d435.h>
 #include <res/d415.h>
 #include <res/sr300.h>
@@ -100,7 +105,10 @@ namespace librealsense
 
             {
                 obj_mesh d435;
-                uncompress_d435_obj(d435.positions, d435.normals, d435.indexes);
+                std::vector<short3> idx;
+                uncompress_d435_obj(d435.positions, d435.normals, idx);
+                for (auto i : idx)
+                    d435.indexes.push_back({ i.x, i.y, i.z });
                 camera_mesh.push_back(d435);
             }
 
@@ -163,7 +171,7 @@ namespace librealsense
                     }
                     else
                     {
-                        /*glBegin(GL_TRIANGLES);
+                        glBegin(GL_TRIANGLES);
                         auto& mesh = camera_mesh[index];
                         for (auto& i : mesh.indexes)
                         {
@@ -175,7 +183,7 @@ namespace librealsense
                             glVertex3fv(&v2.x);
                             glColor4f(0.036f, 0.044f, 0.051f, 0.3f);
                         }
-                        glEnd();*/
+                        glEnd();
                     }
                 }); 
             }
