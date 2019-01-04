@@ -132,8 +132,9 @@ namespace librealsense
 
     colorizer::colorizer()
         : _min(0.f), _max(6.f), _equalize(true), 
-          _target_stream_profile(), _histogram(MAX_DEPTH, 0)
+          _target_stream_profile(), _histogram()
     {
+        _histogram = std::vector<int>(MAX_DEPTH, 0);
         _hist_data = _histogram.data();
         _stream_filter.stream = RS2_STREAM_DEPTH;
         _stream_filter.format = RS2_FORMAT_Z16;
