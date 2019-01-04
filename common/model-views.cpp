@@ -4155,21 +4155,25 @@ namespace rs2
 
             glDisable(GL_TEXTURE_2D);
 
-            glDisable(GL_DEPTH_TEST);
-            glEnable(GL_BLEND);
-            glBlendFunc(GL_ONE, GL_ONE);
-
             _cam_renderer.set_matrix(RS2_GL_MATRIX_CAMERA,     view_mat);
             _cam_renderer.set_matrix(RS2_GL_MATRIX_PROJECTION, perspective_mat);
 
             if (streams.find(selected_depth_source_uid) != streams.end())
             {
                 auto source_frame = streams[selected_depth_source_uid].texture->get_last_frame();
-                if (source_frame) source_frame.apply_filter(_cam_renderer);
-            }
+                if (source_frame) 
+                {
+                    glDisable(GL_DEPTH_TEST);
+                    glEnable(GL_BLEND);
+                    
+                    glBlendFunc(GL_ONE, GL_ONE);
 
-            glDisable(GL_BLEND);
-            glEnable(GL_DEPTH_TEST);
+                    source_frame.apply_filter(_cam_renderer);
+
+                    glDisable(GL_BLEND);
+                    glEnable(GL_DEPTH_TEST);
+                }
+            }
         }
 
         glDisable(GL_DEPTH_TEST);

@@ -79,9 +79,9 @@ int main(int argc, char** argv) try
     auto output = outputFilename.getValue();
     auto name = objectName.getValue();
 
-    //auto input = "/home/dorodnic/Downloads/d435_detailed.obj";
-    //auto output = "/home/dorodnic/librealsense/common/res/d435.h";
-    //auto name ="d435";
+    // auto input = "/home/dorodnic/Downloads/tm2.obj";
+    // auto output = "/home/dorodnic/librealsense/common/res/t265.h";
+    // auto name ="t265";
 
     if (ends_with(input, ".obj"))
     {
@@ -142,7 +142,8 @@ int main(int argc, char** argv) try
         //memcpy(data.data() + vertex_data_size + index_data_size, normals_data.data(), normals_data_size);
 
         // compress szSource into pchCompressed
-        char* pchCompressed = new char[data.size()];
+        char* pchCompressed = new char[data.size()+4];
+        memset(pchCompressed, data.size()+4, 0);
         int nCompressedSize = LZ4_compress((const char *)data.data(), pchCompressed, data.size());
 
         ofstream myfile;
@@ -150,11 +151,15 @@ int main(int argc, char** argv) try
         myfile << "// License: Apache 2.0. See LICENSE file in root directory.\n";
         myfile << "// Copyright(c) 2018 Intel Corporation. All Rights Reserved.\n\n";
         myfile << "// This file is auto-generated from " << name << ".obj\n";
-        myfile << "static uint8_t " << name << "_obj_data [] { ";
-        for (int i = 0; i < nCompressedSize; i++)
+        myfile << "static uint32_t " << name << "_obj_data [] { ";
+
+        auto leftover = nCompressedSize % 4;
+        if (leftover % 4 != 0) nCompressedSize += (4 - leftover);
+
+        for (int i = 0; i < nCompressedSize; i+=4)
         {
-            uint8_t byte = pchCompressed[i];
-            myfile << "0x" << std::hex << (int)byte;
+            uint32_t* ptr = (uint32_t*)(pchCompressed + i);
+            myfile << "0x" << std::hex << (int)(*ptr);
             if (i < nCompressedSize - 1) myfile << ",";
         }
         myfile << "};\n";

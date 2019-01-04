@@ -11,6 +11,7 @@ struct short3
 #include <res/d435.h>
 #include <res/d415.h>
 #include <res/sr300.h>
+#include <res/t265.h>
 
 static const char* vertex_shader_text =
 "#version 110\n"
@@ -95,28 +96,25 @@ namespace librealsense
             });
         }
 
+        typedef void (*load_function)(std::vector<rs2::float3>&, 
+            std::vector<rs2::float3>&, std::vector<short3>&);
+
+        obj_mesh load_model(load_function f)
+        {
+            obj_mesh res;
+            std::vector<short3> idx;
+            f(res.positions, res.normals, idx);
+            for (auto i : idx)
+                res.indexes.push_back({ i.x, i.y, i.z });
+            return res;
+        }
+
         camera_renderer::camera_renderer()
         {
-            {
-                obj_mesh d415;
-                uncompress_d415_obj(d415.positions, d415.normals, d415.indexes);
-                camera_mesh.push_back(d415);
-            }
-
-            {
-                obj_mesh d435;
-                std::vector<short3> idx;
-                uncompress_d435_obj(d435.positions, d435.normals, idx);
-                for (auto i : idx)
-                    d435.indexes.push_back({ i.x, i.y, i.z });
-                camera_mesh.push_back(d435);
-            }
-
-            {
-                obj_mesh sr300;
-                uncompress_sr300_obj(sr300.positions, sr300.normals, sr300.indexes);
-                camera_mesh.push_back(sr300);
-            }
+            camera_mesh.push_back(load_model(uncompress_d415_obj));
+            camera_mesh.push_back(load_model(uncompress_d435_obj));
+            camera_mesh.push_back(load_model(uncompress_sr300_obj));
+            camera_mesh.push_back(load_model(uncompress_t265_obj));
 
             for (auto&& mesh : camera_mesh)
             {
@@ -152,6 +150,7 @@ namespace librealsense
                 if (starts_with(dev_name, "Intel RealSense D415")) index = 0;
                 if (starts_with(dev_name, "Intel RealSense D435")) index = 1;
                 if (starts_with(dev_name, "Intel RealSense SR300")) index = 2;
+                
             };
 
             if (index >= 0)
