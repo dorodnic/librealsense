@@ -2212,7 +2212,7 @@ namespace rs2
     }
 
     viewer_model::viewer_model()
-            : ppf(*this),
+            : ppf(*this), 
               synchronization_enable(true)
     {
         syncer = std::make_shared<syncer_model>();
@@ -4953,7 +4953,9 @@ namespace rs2
         auto index = f.get_profile().unique_id();
 
         std::lock_guard<std::mutex> lock(streams_mutex);
-        return streams[streams_origin[index]].upload_frame(std::move(f));
+        if (streams.find(streams_origin[index]) != streams.end())
+            return streams[streams_origin[index]].upload_frame(std::move(f));
+        else return nullptr;
     }
 
     void device_model::start_recording(const std::string& path, std::string& error_message)
