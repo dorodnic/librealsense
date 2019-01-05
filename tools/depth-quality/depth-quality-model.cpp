@@ -2,6 +2,7 @@
 #include "depth-quality-model.h"
 #include <librealsense2/rs_advanced_mode.hpp>
 #include "model-views.h"
+#include "os.h"
 
 namespace rs2
 {
@@ -449,7 +450,7 @@ namespace rs2
                 _first_frame = false;
             }
 
-            _viewer_model.show_top_bar(win, viewer_rect);
+            _viewer_model.show_top_bar(win, viewer_rect, std::vector<device_model>{});
             _viewer_model.roi_rect = _metrics_model.get_plane();
 
             bool distance_guide = false;
@@ -819,6 +820,7 @@ namespace rs2
                 {
                     _viewer_model.begin_stream(sub, profile);
                     _viewer_model.streams[profile.unique_id()].texture->colorize = sub->depth_colorizer;
+                    _viewer_model.streams[profile.unique_id()].texture->yuy2rgb = sub->yuy2rgb;
 
                     if (profile.stream_type() == RS2_STREAM_DEPTH)
                     {

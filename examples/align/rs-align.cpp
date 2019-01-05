@@ -156,9 +156,9 @@ void render_slider(rect location, float& clipping_dist)
 
     //Render the vertical slider
     ImGui::Begin("slider", nullptr, flags);
-    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImColor(215.f / 255, 215.0f / 255, 215.0f / 255));
-    ImGui::PushStyleColor(ImGuiCol_SliderGrab, ImColor(215.f / 255, 215.0f / 255, 215.0f / 255));
-    ImGui::PushStyleColor(ImGuiCol_SliderGrabActive, ImColor(215.f / 255, 215.0f / 255, 215.0f / 255));
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(215.f / 255, 215.0f / 255, 215.0f / 255, 1.f));
+    ImGui::PushStyleColor(ImGuiCol_SliderGrab, ImVec4(215.f / 255, 215.0f / 255, 215.0f / 255, 1.f));
+    ImGui::PushStyleColor(ImGuiCol_SliderGrabActive, ImVec4(215.f / 255, 215.0f / 255, 215.0f / 255, 1.f));
     auto slider_size = ImVec2(slider_window_width / 2, location.h - (pixels_to_buttom_of_stream_text * 2) - 20);
     ImGui::VSliderFloat("", slider_size, &clipping_dist, 0.0f, 6.0f, "", 1.0f, true);
     if (ImGui::IsItemHovered())

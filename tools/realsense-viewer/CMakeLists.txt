@@ -50,6 +50,13 @@ endif()
             ../../common/ux-window.cpp
             ../../common/ux-alignment.cpp
             ../../common/ux-alignment.h
+            ../../third-party/glad/glad.c
+            ../../common/opengl3.cpp
+            ../../common/opengl3.h
+            ../../common/rs-config.h
+            ../../common/rs-config.cpp
+            ../../common/os.h
+            ../../common/os.cpp
         )
 
     # config-ui
@@ -70,15 +77,19 @@ endif()
                 ${CMAKE_CURRENT_SOURCE_DIR}/res/resource.h
                 ${CMAKE_CURRENT_SOURCE_DIR}/res/realsense-viewer.rc)
 
-        include_directories(realsense-viewer ../../third-party/imgui ../../common ../../third-party ${CMAKE_CURRENT_SOURCE_DIR}/res/)
+        include_directories(realsense-viewer ../../third-party/imgui 
+        ../../third-party/glad ../../common
+        ../../third-party ${CMAKE_CURRENT_SOURCE_DIR}/res/)
     else()
         add_executable(realsense-viewer ${RS_VIEWER_CPP})
-        include_directories(realsense-viewer ../../third-party/imgui ../../common ../../third-party)
+        include_directories(realsense-viewer ../../third-party/imgui 
+        ../../third-party/glad ../../common ../../third-party)
     endif()
 
     target_link_libraries(realsense-viewer ${DEPENDENCIES}
                                            ${GTK3_LIBRARIES}
                                            Threads::Threads
+                                           realsense2-gl
                                            )
 
     set_target_properties (realsense-viewer PROPERTIES

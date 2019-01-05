@@ -53,6 +53,13 @@ endif()
             ../../third-party/imgui/imgui-fonts-fontawesome.hpp
             ../../common/ux-alignment.cpp
             ../../common/ux-alignment.h
+            ../../third-party/glad/glad.c
+            ../../common/opengl3.cpp
+            ../../common/opengl3.h
+            ../../common/rs-config.h
+            ../../common/rs-config.cpp
+            ../../common/os.h
+            ../../common/os.cpp
         )
 
     if(WIN32)
@@ -85,6 +92,7 @@ endif()
 
         include_directories(rs-depth-quality ../../common  ../../third-party
                                              ../../third-party/imgui
+                                             ../../third-party/glad
                                              ../../third-party/tclap/include
                                              ${CMAKE_CURRENT_SOURCE_DIR}/res/)
 
@@ -93,12 +101,14 @@ endif()
 
         include_directories(rs-depth-quality ../../common  ../../third-party
                                              ../../third-party/imgui
+                                             ../../third-party/glad
                                              ../../third-party/tclap/include)
     endif()
 
     target_link_libraries(rs-depth-quality ${DEPENDENCIES}
                                            ${GTK3_LIBRARIES}
-                                           Threads::Threads)
+                                           Threads::Threads
+                                           realsense2-gl)
     set_target_properties (rs-depth-quality PROPERTIES
         FOLDER Tools
     )
