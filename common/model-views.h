@@ -103,6 +103,7 @@ namespace rs2
             static const char* log_to_file         { "viewer_model.log_to_file" };
             static const char* log_filename        { "viewer_model.log_filename" };
             static const char* log_severity        { "viewer_model.log_severity" };
+            static const char* post_processing     { "viewer_model.post_processing" };
         }
         namespace window
         {
@@ -286,15 +287,18 @@ namespace rs2
         std::map<int, int> selected_format_id;
     };
 
-     class viewer_model;
-     class subdevice_model;
+    class viewer_model;
+    class subdevice_model;
+
+    void save_processing_block(const char* name, 
+        std::shared_ptr<rs2::processing_block> pb, bool enable = true);
 
     class processing_block_model
     {
     public:
         processing_block_model(subdevice_model* owner,
             const std::string& name,
-            std::shared_ptr<options> block,
+            std::shared_ptr<rs2::processing_block> block,
             std::function<rs2::frame(rs2::frame)> invoker,
             std::string& error_message);
 
@@ -304,9 +308,14 @@ namespace rs2
 
         rs2::frame invoke(rs2::frame f) const { return _invoker(f); }
 
+        void save()
+        {
+            save_processing_block(_name.c_str(), _block, enabled);
+        }
+
         bool enabled = false;
     private:
-        std::shared_ptr<options> _block;
+        std::shared_ptr<rs2::processing_block> _block;
         std::map<int, option_model> options_metadata;
         std::string _name;
         std::function<rs2::frame(rs2::frame)> _invoker;
@@ -1045,7 +1054,6 @@ namespace rs2
 
         rs2::gl::camera_renderer _cam_renderer;
         rs2::gl::pointcloud_renderer _pc_renderer;
-        std::vector<std::string> _prev_tex_sources;
     };
 
     void export_to_ply(const std::string& file_name, notifications_model& ns, frameset points, video_frame texture, bool notify = true);

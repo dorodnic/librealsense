@@ -131,6 +131,59 @@ namespace rs2
         style.Colors[ImGuiCol_TitleBgActive] = header_color;
     }
 
+    void save_processing_block(const char* name, 
+        std::shared_ptr<rs2::processing_block> pb, bool enable)
+    {
+        for (int i = 0; i < RS2_OPTION_COUNT; i++)
+        {
+            auto opt = (rs2_option)i;
+            if (pb->supports(opt))
+            {
+                auto val = pb->get_option(opt);
+                std::string key = name;
+                key + ".";
+                key += rs2_option_to_string(opt);
+                config_file::instance().set(key.c_str(), val);
+            }
+        }
+        std::string key = name;
+        key += ".enabled";
+        config_file::instance().set(key.c_str(), enable);
+    }
+
+    bool restore_processing_block(const char* name, 
+        std::shared_ptr<rs2::processing_block> pb, bool enable = true)
+    {
+        for (int i = 0; i < RS2_OPTION_COUNT; i++)
+        {
+            auto opt = (rs2_option)i;
+            if (pb->supports(opt))
+            {
+                std::string key = name;
+                key + ".";
+                key += rs2_option_to_string(opt);
+                if (config_file::instance().contains(key.c_str()))
+                {
+                    float val = config_file::instance().get(key.c_str());
+                    try
+                    {
+                        pb->set_option(opt, val);
+                    }
+                    catch (...)
+                    {
+                    }
+                }
+            }
+        }
+        std::string key = name;
+        key += ".enabled";
+        if (config_file::instance().contains(key.c_str()))
+        {
+            return config_file::instance().get(key.c_str());
+        }
+        return enable;
+    }
+
     void hyperlink(ux_window& window, const char* title, const char* link)
     {
         if (ImGui::Button(title))
@@ -735,7 +788,7 @@ namespace rs2
     processing_block_model::processing_block_model(
         subdevice_model* owner,
         const std::string& name,
-        std::shared_ptr<options> block,
+        std::shared_ptr<rs2::processing_block> block,
         std::function<rs2::frame(rs2::frame)> invoker,
         std::string& error_message)
         : _name(name), _block(block), _invoker(invoker)
@@ -744,6 +797,9 @@ namespace rs2
         ss << "##" << ((owner) ? owner->dev.get_info(RS2_CAMERA_INFO_NAME) : _name)
             << "/" << ((owner) ? (*owner->s).get_info(RS2_CAMERA_INFO_NAME) : "_")
             << "/" << (long long)this;
+
+        enabled = restore_processing_block(get_name().c_str(), 
+                                           block, enabled);
 
         subdevice_model::populate_options(options_metadata,
             ss.str().c_str(),owner , block, owner ? &owner->options_invalidated : nullptr, error_message);
@@ -763,6 +819,16 @@ namespace rs2
         depth_to_disparity(),
         disparity_to_depth()
     {
+        restore_processing_block("colorizer", depth_colorizer);
+        restore_processing_block("yuy2rgb", yuy2rgb);
+
+        if (config_file::instance().contains(
+            configurations::viewer::post_processing))
+        {
+            post_processing_enabled = config_file::instance().get(
+                configurations::viewer::post_processing);
+        }
+
         try
         {
             if (s->supports(RS2_OPTION_ENABLE_AUTO_EXPOSURE))
@@ -1380,13 +1446,17 @@ namespace rs2
 
         streaming = true;
     }
-
     void subdevice_model::update(std::string& error_message, notifications_model& notifications)
     {
         if (options_invalidated)
         {
             next_option = 0;
             options_invalidated = false;
+
+            save_processing_block("colorizer", depth_colorizer);
+            save_processing_block("yuy2rgb", yuy2rgb);
+
+            for (auto&& pbm : post_processing) pbm->save();
         }
         if (next_option < RS2_OPTION_COUNT)
         {
@@ -1416,8 +1486,6 @@ namespace rs2
                         auto_exposure_enabled = false;
                     }
                 }
-
-
             }
 
             if (next_option == RS2_OPTION_DEPTH_UNITS)
@@ -1792,19 +1860,6 @@ namespace rs2
 
                 i++;
             }
-        }
-
-        auto candidate = 0;
-        for (int i = 0; i < tex_sources_str.size(); i++)
-        {
-            auto it = std::find(_prev_tex_sources.begin(), _prev_tex_sources.end(), tex_sources_str[i]);
-            if (it == _prev_tex_sources.end())
-                candidate = i;
-        }
-        if (tex_sources.size() && tex_sources[candidate] != 0)
-        {
-            selected_tex_source = candidate;
-            _prev_tex_sources = tex_sources_str;
         }
 
         if (tex_sources_str.size() && depth_sources_str.size())
@@ -4165,7 +4220,7 @@ namespace rs2
                 {
                     glDisable(GL_DEPTH_TEST);
                     glEnable(GL_BLEND);
-                    
+
                     glBlendFunc(GL_ONE, GL_ONE);
 
                     source_frame.apply_filter(_cam_renderer);
@@ -6902,6 +6957,9 @@ namespace rs2
                                     window.link_hovered();
                                 }
                             }
+                            config_file::instance().set(
+                                configurations::viewer::post_processing, 
+                                sub->post_processing_enabled);
                         }
 
                         ImGui::PopStyleColor(5);

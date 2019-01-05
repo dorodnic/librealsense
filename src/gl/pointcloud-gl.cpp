@@ -107,7 +107,9 @@ public:
     project_shader()
         : texture_2d_shader(shader_program::load(
             texture_2d_shader::default_vertex_shader(), 
-            project_fragment_text, "output_xyz", "output_uv"))
+            project_fragment_text, 
+            "position", "textureCoords", 
+            "output_xyz", "output_uv"))
     {
         _focal_location[0] = _shader->get_uniform_location("focal1");
         _principal_location[0] = _shader->get_uniform_location("principal1");
@@ -268,6 +270,8 @@ void pointcloud_gl::get_texture_map(
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, nullptr);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, output_xyz, 0);
         glBindTexture(GL_TEXTURE_2D, 0);

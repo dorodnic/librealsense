@@ -101,13 +101,13 @@ namespace librealsense
                     auto ptr = dynamic_cast<librealsense::depth_frame*>((librealsense::frame_interface*)new_f.get());
 
                     auto orig = (librealsense::frame_interface*)f.get();
+                    auto depth_data = (uint16_t*)orig->get_frame_data();
+
                     ptr->set_sensor(orig->get_sensor());
                     orig->acquire();
                     frame_holder h{ orig };
                     ptr->set_original(std::move(h));
-
-                    const auto depth_data = reinterpret_cast<const uint16_t*>(ptr->get_frame_data());
-
+                    
                     {
                         librealsense::colorizer::update_histogram(_hist_data, 
                             depth_data, width, height);

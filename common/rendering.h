@@ -26,6 +26,8 @@
 #include <mutex>
 #include <algorithm>
 #include <iostream>
+#include <thread>
+#include <chrono>
 
 #include "tiny-profiler.h"
 
@@ -1097,7 +1099,20 @@ namespace rs2
                     if (prefered_format == RS2_FORMAT_XYZ32F)
                     {
                         data = pc.get_vertices();
+                        auto v = pc.get_vertices();
                         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, data);
+                        // for (int i = 0; i < height; i++)
+                        // {
+                        //     std::cout << i << ": ";
+                        //     for (int j = 0; j < width; j++)
+                        //     {
+                        //         auto vx = v[i * width + j];
+                        //         std::cout << "(" << vx.x << "," << vx.y << "," << vx.z << "), ";
+                        //     }
+                        //     std::cout << std::endl;
+                        // }
+                        // std::cout << std::endl << std::endl;
+                        // std::this_thread::sleep_for(std::chrono::seconds(5));
                     }
                     else
                     {

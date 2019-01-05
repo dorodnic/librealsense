@@ -52,6 +52,8 @@ namespace rs2
         static std::unique_ptr<shader_program> load(
             const std::string& vertex_shader,
             const std::string& fragment_shader,
+            const char* input0 = nullptr,
+            const char* input1 = nullptr,
             const char* output0 = nullptr,
             const char* output1 = nullptr);
 
@@ -235,7 +237,7 @@ namespace rs2
         std::shared_ptr<texture_2d_shader> tex_2d_shader;
     };
 
-    inline obj_mesh make_grid(int a, int b, float x, float y)
+    inline obj_mesh make_grid(int a, int b)
     {
         obj_mesh res;
 
@@ -247,13 +249,11 @@ namespace rs2
         {
             for (auto j = 0; j < b; j++)
             {
-                float3 point{ (i * x) - (a * x) / 2.f,
-                    (j * y) - (b * y) / 2.f,
-                    1.f };
+                float3 point{ (float)j, (float)i, 1.f };
                 res.positions.push_back(point);
                 res.normals.push_back(float3{ 0.f, 0.f, -1.f });
 
-                res.uvs.emplace_back(float2{ (float)j / b, (float)i / a });
+                res.uvs.emplace_back(float2{ (i+0.5f)/(float)(a), (j+0.5f)/(float)(b) });
 
                 if (i < a - 1 && j < b - 1)
                 {

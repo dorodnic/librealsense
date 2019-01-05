@@ -11,7 +11,6 @@ static const char* vertex_shader_text =
 "attribute vec2 textureCoords;\n"
 "\n"
 "varying float valid;\n"
-"varying vec2 positionCoords;\n"
 "varying vec2 sampledUvs;\n"
 "\n"
 "uniform mat4 transformationMatrix;\n"
@@ -26,10 +25,11 @@ static const char* vertex_shader_text =
 "uniform float minDeltaZ;\n"
 "\n"
 "void main(void) {\n"
-"    vec4 uvs = texture2D(uvsSampler, textureCoords);\n"
-"    vec4 pos = texture2D(positionsSampler, textureCoords);\n"
 "    float pixelWidth = 1.0 / imageWidth;\n"
 "    float pixelHeight = 1.0 / imageHeight;\n"
+"    vec2 tex = vec2(textureCoords.x, textureCoords.y);\n"
+"    vec4 pos = texture2D(positionsSampler, tex);\n"
+"    vec4 uvs = texture2D(uvsSampler, tex);\n"
 "\n"
 "    vec2 tex_left = vec2(max(textureCoords.x - pixelWidth, 0.0), textureCoords.y);\n"
 "    vec2 tex_right = vec2(min(textureCoords.x + pixelWidth, 1.0), textureCoords.y);\n"
@@ -47,13 +47,11 @@ static const char* vertex_shader_text =
 "    if (abs(pos_top.z - pos.z) > minDeltaZ) valid = 1.0;\n"
 "    if (abs(pos_buttom.z - pos.z) > minDeltaZ) valid = 1.0;\n"
 "    if (abs(pos.z) < 0.01) valid = 1.0;\n"
-"    //valid = 0.0;\n"
 "    if (valid > 0.0) pos = vec4(1.0, 1.0, 1.0, 0.0);\n"
 "    else pos = vec4(pos.xyz, 1.0);\n"
 "    vec4 worldPosition = transformationMatrix * pos;\n"
 "    gl_Position = projectionMatrix * cameraMatrix * worldPosition;\n"
 "\n"
-"    positionCoords = position.xy;\n"
 "    sampledUvs = uvs.xy;\n"
 "}\n";
 
@@ -62,7 +60,6 @@ static const char* fragment_shader_text =
 "\n"
 "varying float valid;\n"
 "varying vec2 sampledUvs;\n"
-"varying vec2 positionCoords;\n"
 "\n"
 "uniform sampler2D textureSampler;\n"
 "\n"
@@ -89,18 +86,14 @@ namespace librealsense
         {
             _shader = shader_program::load(
                 vertex_shader_text,
-                fragment_shader_text);
+                fragment_shader_text,
+                "position", "textureCoords");
 
             init();
         }
 
         void pointcloud_shader::init()
         {
-            _shader->bind_attribute(0, "position");
-            _shader->bind_attribute(1, "textureCoords");
-            _shader->bind_attribute(2, "normal");
-            _shader->bind_attribute(3, "tangent");
-
             _transformation_matrix_location = _shader->get_uniform_location("transformationMatrix");
             _projection_matrix_location = _shader->get_uniform_location("projectionMatrix");
             _camera_matrix_location = _shader->get_uniform_location("cameraMatrix");
@@ -169,7 +162,7 @@ namespace librealsense
                 _vertex_texture = std::make_shared<rs2::texture_buffer>();
                 _uvs_texture = std::make_shared<rs2::texture_buffer>();
 
-                obj_mesh mesh = make_grid(_height, _width, 1.f / _height, 1.f / _height);
+                obj_mesh mesh = make_grid(_width, _height);
                 _model = vao::create(mesh);
             }
         }
@@ -200,21 +193,12 @@ namespace librealsense
                     {
                         if (_width != width || _height != height)
                         {
-                            obj_mesh mesh = make_grid(height, width, 1.f / height, 1.f / height);
+                            obj_mesh mesh = make_grid(width, height);
                             _model = vao::create(mesh);
 
                             _width = width;
                             _height = height;
                         }
-                        //glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
-
-                        _shader->begin();
-                        _shader->set_mvp(get_matrix(
-                            RS2_GL_MATRIX_TRANSFORMATION), 
-                            get_matrix(RS2_GL_MATRIX_CAMERA), 
-                            get_matrix(RS2_GL_MATRIX_PROJECTION)
-                        );
-                        _shader->set_image_size(vf_profile.width(), vf_profile.height());
 
                         auto gf = points.as<rs2::gl::gpu_frame>();
 
@@ -235,6 +219,14 @@ namespace librealsense
                             uv_tex_id = _uvs_texture->get_gl_handle();
                         }
 
+                        _shader->begin();
+                        _shader->set_mvp(get_matrix(
+                            RS2_GL_MATRIX_TRANSFORMATION), 
+                            get_matrix(RS2_GL_MATRIX_CAMERA), 
+                            get_matrix(RS2_GL_MATRIX_PROJECTION)
+                        );
+                        _shader->set_image_size(vf_profile.width(), vf_profile.height());
+
                         glActiveTexture(GL_TEXTURE0 + _shader->texture_slot());
                         glBindTexture(GL_TEXTURE_2D, curr_tex);
 
@@ -250,8 +242,6 @@ namespace librealsense
                         glActiveTexture(GL_TEXTURE0 + _shader->texture_slot());
 
                         _shader->end();
-
-                        //glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
                     }
                     else
                     {
@@ -262,8 +252,6 @@ namespace librealsense
 
                         if (_filled_opt->query() > 0.f)
                         {
-                            // glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
-
                             glBegin(GL_QUADS);
 
                             const auto threshold = 0.05f;
@@ -280,10 +268,7 @@ namespace librealsense
                                     }
                                 }
                             }
-
                             glEnd();
-
-                            // glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
                         }
                         else
                         {
