@@ -314,6 +314,7 @@ namespace rs2
         }
 
         bool enabled = false;
+        bool visible = true;
     private:
         std::shared_ptr<rs2::processing_block> _block;
         std::map<int, option_model> options_metadata;
@@ -494,12 +495,6 @@ namespace rs2
         bool show_algo_roi = false;
 
         std::shared_ptr<rs2::colorizer> depth_colorizer;
-        std::shared_ptr<processing_block_model> decimation_filter;
-        std::shared_ptr<processing_block_model> spatial_filter;
-        std::shared_ptr<processing_block_model> temporal_filter;
-        std::shared_ptr<processing_block_model> hole_filling_filter;
-        std::shared_ptr<processing_block_model> depth_to_disparity;
-        std::shared_ptr<processing_block_model> disparity_to_depth;
         std::shared_ptr<rs2::yuy_decoder> yuy2rgb;
 
         std::vector<std::shared_ptr<processing_block_model>> post_processing;

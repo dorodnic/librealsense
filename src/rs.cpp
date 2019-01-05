@@ -20,6 +20,7 @@
 #include "proc/processing-blocks-factory.h"
 #include "proc/colorizer.h"
 #include "proc/pointcloud.h"
+#include "proc/threshold.h"
 #include "proc/sse/sse-pointcloud.h"
 #include "proc/disparity-transform.h"
 #include "proc/syncer-processing-block.h"
@@ -1752,6 +1753,12 @@ HANDLE_EXCEPTIONS_AND_RETURN(0, frame)
 rs2_processing_block* rs2_create_pointcloud(rs2_error** error) BEGIN_API_CALL
 {
     return new rs2_processing_block { pointcloud::create() };
+}
+NOARGS_HANDLE_EXCEPTIONS_AND_RETURN(nullptr)
+
+rs2_processing_block* rs2_create_threshold(rs2_error** error) BEGIN_API_CALL
+{
+    return new rs2_processing_block { std::make_shared<threshold>() };
 }
 NOARGS_HANDLE_EXCEPTIONS_AND_RETURN(nullptr)
 

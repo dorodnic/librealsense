@@ -804,13 +804,7 @@ namespace rs2
         : s(s), dev(dev), ui(), last_valid_ui(),
         streaming(false), _pause(false),
         depth_colorizer(std::make_shared<rs2::gl::colorizer>()),
-        yuy2rgb(std::make_shared<rs2::gl::yuy_decoder>()),
-        decimation_filter(),
-        spatial_filter(),
-        temporal_filter(),
-        hole_filling_filter(),
-        depth_to_disparity(),
-        disparity_to_depth()
+        yuy2rgb(std::make_shared<rs2::gl::yuy_decoder>())
     {
         restore_processing_block("colorizer", depth_colorizer);
         restore_processing_block("yuy2rgb", yuy2rgb);
@@ -858,15 +852,23 @@ namespace rs2
             const_effects.push_back(colorizer);
 
             auto decimate = std::make_shared<rs2::decimation_filter>();
-            decimation_filter = std::make_shared<processing_block_model>(
+            auto decimation_filter = std::make_shared<processing_block_model>(
                 this, "Decimation Filter", decimate,
                 [=](rs2::frame f) { return decimate->process(f); },
                 error_message);
             decimation_filter->enabled = true;
             post_processing.push_back(decimation_filter);
 
+            auto threshold = std::make_shared<rs2::threshold_filter>();
+            auto threshold_filter = std::make_shared<processing_block_model>(
+                this, "Threshold Filter", threshold,
+                [=](rs2::frame f) { return threshold->process(f); },
+                error_message);
+            threshold_filter->enabled = true;
+            post_processing.push_back(threshold_filter);
+
             auto depth_2_disparity = std::make_shared<rs2::disparity_transform>();
-            depth_to_disparity = std::make_shared<processing_block_model>(
+            auto depth_to_disparity = std::make_shared<processing_block_model>(
                 this, "Depth->Disparity", depth_2_disparity,
                 [=](rs2::frame f) { return depth_2_disparity->process(f); }, error_message);
             if (s->is<depth_stereo_sensor>())
@@ -876,7 +878,7 @@ namespace rs2
             }
 
             auto spatial = std::make_shared<rs2::spatial_filter>();
-            spatial_filter = std::make_shared<processing_block_model>(
+            auto spatial_filter = std::make_shared<processing_block_model>(
                 this, "Spatial Filter", spatial,
                 [=](rs2::frame f) { return spatial->process(f); },
                 error_message);
@@ -884,21 +886,21 @@ namespace rs2
             post_processing.push_back(spatial_filter);
 
             auto temporal = std::make_shared<rs2::temporal_filter>();
-            temporal_filter = std::make_shared<processing_block_model>(
+            auto temporal_filter = std::make_shared<processing_block_model>(
                 this, "Temporal Filter", temporal,
                 [=](rs2::frame f) { return temporal->process(f); }, error_message);
             temporal_filter->enabled = true;
             post_processing.push_back(temporal_filter);
 
             auto hole_filling = std::make_shared<rs2::hole_filling_filter>();
-            hole_filling_filter = std::make_shared<processing_block_model>(
+            auto hole_filling_filter = std::make_shared<processing_block_model>(
                 this, "Hole Filling Filter", hole_filling,
                 [=](rs2::frame f) { return hole_filling->process(f); }, error_message);
             hole_filling_filter->enabled = false;
             post_processing.push_back(hole_filling_filter);
 
             auto disparity_2_depth = std::make_shared<rs2::disparity_transform>(false);
-            disparity_to_depth = std::make_shared<processing_block_model>(
+            auto disparity_to_depth = std::make_shared<processing_block_model>(
                 this, "Disparity->Depth", disparity_2_depth,
                 [=](rs2::frame f) { return disparity_2_depth->process(f); }, error_message);
             disparity_to_depth->enabled = s->is<depth_stereo_sensor>();
@@ -906,7 +908,8 @@ namespace rs2
             {
                 disparity_to_depth->enabled = true;
                 // the block will be internally available, but removed from UI
-                //post_processing.push_back(disparity_to_depth);
+                disparity_to_depth->visible = false;
+                post_processing.push_back(disparity_to_depth);
             }
         }
         else
@@ -915,7 +918,7 @@ namespace rs2
             if (rs2_is_sensor_extendable_to(s->get().get(), RS2_EXTENSION_VIDEO, &e) && !e)
             {
                 auto decimate = std::make_shared<rs2::decimation_filter>();
-                decimation_filter = std::make_shared<processing_block_model>(
+                auto decimation_filter = std::make_shared<processing_block_model>(
                     this, "Decimation Filter", decimate,
                     [=](rs2::frame f) { return decimate->process(f); },
                     error_message);
@@ -3237,30 +3240,11 @@ namespace rs2
             {
                 if (dev->post_processing_enabled)
                 {
-                    auto dec_filter = s.second.dev->decimation_filter;
-                    auto depth_2_disparity = s.second.dev->depth_to_disparity;
-                    auto spatial_filter = s.second.dev->spatial_filter;
-                    auto temp_filter = s.second.dev->temporal_filter;
-                    auto hole_filling = s.second.dev->hole_filling_filter;
-                    auto disparity_2_depth = s.second.dev->disparity_to_depth;
-
-                    if (dec_filter && dec_filter->enabled)
-                        f = dec_filter->invoke(f);
-
-                    if (depth_2_disparity && depth_2_disparity->enabled)
-                        f = depth_2_disparity->invoke(f);
-
-                    if (spatial_filter && spatial_filter->enabled)
-                        f = spatial_filter->invoke(f);
-
-                    if (temp_filter && temp_filter->enabled)
-                        f = temp_filter->invoke(f);
-
-                    if (disparity_2_depth && disparity_2_depth->enabled)
-                            f = disparity_2_depth->invoke(f);
-
-                    if (hole_filling && hole_filling->enabled)
-                        f = hole_filling->invoke(f);
+                    for (auto&& pbm : s.second.dev->post_processing)
+                    {
+                        if (pbm && pbm->enabled)
+                            f = pbm->invoke(f);
+                    }
 
                     break;
                 }
@@ -6957,6 +6941,8 @@ namespace rs2
                     {
                         for (auto&& pb : sub->post_processing)
                         {
+                            if (!pb->visible) continue;
+
                             ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 5);
 
                             const ImVec2 pos = ImGui::GetCursorPos();
