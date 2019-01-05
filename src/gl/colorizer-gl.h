@@ -36,6 +36,8 @@ namespace librealsense
             void cleanup_gpu_resources() override;
             void create_gpu_resources() override;
 
+            static void populate_floating_histogram(float* f, int* hist);
+            
             rs2::frame process_frame(const rs2::frame_source& source, const rs2::frame& f) override;
         private:
             int _enabled = 0;
@@ -44,6 +46,9 @@ namespace librealsense
 
             uint32_t _cm_texture;
             int _last_selected_cm = 0;
+
+            std::vector<float> _fhist;
+            float* _fhist_data;
 
             std::shared_ptr<rs2::visualizer_2d> _viz;
             std::shared_ptr<rs2::fbo> _fbo;

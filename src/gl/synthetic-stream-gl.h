@@ -32,7 +32,8 @@ namespace librealsense
             RGB,
             XYZ,
             UV,
-            UINT16
+            UINT16,
+            FLOAT_ASSIST
         };
 
         class gpu_object;

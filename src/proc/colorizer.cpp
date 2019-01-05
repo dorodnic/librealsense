@@ -123,11 +123,11 @@ namespace librealsense
         { 0, 0, 0 },
         } };
 
-    void colorizer::update_histogram(const uint16_t* depth_data, int w, int h)
+    void colorizer::update_histogram(int* hist, const uint16_t* depth_data, int w, int h)
     {
-        memset(_hist_data, 0, sizeof(MAX_DEPTH));
-        for (auto i = 0; i < w*h; ++i) ++_hist_data[depth_data[i]];
-        for (auto i = 2; i < MAX_DEPTH; ++i) _hist_data[i] += _hist_data[i - 1]; // Build a cumulative histogram for the indices in [1,0xFFFF]
+        memset(hist, 0, MAX_DEPTH * sizeof(int));
+        for (auto i = 0; i < w*h; ++i) ++hist[depth_data[i]];
+        for (auto i = 2; i < MAX_DEPTH; ++i) hist[i] += hist[i - 1]; // Build a cumulative histogram for the indices in [1,0xFFFF]
     }
 
     colorizer::colorizer()
@@ -217,7 +217,7 @@ namespace librealsense
             const auto depth_data = reinterpret_cast<const uint16_t*>(depth.get_data());
             auto rgb_data = reinterpret_cast<uint8_t*>(const_cast<void *>(rgb.get_data()));
 
-            update_histogram(depth_data, w, h);
+            update_histogram(_hist_data, depth_data, w, h);
             
             auto cm = _maps[_map_index];
             for (auto i = 0; i < w*h; ++i)

@@ -35,6 +35,10 @@ namespace librealsense
 
             rs2::frame process_frame(const rs2::frame_source& source, const rs2::frame& f) override;
         private:
+            std::vector<int> _hist;
+            std::vector<float> _fhist;
+            int* _hist_data;
+            float* _fhist_data;
         };
     }
 }

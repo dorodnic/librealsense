@@ -6,6 +6,8 @@
 #include "../include/librealsense2-gl/rs_processing_gl.hpp"
 
 #include "proc/synthetic-stream.h"
+#include "proc/colorizer.h"
+#include "colorizer-gl.h"
 #include "upload.h"
 #include "option.h"
 #include "context.h"
@@ -27,6 +29,11 @@ namespace librealsense
     {
         upload::upload()
         {
+            _hist = std::vector<int>(librealsense::colorizer::MAX_DEPTH, 0);
+            _fhist = std::vector<float>(librealsense::colorizer::MAX_DEPTH, 0.f);
+            _hist_data = _hist.data();
+            _fhist_data = _fhist.data();
+
             _source.add_extension<gpu_video_frame>(RS2_EXTENSION_VIDEO_FRAME_GL);
             _source.add_extension<gpu_depth_frame>(RS2_EXTENSION_DEPTH_FRAME_GL);
 
@@ -99,6 +106,15 @@ namespace librealsense
                     frame_holder h{ orig };
                     ptr->set_original(std::move(h));
 
+                    const auto depth_data = reinterpret_cast<const uint16_t*>(ptr->get_frame_data());
+
+                    {
+                        librealsense::colorizer::update_histogram(_hist_data, 
+                            depth_data, width, height);
+                        librealsense::gl::colorizer::populate_floating_histogram(
+                            _fhist_data, _hist_data);
+                    }
+
                     perform_gl_action([&]()
                     {
                         auto gf = dynamic_cast<gpu_addon_interface*>((frame_interface*)new_f.get());
@@ -107,6 +123,14 @@ namespace librealsense
                         gf->get_gpu_section().output_texture(0, &depth_texture, texture_type::UINT16);
                         glBindTexture(GL_TEXTURE_2D, depth_texture);
                         glTexImage2D(GL_TEXTURE_2D, 0, GL_RG8, width, height, 0, GL_RG, GL_UNSIGNED_BYTE, f.get_data());
+                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
+                        uint32_t hist_texture;
+                        gf->get_gpu_section().output_texture(1, &hist_texture, texture_type::FLOAT_ASSIST);
+                        glBindTexture(GL_TEXTURE_2D, hist_texture);
+                        glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, 
+                            0xFF, 0xFF, 0, GL_RED, GL_FLOAT, _fhist_data);
                         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
                         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 

@@ -167,39 +167,6 @@ namespace librealsense
 
         void gpu_section::create_gpu_resources()
         {
-            auto ptr = backup.get();
-            for (int i = 0; i < MAX_TEXTURES; i++)
-            {
-                if (textures[i])
-                {
-                    glGenTextures(1, &textures[i]);
-                    glBindTexture(GL_TEXTURE_2D, textures[i]);
-
-                    if (types[i] == texture_type::RGB)
-                    {
-                        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, ptr);
-                        ptr += width * height * 3;
-                    }
-                    else if (types[i] == texture_type::XYZ)
-                    {
-                        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, ptr);
-                        ptr += width * height * 12;
-                    }
-                    else if (types[i] == texture_type::UV)
-                    {
-                        glTexImage2D(GL_TEXTURE_2D, 0, GL_RG32F, width, height, 0, GL_RG, GL_FLOAT, ptr);
-                        ptr += width * height * 8;
-                    }
-                    else if (types[i] == texture_type::UINT16)
-                    {
-                        glTexImage2D(GL_TEXTURE_2D, 0, GL_RG8, width, height, 0, GL_RG, GL_UNSIGNED_BYTE, ptr);
-                        ptr += width * height * 2;
-                    }
-
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-                }
-            }
             backup.reset();
         }
 
@@ -326,6 +293,11 @@ namespace librealsense
                         else if (types[i] == texture_type::UINT16)
                         {
                             glTexImage2D(GL_TEXTURE_2D, 0, GL_RG8, width, height, 0, GL_RG, GL_UNSIGNED_BYTE, nullptr);
+                        }
+                        else
+                        {
+                            glDeleteTextures(1, &res);
+                            continue;
                         }
                         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, res, 0);
 
