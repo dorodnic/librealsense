@@ -300,7 +300,8 @@ namespace rs2
             const std::string& name,
             std::shared_ptr<rs2::processing_block> block,
             std::function<rs2::frame(rs2::frame)> invoker,
-            std::string& error_message);
+            std::string& error_message,
+            bool enabled = true);
 
         const std::string& get_name() const { return _name; }
 
@@ -313,7 +314,7 @@ namespace rs2
             save_processing_block(_name.c_str(), _block, enabled);
         }
 
-        bool enabled = false;
+        bool enabled = true;
         bool visible = true;
     private:
         std::shared_ptr<rs2::processing_block> _block;

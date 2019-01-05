@@ -134,7 +134,7 @@ namespace rs2
             {
                 auto val = pb->get_option(opt);
                 std::string key = name;
-                key + ".";
+                key += ".";
                 key += rs2_option_to_string(opt);
                 config_file::instance().set(key.c_str(), val);
             }
@@ -153,7 +153,7 @@ namespace rs2
             if (pb->supports(opt))
             {
                 std::string key = name;
-                key + ".";
+                key += ".";
                 key += rs2_option_to_string(opt);
                 if (config_file::instance().contains(key.c_str()))
                 {
@@ -783,8 +783,8 @@ namespace rs2
         const std::string& name,
         std::shared_ptr<rs2::processing_block> block,
         std::function<rs2::frame(rs2::frame)> invoker,
-        std::string& error_message)
-        : _name(name), _block(block), _invoker(invoker)
+        std::string& error_message, bool enable)
+        : _name(name), _block(block), _invoker(invoker), enabled(enable)
     {
         std::stringstream ss;
         ss << "##" << ((owner) ? owner->dev.get_info(RS2_CAMERA_INFO_NAME) : _name)
@@ -856,7 +856,6 @@ namespace rs2
                 this, "Decimation Filter", decimate,
                 [=](rs2::frame f) { return decimate->process(f); },
                 error_message);
-            decimation_filter->enabled = true;
             post_processing.push_back(decimation_filter);
 
             auto threshold = std::make_shared<rs2::threshold_filter>();
@@ -864,7 +863,6 @@ namespace rs2
                 this, "Threshold Filter", threshold,
                 [=](rs2::frame f) { return threshold->process(f); },
                 error_message);
-            threshold_filter->enabled = true;
             post_processing.push_back(threshold_filter);
 
             auto depth_2_disparity = std::make_shared<rs2::disparity_transform>();
@@ -873,7 +871,6 @@ namespace rs2
                 [=](rs2::frame f) { return depth_2_disparity->process(f); }, error_message);
             if (s->is<depth_stereo_sensor>())
             {
-                depth_to_disparity->enabled = true;
                 post_processing.push_back(depth_to_disparity);
             }
 
@@ -882,31 +879,26 @@ namespace rs2
                 this, "Spatial Filter", spatial,
                 [=](rs2::frame f) { return spatial->process(f); },
                 error_message);
-            spatial_filter->enabled = true;
             post_processing.push_back(spatial_filter);
 
             auto temporal = std::make_shared<rs2::temporal_filter>();
             auto temporal_filter = std::make_shared<processing_block_model>(
                 this, "Temporal Filter", temporal,
                 [=](rs2::frame f) { return temporal->process(f); }, error_message);
-            temporal_filter->enabled = true;
             post_processing.push_back(temporal_filter);
 
             auto hole_filling = std::make_shared<rs2::hole_filling_filter>();
             auto hole_filling_filter = std::make_shared<processing_block_model>(
                 this, "Hole Filling Filter", hole_filling,
-                [=](rs2::frame f) { return hole_filling->process(f); }, error_message);
-            hole_filling_filter->enabled = false;
+                [=](rs2::frame f) { return hole_filling->process(f); }, error_message, false);
             post_processing.push_back(hole_filling_filter);
 
             auto disparity_2_depth = std::make_shared<rs2::disparity_transform>(false);
             auto disparity_to_depth = std::make_shared<processing_block_model>(
                 this, "Disparity->Depth", disparity_2_depth,
                 [=](rs2::frame f) { return disparity_2_depth->process(f); }, error_message);
-            disparity_to_depth->enabled = s->is<depth_stereo_sensor>();
             if (s->is<depth_stereo_sensor>())
             {
-                disparity_to_depth->enabled = true;
                 // the block will be internally available, but removed from UI
                 disparity_to_depth->visible = false;
                 post_processing.push_back(disparity_to_depth);
@@ -922,7 +914,6 @@ namespace rs2
                     this, "Decimation Filter", decimate,
                     [=](rs2::frame f) { return decimate->process(f); },
                     error_message);
-                decimation_filter->enabled = true;
                 post_processing.push_back(decimation_filter);
             }
         }
@@ -6989,6 +6980,7 @@ namespace rs2
                                         if (ImGui::Button(label.c_str(), { 30,24 }))
                                         {
                                             pb->enabled = true;
+                                            pb->save();
                                         }
                                         if (ImGui::IsItemHovered())
                                         {
@@ -7006,6 +6998,7 @@ namespace rs2
                                         if (ImGui::Button(label.c_str(), { 30,24 }))
                                         {
                                             pb->enabled = false;
+                                            pb->save();
                                         }
                                         if (ImGui::IsItemHovered())
                                         {
