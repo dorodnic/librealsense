@@ -960,8 +960,7 @@ namespace rs2
 
         void show_3dviewer_header(ImFont* font, rs2::rect stream_rect, bool& paused, std::string& error_message);
 
-        void update_3d_camera(const rect& viewer_rect,
-                              mouse_info& mouse, bool force = false);
+        void update_3d_camera(ux_window& win, const rect& viewer_rect, bool force = false);
 
         void show_top_bar(ux_window& window, const rect& viewer_rect, const std::vector<device_model>& devices);
 
@@ -1050,6 +1049,10 @@ namespace rs2
 
         rs2::gl::camera_renderer _cam_renderer;
         rs2::gl::pointcloud_renderer _pc_renderer;
+
+        // Infinite pan / rotate feature:
+        bool manipulating = false;
+        float2 overflow;
     };
 
     void export_to_ply(const std::string& file_name, notifications_model& ns, frameset points, video_frame texture, bool notify = true);

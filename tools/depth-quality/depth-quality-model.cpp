@@ -446,7 +446,7 @@ namespace rs2
 
             if (_first_frame)
             {
-                _viewer_model.update_3d_camera(viewer_rect, win.get_mouse(), true);
+                _viewer_model.update_3d_camera(win, viewer_rect, true);
                 _first_frame = false;
             }
 

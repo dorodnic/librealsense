@@ -4254,7 +4254,7 @@ namespace rs2
         {
             is_3d_view = true;
             config_file::instance().set(configurations::viewer::is_3d_view, is_3d_view);
-            update_3d_camera(viewer_rect, window.get_mouse(), true);
+            update_3d_camera(window, viewer_rect, true);
         }
 
         ImGui::PopStyleColor(2);
@@ -4814,9 +4814,11 @@ namespace rs2
         ImGui::PopStyleVar();
     }
 
-    void viewer_model::update_3d_camera(const rect& viewer_rect,
-        mouse_info& mouse, bool force)
+    void viewer_model::update_3d_camera(
+        ux_window& win,
+        const rect& viewer_rect, bool force)
     {
+        mouse_info& mouse = win.get_mouse();
         auto now = std::chrono::high_resolution_clock::now();
         static auto view_clock = std::chrono::high_resolution_clock::now();
         auto sec_since_update = std::chrono::duration<float, std::milli>(now - view_clock).count() / 1000;
@@ -4855,20 +4857,96 @@ namespace rs2
             auto dir = target - pos;
             auto pan_speed = std::max(0.1f, std::min(dir.length(), 0.5f));
 
-            arcball_camera_update(
+            // Whenever the mouse reaches the end of the window
+            // and jump back to the start, it will add to the overflow
+            // counter, so by adding the overflow value
+            // we essentially emulate an infinite display
+            auto cx = mouse.cursor.x + overflow.x;
+            auto px = mouse.prev_cursor.x + overflow.x;
+            auto cy = mouse.cursor.y + overflow.y;
+            auto py = mouse.prev_cursor.y + overflow.y;
+
+            // Limit how much user mouse can jump between frames
+            // This can work poorly when the app FPS is really terrible (< 10)
+            // but overall works resonably well
+            const auto MAX_MOUSE_JUMP = 50;
+            if (std::abs(cx - px) < MAX_MOUSE_JUMP && 
+                std::abs(cy - py) < MAX_MOUSE_JUMP )
+                arcball_camera_update(
                 (float*)&pos, (float*)&target, (float*)&up, view,
                 sec_since_update,
                 0.2f, // zoom per tick
                 -0.7f * pan_speed, // pan speed
                 3.0f, // rotation multiplier
                 static_cast<int>(viewer_rect.w), static_cast<int>(viewer_rect.h), // screen (window) size
-                static_cast<int>(mouse.prev_cursor.x), static_cast<int>(mouse.cursor.x),
-                static_cast<int>(mouse.prev_cursor.y), static_cast<int>(mouse.cursor.y),
+                static_cast<int>(px), static_cast<int>(cx),
+                static_cast<int>(py), static_cast<int>(cy),
                 (ImGui::GetIO().MouseDown[2] || ImGui::GetIO().MouseDown[1]) ? 1 : 0,
                 ImGui::GetIO().MouseDown[0] ? 1 : 0,
                 mouse.mouse_wheel,
                 0);
+
+            // If we are pressing mouse button
+            // inside the 3D viewport
+            // we should remember that we
+            // are in the middle of manipulation
+            // and adjust when mouse leaves the area
+            if (ImGui::GetIO().MouseDown[0] || 
+                ImGui::GetIO().MouseDown[1] || 
+                ImGui::GetIO().MouseDown[2])
+            {
+                manipulating = true;
+            }
         }
+
+        // If we started manipulating the camera
+        // and left the viewport
+        if (manipulating && !viewer_rect.contains(mouse.cursor))
+        {
+            // If mouse is no longer pressed,
+            // abort the manipulation
+            if (!ImGui::GetIO().MouseDown[0] && 
+                !ImGui::GetIO().MouseDown[1] && 
+                !ImGui::GetIO().MouseDown[2])
+            {
+                manipulating = false;
+                overflow = float2{ 0.f, 0.f };
+            }
+            else
+            {
+                // Wrap-around the mouse in X direction
+                auto startx = (mouse.cursor.x - viewer_rect.x);
+                if (startx < 0) 
+                {
+                    overflow.x -= viewer_rect.w;
+                    startx += viewer_rect.w;
+                }
+                if (startx > viewer_rect.w) 
+                {
+                    overflow.x += viewer_rect.w;
+                    startx -= viewer_rect.w;
+                }
+                startx += viewer_rect.x;
+
+                // Wrap-around the mouse in Y direction
+                auto starty = (mouse.cursor.y - viewer_rect.y);
+                if (starty < 0) 
+                {
+                    overflow.y -= viewer_rect.h;
+                    starty += viewer_rect.h;
+                }
+                if (starty > viewer_rect.h)
+                {
+                    overflow.y += viewer_rect.h;
+                    starty -= viewer_rect.h;
+                }
+                starty += viewer_rect.y;
+
+                // Set new cursor position
+                glfwSetCursorPos(win, startx, starty);
+            }
+        }
+        else overflow = float2{ 0.f, 0.f };
 
         mouse.prev_cursor = mouse.cursor;
     }
@@ -7103,7 +7181,7 @@ namespace rs2
         static bool first = true;
         if (first)
         {
-            update_3d_camera(viewer_rect, window.get_mouse(), true);
+            update_3d_camera(window, viewer_rect, true);
             first = false;
         }
 
@@ -7120,7 +7198,7 @@ namespace rs2
 
             show_3dviewer_header(window.get_font(), viewer_rect, paused, error_message);
 
-            update_3d_camera(viewer_rect, window.get_mouse());
+            update_3d_camera(window, viewer_rect);
 
             rect window_size{ 0, 0, (float)window.width(), (float)window.height() };
             rect fb_size{ 0, 0, (float)window.framebuf_width(), (float)window.framebuf_height() };

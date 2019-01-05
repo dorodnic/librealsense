@@ -478,7 +478,7 @@ namespace rs2
 
     struct mouse_info
     {
-        float2 cursor;
+        float2 cursor{ 0.f, 0.f };
         float2 prev_cursor{ 0.f, 0.f };
         bool mouse_down = false;
         int mouse_wheel = 0;
@@ -1025,9 +1025,7 @@ namespace rs2
         }
 
         texture_buffer() : last_queue(), texture(),
-            colorize(std::make_shared<colorizer>()) {
-                
-            }
+            colorize(std::make_shared<colorizer>()) {}
 
         GLuint get_gl_handle() const { 
             if (auto gf = get_last_frame(true).as<gl::gpu_frame>()) 
