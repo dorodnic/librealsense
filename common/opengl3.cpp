@@ -250,7 +250,7 @@ texture_2d_shader::texture_2d_shader()
 {
     _shader = shader_program::load(
         vertex_shader_text,
-        fragment_shader_text);
+        fragment_shader_text, "position", "textureCoords");
 
     init();
 }
@@ -286,9 +286,6 @@ void splash_screen_shader::set_power(float power)
 
 void texture_2d_shader::init()
 {
-    _shader->bind_attribute(0, "position");
-    _shader->bind_attribute(1, "textureCoords");
-
     _position_location = _shader->get_uniform_location("elementPosition");
     _scale_location = _shader->get_uniform_location("elementScale");
     _opacity_location = _shader->get_uniform_location("opacity");
@@ -304,7 +301,7 @@ void texture_2d_shader::init()
 splash_screen_shader::splash_screen_shader()
     : texture_2d_shader(shader_program::load(
         vertex_shader_text,
-        splash_shader_text))
+        splash_shader_text, "position", "textureCoords"))
 {
 
     _rays_location = _shader->get_uniform_location("rayOrigin");

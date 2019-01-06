@@ -25,7 +25,7 @@ static const char* fragment_shader_text =
 "#version 110\n"
 "varying vec2 textCoords;\n"
 "uniform sampler2D textureSampler;\n"
-"uniform sampler1D cmSampler;\n"
+"uniform sampler2D cmSampler;\n"
 "uniform sampler2D histSampler;\n"
 "uniform float opacity;\n"
 "uniform float depth_units;\n"
@@ -48,7 +48,7 @@ static const char* fragment_shader_text =
 "            f = (d * depth_units - min_depth) / (max_depth - min_depth);"
 "        }\n"
 "        f = clamp(f, 0.0, 0.99);\n"
-"        vec4 color = texture1D(cmSampler, f);\n"
+"        vec4 color = texture2D(cmSampler, vec2(f, 0.0));\n"
 "        gl_FragColor = vec4(color.x / 256.0, color.y / 256.0, color.z / 256.0, opacity);\n"
 "    } else {\n"
 "        gl_FragColor = vec4(0.0, 0.0, 0.0, opacity);\n"
@@ -64,7 +64,7 @@ public:
     colorize_shader()
         : texture_2d_shader(shader_program::load(
             texture_2d_shader::default_vertex_shader(), 
-            fragment_shader_text))
+            fragment_shader_text, "position", "textureCoords"))
     {
         _depth_units_location = _shader->get_uniform_location("depth_units");
         _min_depth_location = _shader->get_uniform_location("min_depth");
@@ -125,10 +125,10 @@ namespace librealsense
             glGenTextures(1, &_cm_texture);
             auto& curr_map = _maps[_map_index]->get_cache();
             _last_selected_cm = _map_index;
-            glBindTexture(GL_TEXTURE_1D, _cm_texture);
-            glTexImage1D(GL_TEXTURE_1D, 0, GL_RGB32F, curr_map.size(), 0, GL_RGB, GL_FLOAT, curr_map.data());
-            glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-            glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+            glBindTexture(GL_TEXTURE_2D, _cm_texture);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, curr_map.size(), 1, 0, GL_RGB, GL_FLOAT, curr_map.data());
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
             _enabled = glsl_enabled() ? 1 : 0;
         }
@@ -189,10 +189,10 @@ namespace librealsense
 
                 if (_last_selected_cm != _map_index)
                 {
-                    glBindTexture(GL_TEXTURE_1D, _cm_texture);
-                    glTexImage1D(GL_TEXTURE_1D, 0, GL_RGB32F, curr_map.size(), 0, GL_RGB, GL_FLOAT, curr_map.data());
-                    glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-                    glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+                    glBindTexture(GL_TEXTURE_2D, _cm_texture);
+                    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, curr_map.size(), 1, 0, GL_RGB, GL_FLOAT, curr_map.data());
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
                     _last_selected_cm = _map_index;
                 }
@@ -267,7 +267,7 @@ namespace librealsense
                 glBindTexture(GL_TEXTURE_2D, hist_texture);
 
                 glActiveTexture(GL_TEXTURE0 + shader.color_map_slot());
-                glBindTexture(GL_TEXTURE_1D, _cm_texture);
+                glBindTexture(GL_TEXTURE_2D, _cm_texture);
 
                 glActiveTexture(GL_TEXTURE0 + shader.texture_slot());
                 glBindTexture(GL_TEXTURE_2D, depth_texture);
