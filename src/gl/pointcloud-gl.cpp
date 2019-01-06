@@ -247,7 +247,10 @@ void pointcloud_gl::get_texture_map(
     librealsense::float2* tex_ptr,
     librealsense::float2* pixels_ptr)
 {
+    scoped_timer t("pointcloud");
+
     perform_gl_action([&]{
+        scoped_timer t("pointcloud.gl");
         auto start = std::chrono::high_resolution_clock::now();
 
         auto viz = _projection_renderer;

@@ -10,6 +10,7 @@
 #include "../include/librealsense2/hpp/rs_processing.hpp"
 #include "../include/librealsense2-gl/rs_processing_gl.hpp"
 #include "opengl3.h"
+#include "tiny-profiler.h"
 
 #include "concurrency.h"
 #include <functional>

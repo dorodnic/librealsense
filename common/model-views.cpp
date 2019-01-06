@@ -160,7 +160,9 @@ namespace rs2
                     float val = config_file::instance().get(key.c_str());
                     try
                     {
-                        pb->set_option(opt, val);
+                        auto range = pb->get_option_range(opt);
+                        if (val >= range.min && val <= range.max)
+                            pb->set_option(opt, val);
                     }
                     catch (...)
                     {
@@ -369,7 +371,7 @@ namespace rs2
     bool option_model::draw(std::string& error_message, notifications_model& model, bool new_line, bool use_option_name)
     {
         auto res = false;
-        if (supported)
+        if (endpoint->supports(opt))
         {
             // The option's rendering model supports an alternative option title derived from its description rather than name.
             // This is applied to the Holes Filling as its display must conform with the names used by a 3rd-party tools for consistency.
@@ -4854,9 +4856,6 @@ namespace rs2
 
         if (viewer_rect.contains(mouse.cursor) || force)
         {
-            auto dir = target - pos;
-            auto pan_speed = std::max(0.1f, std::min(dir.length(), 0.5f));
-
             // Whenever the mouse reaches the end of the window
             // and jump back to the start, it will add to the overflow
             // counter, so by adding the overflow value
@@ -4869,14 +4868,14 @@ namespace rs2
             // Limit how much user mouse can jump between frames
             // This can work poorly when the app FPS is really terrible (< 10)
             // but overall works resonably well
-            const auto MAX_MOUSE_JUMP = 50;
+            const auto MAX_MOUSE_JUMP = 200;
             if (std::abs(cx - px) < MAX_MOUSE_JUMP && 
                 std::abs(cy - py) < MAX_MOUSE_JUMP )
                 arcball_camera_update(
                 (float*)&pos, (float*)&target, (float*)&up, view,
                 sec_since_update,
                 0.2f, // zoom per tick
-                -0.7f * pan_speed, // pan speed
+                -0.1f, // pan speed
                 3.0f, // rotation multiplier
                 static_cast<int>(viewer_rect.w), static_cast<int>(viewer_rect.h), // screen (window) size
                 static_cast<int>(px), static_cast<int>(cx),
@@ -4899,9 +4898,12 @@ namespace rs2
             }
         }
 
+        auto rect = viewer_rect;
+        rect.w -= 10;
+
         // If we started manipulating the camera
         // and left the viewport
-        if (manipulating && !viewer_rect.contains(mouse.cursor))
+        if (manipulating && !rect.contains(mouse.cursor))
         {
             // If mouse is no longer pressed,
             // abort the manipulation
@@ -4915,32 +4917,32 @@ namespace rs2
             else
             {
                 // Wrap-around the mouse in X direction
-                auto startx = (mouse.cursor.x - viewer_rect.x);
+                auto startx = (mouse.cursor.x - rect.x);
                 if (startx < 0) 
                 {
-                    overflow.x -= viewer_rect.w;
-                    startx += viewer_rect.w;
+                    overflow.x -= rect.w;
+                    startx += rect.w;
                 }
-                if (startx > viewer_rect.w) 
+                if (startx > rect.w) 
                 {
-                    overflow.x += viewer_rect.w;
-                    startx -= viewer_rect.w;
+                    overflow.x += rect.w;
+                    startx -= rect.w;
                 }
-                startx += viewer_rect.x;
+                startx += rect.x;
 
                 // Wrap-around the mouse in Y direction
-                auto starty = (mouse.cursor.y - viewer_rect.y);
+                auto starty = (mouse.cursor.y - rect.y);
                 if (starty < 0) 
                 {
-                    overflow.y -= viewer_rect.h;
-                    starty += viewer_rect.h;
+                    overflow.y -= rect.h;
+                    starty += rect.h;
                 }
-                if (starty > viewer_rect.h)
+                if (starty > rect.h)
                 {
-                    overflow.y += viewer_rect.h;
-                    starty -= viewer_rect.h;
+                    overflow.y += rect.h;
+                    starty -= rect.h;
                 }
-                starty += viewer_rect.y;
+                starty += rect.y;
 
                 // Set new cursor position
                 glfwSetCursorPos(win, startx, starty);

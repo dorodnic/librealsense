@@ -178,10 +178,13 @@ namespace librealsense
 
         rs2::frame pointcloud_renderer::process_frame(const rs2::frame_source& src, const rs2::frame& f)
         {
+            scoped_timer t("pointcloud_renderer");
             if (auto points = f.as<rs2::points>())
             {
                 perform_gl_action([&]()
                 {
+                    scoped_timer t("pointcloud_renderer.gl");
+
                     GLint curr_tex;
                     glGetIntegerv(GL_TEXTURE_BINDING_2D, &curr_tex);
 

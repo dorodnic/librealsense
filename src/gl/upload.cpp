@@ -59,6 +59,8 @@ namespace librealsense
 
         rs2::frame upload::process_frame(const rs2::frame_source& source, const rs2::frame& f)
         {
+            scoped_timer t("upload");
+
             auto res = f;
 
             if (f.get_profile().format() == RS2_FORMAT_YUYV)
@@ -71,6 +73,8 @@ namespace librealsense
 
                 if (new_f) perform_gl_action([&]()
                 {
+                    scoped_timer t("upload.yuy");
+
                     auto gf = dynamic_cast<gpu_addon_interface*>((frame_interface*)new_f.get());
 
                     uint32_t output_yuv;
@@ -117,6 +121,8 @@ namespace librealsense
 
                     perform_gl_action([&]()
                     {
+                        scoped_timer t("upload.depth");
+
                         auto gf = dynamic_cast<gpu_addon_interface*>((frame_interface*)new_f.get());
 
                         uint32_t depth_texture;

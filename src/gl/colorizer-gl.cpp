@@ -163,6 +163,8 @@ namespace librealsense
 
         rs2::frame colorizer::process_frame(const rs2::frame_source& src, const rs2::frame& f)
         {
+            scoped_timer t("colorizer");
+
             if (f.get_profile().get() != _source_stream_profile.get())
             {
                 _source_stream_profile = f.get_profile();
@@ -185,6 +187,7 @@ namespace librealsense
 
             perform_gl_action([&]()
             {
+                scoped_timer t("colorizer.gl");
                 auto& curr_map = _maps[_map_index]->get_cache();
 
                 if (_last_selected_cm != _map_index)

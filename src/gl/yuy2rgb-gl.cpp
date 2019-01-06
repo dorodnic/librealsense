@@ -124,6 +124,8 @@ yuy2rgb::~yuy2rgb()
 
 rs2::frame yuy2rgb::process_frame(const rs2::frame_source& src, const rs2::frame& f)
 {
+    scoped_timer t("yuy2rgb");
+
     if (f.get_profile().get() != _input_profile.get())
     {
         _input_profile = f.get_profile();
@@ -145,6 +147,8 @@ rs2::frame yuy2rgb::process_frame(const rs2::frame_source& src, const rs2::frame
 
     perform_gl_action([&]()
     {
+        scoped_timer t("yuy2rgb.gl");
+
         res = src.allocate_video_frame(_output_profile, f, 3, _width, _height, _width * 3, RS2_EXTENSION_VIDEO_FRAME_GL);
         if (!res) return;
         

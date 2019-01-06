@@ -233,6 +233,8 @@ namespace librealsense
 
         int gpu_section::get_frame_size() const
         {
+            scoped_timer t("fetch frame");
+
             int res = 0;
             for (int i = 0; i < MAX_TEXTURES; i++)
                 if (textures[i] && loaded[i])
