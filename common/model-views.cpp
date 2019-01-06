@@ -990,15 +990,18 @@ namespace rs2
             int fps_constrain = usb2 ? 15 : 30;
             auto resolution_constrain = usb2 ? std::make_pair(640, 480) : std::make_pair(1280, 720);
 
-
-            if (!usb2 && std::string(s->get_info(RS2_CAMERA_INFO_NAME)) == "RGB Camera")
-            {
-                if (config_file::instance().get(configurations::performance::glsl_for_rendering))
-                {
-                    resolution_constrain = std::make_pair(1920, 1080);
-                    def_format = RS2_FORMAT_YUYV;
-                }
-            }
+            // TODO: Once GLSL parts are properly optimised
+            // and tested on all types of hardware
+            // make sure we use Full-HD YUY overriding the default
+            // This will lower CPU utilisation and generally be faster
+            // if (!usb2 && std::string(s->get_info(RS2_CAMERA_INFO_NAME)) == "RGB Camera")
+            // {
+            //     if (config_file::instance().get(configurations::performance::glsl_for_rendering))
+            //     {
+            //         resolution_constrain = std::make_pair(1920, 1080);
+            //         def_format = RS2_FORMAT_YUYV;
+            //     }
+            // }
 
             if (!show_single_fps_list)
             {
@@ -3222,30 +3225,8 @@ namespace rs2
         show_icon(font_18, "recording_icon", textual_icons::circle, x, y, id, from_rgba(255, 46, 54, static_cast<uint8_t>(alpha_delta * 255)));
     }
 
-    rs2::frame post_processing_filters::apply_filters(rs2::frame f)
+    rs2::frame post_processing_filters::apply_filters(rs2::frame f, const rs2::frame_source& source)
     {
-        for (auto&& s : viewer.streams)
-        {
-            if (!s.second.dev) continue;
-            auto dev = s.second.dev;
-
-            if (s.second.original_profile.unique_id() == f.get_profile().unique_id())
-            {
-                if (dev->post_processing_enabled)
-                {
-                    for (auto&& pbm : s.second.dev->post_processing)
-                    {
-                        if (pbm && pbm->enabled)
-                            f = pbm->invoke(f);
-                    }
-
-                    break;
-                }
-            }
-        }
-
-        // Override the zero pixel in texture frame with black color for occlusion invalidation
-        // TODO - this is a temporal solution to be refactored from the app level into the core library
         std::vector<rs2::frame> frames;
         if (auto composite = f.as<rs2::frameset>())
         {
@@ -3255,6 +3236,31 @@ namespace rs2
         else
             frames.push_back(f);
 
+        for (auto& f : frames)
+        {
+            for (auto&& s : viewer.streams)
+            {
+                if (!s.second.dev) continue;
+                auto dev = s.second.dev;
+
+                if (s.second.original_profile.unique_id() == f.get_profile().unique_id())
+                {
+                    if (dev->post_processing_enabled)
+                    {
+                        for (auto&& pbm : s.second.dev->post_processing)
+                        {
+                            if (pbm && pbm->enabled)
+                                f = pbm->invoke(f);
+                        }
+
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Override the zero pixel in texture frame with black color for occlusion invalidation
+        // TODO - this is a temporal solution to be refactored from the app level into the core library
         for (auto&& f : frames)
         {
             auto stream_type = f.get_profile().stream_type();
@@ -3281,7 +3287,7 @@ namespace rs2
             }
         }
 
-        return f;
+        return source.allocate_composite_frame(frames);
     }
 
     void post_processing_filters::map_id(rs2::frame new_frame, rs2::frame old_frame)
@@ -3345,11 +3351,11 @@ namespace rs2
     }
 
 
-    std::vector<rs2::frame> post_processing_filters::handle_frame(rs2::frame f)
+    std::vector<rs2::frame> post_processing_filters::handle_frame(rs2::frame f, const rs2::frame_source& source)
     {
         std::vector<rs2::frame> res;
 
-        auto filtered = apply_filters(f);
+        auto filtered = apply_filters(f, source);
 
         filtered = uploader->process(filtered);
 
@@ -3386,7 +3392,7 @@ namespace rs2
         points p;
         std::vector<frame> results;
 
-        auto res = handle_frame(f);
+        auto res = handle_frame(f, source);
 
         auto frame = source.allocate_composite_frame(res);
 
@@ -3420,10 +3426,10 @@ namespace rs2
                 if(viewer.synchronization_enable)
                 {
                     auto frames = viewer.syncer->try_wait_for_frames();
-                        for(auto f:frames)
-                        {
-                            processing_block.invoke(f);
-                        }
+                    for(auto f:frames)
+                    {
+                        processing_block.invoke(f);
+                    }
                 }
                 else
                 {

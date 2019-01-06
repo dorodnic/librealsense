@@ -792,14 +792,14 @@ namespace rs2
     private:
         viewer_model& viewer;
         void process(rs2::frame f, const rs2::frame_source& source);
-        std::vector<rs2::frame> handle_frame(rs2::frame f);
+        std::vector<rs2::frame> handle_frame(rs2::frame f, const rs2::frame_source& source);
 
         void map_id(rs2::frame new_frame, rs2::frame old_frame);
         void map_id_frameset_to_frame(rs2::frameset first, rs2::frame second);
         void map_id_frameset_to_frameset(rs2::frameset first, rs2::frameset second);
         void map_id_frame_to_frame(rs2::frame first, rs2::frame second);
 
-        rs2::frame apply_filters(rs2::frame f);
+        rs2::frame apply_filters(rs2::frame f, const rs2::frame_source& source);
         rs2::frame last_tex_frame;
         rs2::processing_block processing_block;
         std::shared_ptr<pointcloud> pc;
