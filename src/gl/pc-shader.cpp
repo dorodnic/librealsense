@@ -248,6 +248,14 @@ namespace librealsense
                     }
                     else
                     {
+                        glMatrixMode(GL_MODELVIEW);
+                        glPushMatrix();
+
+                        auto t = get_matrix(RS2_GL_MATRIX_TRANSFORMATION);
+                        auto v = get_matrix(RS2_GL_MATRIX_CAMERA);
+
+                        glLoadMatrixf(v * t);
+
                         auto vertices = points.get_vertices();
                         auto tex_coords = points.get_texture_coordinates();
 
@@ -286,6 +294,8 @@ namespace librealsense
                             }
                             glEnd();
                         }
+
+                        glPopMatrix();
                     }
                 }); 
             }

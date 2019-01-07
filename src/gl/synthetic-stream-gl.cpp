@@ -15,10 +15,6 @@
 #include <iostream>
 #include <future>
 
-#ifdef BUILD_EASYLOGGINGPP
-INITIALIZE_EASYLOGGINGPP
-#endif
-
 namespace librealsense
 {
     namespace gl
