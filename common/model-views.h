@@ -1058,7 +1058,7 @@ namespace rs2
         float2 overflow;
     };
 
-    void export_to_ply(const std::string& file_name, notifications_model& ns, frameset points, video_frame texture, bool notify = true);
+    void export_to_ply(const std::string& file_name, notifications_model& ns, points p, video_frame texture, bool notify = true);
 
     // Auxillary function to save stream data in its internal (raw) format
     bool save_frame_raw_data(const std::string& filename, rs2::frame frame);

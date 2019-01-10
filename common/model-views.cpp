@@ -236,20 +236,9 @@ namespace rs2
             texture_data[idx], texture_data[idx + 1], texture_data[idx + 2]);
     }
 
-    void export_to_ply(const std::string& fname, notifications_model& ns, frameset frames, video_frame texture, bool notify)
+    void export_to_ply(const std::string& fname, notifications_model& ns, points p, video_frame texture, bool notify)
     {
-        std::thread([&ns, frames, texture, fname, notify]() mutable {
-
-            points p;
-
-            for (auto&& f : frames)
-            {
-                if (p = f.as<points>())
-                {
-                    break;
-                }
-            }
-
+        std::thread([&ns, p, texture, fname, notify]() mutable {
             if (p)
             {
                 p.export_to_ply(fname, texture);
@@ -2006,6 +1995,8 @@ namespace rs2
             {
                 auto model = ppf.get_points();
 
+
+
                 frame tex;
                 if (selected_tex_source_uid >= 0)
                 {
@@ -2015,7 +2006,7 @@ namespace rs2
 
                 std::string fname(ret);
                 if (!ends_with(to_lower(fname), ".ply")) fname += ".ply";
-                export_to_ply(fname.c_str(), not_model, model, tex);
+                export_to_ply(fname.c_str(), not_model, last_points, last_texture->get_last_frame());
             }
         }
         if (ImGui::IsItemHovered())
