@@ -312,8 +312,13 @@ Some auxillary functionalities might be affected. Please report this message if 
     {
 #ifndef NDEBUG
         return false;
-#endif
+#else
+#ifndef _DEBUG
+        return false;
+#else
         return true;
+#endif
+#endif
     }
 
     std::string url_encode(const std::string &value) 

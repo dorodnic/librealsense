@@ -927,6 +927,10 @@ namespace rs2
 
         rs2::frame handle_ready_frames(const rect& viewer_rect, ux_window& window, int devices, std::string& error_message);
 
+        void estimate_pose(motion_frame f);
+        void reset_pose();
+        rs2::matrix4 get_rotation();
+
         viewer_model();
 
         ~viewer_model()
@@ -1055,7 +1059,12 @@ namespace rs2
 
         // Infinite pan / rotate feature:
         bool manipulating = false;
-        float2 overflow;
+        float2 overflow = { 0.f, 0.f };
+
+        bool first_accel = true;
+        rs2::float3 theta;
+        double last_ts[RS2_STREAM_COUNT];
+        double dt[RS2_STREAM_COUNT];
     };
 
     void export_to_ply(const std::string& file_name, notifications_model& ns, points p, video_frame texture, bool notify = true);

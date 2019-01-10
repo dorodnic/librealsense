@@ -152,7 +152,7 @@ namespace librealsense
                 if (starts_with(dev_name, "Intel RealSense D415")) index = 0;
                 if (starts_with(dev_name, "Intel RealSense D435")) index = 1;
                 if (starts_with(dev_name, "Intel RealSense SR300")) index = 2;
-                
+                if (starts_with(dev_name, "Intel RealSense T26")) index = 3;
             };
 
             if (index >= 0)
@@ -164,8 +164,7 @@ namespace librealsense
                     if (glsl_enabled())
                     {
                         _shader->begin();
-                        _shader->set_mvp(get_matrix(
-                            RS2_GL_MATRIX_TRANSFORMATION), 
+                        _shader->set_mvp(get_matrix(RS2_GL_MATRIX_TRANSFORMATION), 
                             get_matrix(RS2_GL_MATRIX_CAMERA), 
                             get_matrix(RS2_GL_MATRIX_PROJECTION)
                         );
@@ -174,6 +173,14 @@ namespace librealsense
                     }
                     else
                     {
+                        glMatrixMode(GL_MODELVIEW);
+                        glPushMatrix();
+
+                        auto t = get_matrix(RS2_GL_MATRIX_TRANSFORMATION);
+                        auto v = get_matrix(RS2_GL_MATRIX_CAMERA);
+
+                        glLoadMatrixf(v * t);
+
                         glBegin(GL_TRIANGLES);
                         auto& mesh = camera_mesh[index];
                         for (auto& i : mesh.indexes)
@@ -187,6 +194,8 @@ namespace librealsense
                             glColor4f(0.036f, 0.044f, 0.051f, 0.3f);
                         }
                         glEnd();
+
+                        glPopMatrix();
                     }
                 }); 
             }

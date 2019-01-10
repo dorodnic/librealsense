@@ -1384,6 +1384,19 @@ namespace rs2
         });
 
         s->close();
+
+        auto imu = std::find_if(profiles.begin(), profiles.end(), 
+            [](const rs2::stream_profile& p)
+        {
+            return p.stream_type() == RS2_STREAM_ACCEL || p.stream_type() == RS2_STREAM_GYRO;
+        }) != profiles.end();
+        auto pose = std::find_if(profiles.begin(), profiles.end(),
+            [](const rs2::stream_profile& p)
+        {
+            return p.stream_type() == RS2_STREAM_POSE;
+        }) != profiles.end();
+
+        if (imu && !pose) viewer.reset_pose();
     }
 
     bool subdevice_model::is_paused() const
@@ -1401,6 +1414,120 @@ namespace rs2
         _pause = false;
     }
 
+    void viewer_model::reset_pose()
+    {
+        first_accel = true;
+
+        last_ts[RS2_STREAM_ACCEL] = 0.0;
+        dt[RS2_STREAM_ACCEL] = 0.0;
+        last_ts[RS2_STREAM_GYRO] = 0.0;
+        dt[RS2_STREAM_GYRO] = 0.0;
+        theta = float3{ 0.f, 0.f, 0.f };
+    }
+
+    rs2::matrix4 viewer_model::get_rotation()
+    {
+        if (first_accel) return identity_matrix();
+
+        auto x = theta.x;
+        auto y = 0;
+        auto z = -(theta.z + M_PI / 2);
+
+        // get rotation matrix
+        float _rx[4][4] = {
+            { 1 , 0, 0, 0 },
+            { 0, cos(z), -sin(z), 0 },
+            { 0, sin(z), cos(z), 0 },
+            { 0, 0, 0, 1 }
+        };
+
+        float _ry[4][4] = {
+            { cos(y), 0, sin(y), 0 },
+            { 0, 1, 0, 0 },
+            { -sin(y), 0, cos(y), 0 },
+            { 0, 0, 0, 1 }
+        };
+
+        float _rz[4][4] = {
+            { cos(x), -sin(x),0, 0 },
+            { sin(x), cos(x), 0, 0 },
+            { 0 , 0, 1, 0 },
+            { 0, 0, 0, 1 }
+        };
+
+        rs2::matrix4 rx(_rx);
+        rs2::matrix4 ry(_ry);
+        rs2::matrix4 rz(_rz);
+
+        return rx * ry * rz;
+    }
+
+    void viewer_model::estimate_pose(motion_frame f)
+    {
+        const float alpha = 0.98;
+        rs2_vector gv, av;
+        rs2::stream_profile profile;
+
+        profile = f.get_profile();
+        // register time passed since previous frame of the same stream type
+
+        // TODO: fix this to handle one frame at at time, check if gyro or acc
+        unsigned long fnum = f.get_frame_number();
+        double ts = f.get_timestamp();
+        dt[profile.stream_type()] = (ts - last_ts[profile.stream_type()]) / 1000.0;
+        last_ts[profile.stream_type()] = ts;
+
+        if (f.get_profile().stream_type() == RS2_STREAM_ACCEL &&
+            f.get_profile().format() == RS2_FORMAT_MOTION_XYZ32F)
+        {
+            gv = f.get_motion_data();
+
+            // measures from gyro give bigger angles than actual movement
+            double gyroX = gv.x * 0.5; //- bias.x; // Pitch
+            double gyroY = gv.y * 0.5;//- bias.y; // Yaw
+            double gyroZ = gv.z * 0.5; //- bias.z; // Roll
+
+            // new angle equals gyro measures * time passed since last measurement
+            gyroX *= dt[RS2_STREAM_GYRO];
+            gyroY *= dt[RS2_STREAM_GYRO];
+            gyroZ *= dt[RS2_STREAM_GYRO];
+
+            // Get compensation from GYRO
+            theta.x -= gyroZ;
+            theta.y += gyroY;
+            theta.z += gyroX;
+        }
+
+        if (f.get_profile().stream_type() == RS2_STREAM_ACCEL &&
+            f.get_profile().format() == RS2_FORMAT_MOTION_XYZ32F)
+        {
+            av = f.get_motion_data();
+            float R = sqrt(av.x * av.x + av.y * av.y + av.z * av.z);
+
+            float accelY = acos(av.y / R) + M_PI;
+            float accelZ = atan2(av.y, av.z);
+            float accelX = atan2(av.x, sqrt(av.y * av.y + av.z * av.z));
+
+            if (first_accel)
+            {
+                first_accel = false;
+                theta.x = accelX;
+                theta.y = accelY;
+                theta.z = accelZ;
+            }
+            else
+            {
+                /* Apply Complementary Filter:
+                - high-pass filter = thetaX * alpha:  allows short-duration signals to pass through while filtering out signals
+                that are steady over time, is used to cancel out drift.
+                - low-pass filter = accelX * (1- alpha): lets through long term changes, filtering out short term fluctuations */
+                theta.x = theta.x * alpha + accelX * (1 - alpha);
+                theta.y = theta.y * 0.99999 + accelY * 0.00001;
+                theta.z = theta.z * alpha + accelZ * (1 - alpha);
+            }
+        }        
+    }
+
     void subdevice_model::play(const std::vector<stream_profile>& profiles, viewer_model& viewer, std::shared_ptr<rs2::asynchronous_syncer> syncer)
     {
         std::stringstream ss;
@@ -1415,9 +1542,17 @@ namespace rs2
 
         s->open(profiles);
 
+        auto pose = std::find_if(profiles.begin(), profiles.end(),
+            [](const rs2::stream_profile& p)
+        {
+            return p.stream_type() == RS2_STREAM_POSE;
+        }) != profiles.end();
+
         try {
-            s->start([&, syncer](frame f)
+            s->start([&, syncer, pose](frame f)
             {
+                if (f.is<motion_frame>() && !pose) viewer.estimate_pose(f);
+
                 if (viewer.synchronization_enable && (!viewer.is_3d_view || viewer.is_3d_depth_source(f) || viewer.is_3d_texture_source(f)))
                 {
                     syncer->invoke(f);
@@ -1429,7 +1564,6 @@ namespace rs2
 
                     on_frame();
                 }
-                
             });
             }
 
@@ -4178,7 +4312,7 @@ namespace rs2
         }
         glEnd();
 
-        texture_buffer::draw_axes(0.4f, 1);
+        auto r = get_rotation();
 
         if (draw_plane)
         {
@@ -4204,6 +4338,10 @@ namespace rs2
             glEnd();
         }
 
+        _cam_renderer.set_matrix(RS2_GL_MATRIX_CAMERA, r * view_mat);
+        _cam_renderer.set_matrix(RS2_GL_MATRIX_PROJECTION, perspective_mat);
+
+        bool has_pose = false;
         for (auto&& stream : streams)
         {
             if (stream.second.profile.stream_type() == RS2_STREAM_POSE)
@@ -4215,14 +4353,38 @@ namespace rs2
 
                 rs2_pose pose_data = pose.get_pose_data();
                 matrix4 pose_trans = tm2_pose_to_world_transformation(pose_data);
-                float model[16];
-                pose_trans.to_column_major(model);
+                float model[4][4];
+                pose_trans.to_column_major((float*)model);
+                rs2::matrix4 m(model);
 
                 // set the pose transformation as the model matrix to draw the axis
                 glMatrixMode(GL_MODELVIEW);
                 glPushMatrix();
                 glLoadMatrixf(view);
-                glMultMatrixf(model); // = view x model
+
+                auto x = -M_PI / 2;
+                float _rx[4][4] = {
+                    { 1 , 0, 0, 0 },
+                    { 0, cos(x), -sin(x), 0 },
+                    { 0, sin(x), cos(x), 0 },
+                    { 0, 0, 0, 1 }
+                };
+
+                auto z = M_PI;
+                float _rz[4][4] = {
+                    { cos(z), -sin(z),0, 0 },
+                    { sin(z), cos(z), 0, 0 },
+                    { 0 , 0, 1, 0 },
+                    { 0, 0, 0, 1 }
+                };
+
+                glMultMatrixf((float*)_rx);
+                glMultMatrixf((float*)_rz);
+                //glMultMatrixf((float*)model);
+
+                rs2_vector translation{ pose_trans.mat[0][3], pose_trans.mat[1][3], pose_trans.mat[2][3] };
+                tracked_point p{ translation , pose_data.tracker_confidence }; //TODO: Osnat - use tracker_confidence or mapper_confidence ?
+                tm2.draw_trajectory(p);
 
                 if (stream.second.profile.stream_index() > 1) //TODO: use a more robust way to identfy this
                 {
@@ -4230,20 +4392,44 @@ namespace rs2
                 }
                 else
                 {
-                    tm2.draw_pose_object();
+                    rs2::matrix4 rx(_rx);
+                    rs2::matrix4 rz(_rz);
+                    _cam_renderer.set_matrix(RS2_GL_MATRIX_CAMERA, m * rz * rx * view_mat);
+                    _cam_renderer.set_matrix(RS2_GL_MATRIX_PROJECTION, perspective_mat);
+
+                    glDisable(GL_DEPTH_TEST);
+                    glEnable(GL_BLEND);
+
+                    glBlendFunc(GL_ONE, GL_ONE);
+
+                    pose.apply_filter(_cam_renderer);
+
+                    glDisable(GL_BLEND);
+                    glEnable(GL_DEPTH_TEST);
+                    has_pose = true;
+                    //tm2.draw_pose_object();
                 }
 
                 // remove model matrix from the rest of the render
                 glPopMatrix();
-
-                rs2_vector translation{ pose_trans.mat[0][3], pose_trans.mat[1][3], pose_trans.mat[2][3] };
-                tracked_point p{ translation , pose_data.tracker_confidence }; //TODO: Osnat - use tracker_confidence or mapper_confidence ?
-                tm2.draw_trajectory(p);
             }
+        }
+        glPopMatrix();
+
+        if (!has_pose)
+        {
+            glMatrixMode(GL_MODELVIEW);
+            glPushMatrix();
+            glLoadMatrixf(r * view_mat);
+            texture_buffer::draw_axes(0.4f, 1);
+            glPopMatrix();
         }
 
         glColor4f(1.f, 1.f, 1.f, 1.f);
 
+        glMatrixMode(GL_MODELVIEW);
+        glPushMatrix();
+        glLoadMatrixf(r * view_mat);
         if (draw_frustrum && last_points)
         {
             glLineWidth(1.f);
@@ -4294,16 +4480,14 @@ namespace rs2
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, texture_border_mode);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, texture_border_mode);
 
-            _pc_renderer.set_matrix(RS2_GL_MATRIX_CAMERA,     view_mat);
+            auto r = get_rotation();
+            _pc_renderer.set_matrix(RS2_GL_MATRIX_CAMERA,     r * view_mat);
             _pc_renderer.set_matrix(RS2_GL_MATRIX_PROJECTION, perspective_mat);
             _pc_renderer.set_option(gl::pointcloud_renderer::OPTION_FILLED, render_quads ? 1.f : 0.f);
 
             last_points.apply_filter(_pc_renderer);
 
             glDisable(GL_TEXTURE_2D);
-
-            _cam_renderer.set_matrix(RS2_GL_MATRIX_CAMERA,     view_mat);
-            _cam_renderer.set_matrix(RS2_GL_MATRIX_PROJECTION, perspective_mat);
 
             if (streams.find(selected_depth_source_uid) != streams.end())
             {
