@@ -1052,6 +1052,9 @@ namespace rs2
         GLint texture_border_mode = GL_CLAMP_TO_EDGE; // GL_CLAMP_TO_BORDER
 
         rs2::points last_points;
+        std::vector<rs2::points> _points;
+        std::vector<rs2::matrix4> _poses;
+        std::chrono::high_resolution_clock::time_point _last_time;
         std::shared_ptr<texture_buffer> last_texture;
 
         rs2::gl::camera_renderer _cam_renderer;

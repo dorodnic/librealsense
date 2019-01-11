@@ -2342,7 +2342,7 @@ namespace rs2
     }
 
     viewer_model::viewer_model()
-            : ppf(*this), 
+            : ppf(*this), _points(),
               synchronization_enable(true)
     {
         syncer = std::make_shared<syncer_model>();
@@ -4312,7 +4312,8 @@ namespace rs2
         }
         glEnd();
 
-        auto r = get_rotation();
+        auto r1 = get_rotation();
+        auto r2 = get_rotation();
 
         if (draw_plane)
         {
@@ -4338,8 +4339,23 @@ namespace rs2
             glEnd();
         }
 
-        _cam_renderer.set_matrix(RS2_GL_MATRIX_CAMERA, r * view_mat);
-        _cam_renderer.set_matrix(RS2_GL_MATRIX_PROJECTION, perspective_mat);
+        auto x = -M_PI / 2;
+        float _rx[4][4] = {
+            { 1 , 0, 0, 0 },
+            { 0, cos(x), -sin(x), 0 },
+            { 0, sin(x), cos(x), 0 },
+            { 0, 0, 0, 1 }
+        };
+
+        auto z = M_PI;
+        float _rz[4][4] = {
+            { cos(z), -sin(z),0, 0 },
+            { sin(z), cos(z), 0, 0 },
+            { 0 , 0, 1, 0 },
+            { 0, 0, 0, 1 }
+        };
+        rs2::matrix4 rx(_rx);
+        rs2::matrix4 rz(_rz);
 
         bool has_pose = false;
         for (auto&& stream : streams)
@@ -4362,24 +4378,8 @@ namespace rs2
                 glPushMatrix();
                 glLoadMatrixf(view);
 
-                auto x = -M_PI / 2;
-                float _rx[4][4] = {
-                    { 1 , 0, 0, 0 },
-                    { 0, cos(x), -sin(x), 0 },
-                    { 0, sin(x), cos(x), 0 },
-                    { 0, 0, 0, 1 }
-                };
-
-                auto z = M_PI;
-                float _rz[4][4] = {
-                    { cos(z), -sin(z),0, 0 },
-                    { sin(z), cos(z), 0, 0 },
-                    { 0 , 0, 1, 0 },
-                    { 0, 0, 0, 1 }
-                };
-
                 glMultMatrixf((float*)_rx);
-                glMultMatrixf((float*)_rz);
+                //glMultMatrixf((float*)_rz);
                 //glMultMatrixf((float*)model);
 
                 rs2_vector translation{ pose_trans.mat[0][3], pose_trans.mat[1][3], pose_trans.mat[2][3] };
@@ -4392,9 +4392,9 @@ namespace rs2
                 }
                 else
                 {
-                    rs2::matrix4 rx(_rx);
-                    rs2::matrix4 rz(_rz);
-                    _cam_renderer.set_matrix(RS2_GL_MATRIX_CAMERA, m * rz * rx * view_mat);
+                    _cam_renderer.set_matrix(RS2_GL_MATRIX_CAMERA, m * rx * view_mat);
+                    r1 = m * rx;
+                    r2 = rz * m * rx;
                     _cam_renderer.set_matrix(RS2_GL_MATRIX_PROJECTION, perspective_mat);
 
                     glDisable(GL_DEPTH_TEST);
@@ -4416,11 +4416,21 @@ namespace rs2
         }
         glPopMatrix();
 
+        auto now = std::chrono::high_resolution_clock::now();
+        auto diff = std::chrono::duration_cast<std::chrono::seconds>(now - _last_time).count();
+        if (abs(diff) > 1 && last_points && tm2.trajectory_button.is_pressed())
+        {
+            _last_time = now;
+            _points.push_back(last_points);
+            _poses.push_back(r2);
+            last_points.keep();
+        }
+
         if (!has_pose)
         {
             glMatrixMode(GL_MODELVIEW);
             glPushMatrix();
-            glLoadMatrixf(r * view_mat);
+            glLoadMatrixf(r1 * view_mat);
             texture_buffer::draw_axes(0.4f, 1);
             glPopMatrix();
         }
@@ -4429,7 +4439,7 @@ namespace rs2
 
         glMatrixMode(GL_MODELVIEW);
         glPushMatrix();
-        glLoadMatrixf(r * view_mat);
+        glLoadMatrixf(r1 * view_mat);
         if (draw_frustrum && last_points)
         {
             glLineWidth(1.f);
@@ -4480,14 +4490,24 @@ namespace rs2
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, texture_border_mode);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, texture_border_mode);
 
-            auto r = get_rotation();
-            _pc_renderer.set_matrix(RS2_GL_MATRIX_CAMERA,     r * view_mat);
-            _pc_renderer.set_matrix(RS2_GL_MATRIX_PROJECTION, perspective_mat);
             _pc_renderer.set_option(gl::pointcloud_renderer::OPTION_FILLED, render_quads ? 1.f : 0.f);
+            for (auto i = 0; i < _points.size(); i++)
+            {
+                _pc_renderer.set_matrix(RS2_GL_MATRIX_CAMERA, _poses[i] * view_mat);
+                _pc_renderer.set_matrix(RS2_GL_MATRIX_PROJECTION, perspective_mat);
+
+                _points[i].apply_filter(_pc_renderer);
+            }
+
+            _pc_renderer.set_matrix(RS2_GL_MATRIX_CAMERA, r2 * view_mat);
+            _pc_renderer.set_matrix(RS2_GL_MATRIX_PROJECTION, perspective_mat);
 
             last_points.apply_filter(_pc_renderer);
 
             glDisable(GL_TEXTURE_2D);
+
+            _cam_renderer.set_matrix(RS2_GL_MATRIX_CAMERA, r2 * view_mat);
+            _cam_renderer.set_matrix(RS2_GL_MATRIX_PROJECTION, perspective_mat);
 
             if (streams.find(selected_depth_source_uid) != streams.end())
             {
