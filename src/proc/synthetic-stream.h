@@ -29,7 +29,8 @@ namespace librealsense
 
         frame_interface* allocate_composite_frame(std::vector<frame_holder> frames) override;
 
-        frame_interface* allocate_points(std::shared_ptr<stream_profile_interface> stream, frame_interface* original) override;
+        frame_interface* allocate_points(std::shared_ptr<stream_profile_interface> stream, 
+            frame_interface* original, rs2_extension frame_type = RS2_EXTENSION_POINTS) override;
 
         void frame_ready(frame_holder result) override;
 
@@ -40,7 +41,7 @@ namespace librealsense
         std::shared_ptr<rs2_source> _c_wrapper;
     };
 
-    class processing_block : public processing_block_interface, public options_container
+    class EXTENSION_API processing_block : public processing_block_interface, public options_container
     {
     public:
         processing_block();
@@ -121,7 +122,7 @@ namespace librealsense
         }
     };
 
-    class stream_filter_processing_block : public generic_processing_block
+    class EXTENSION_API stream_filter_processing_block : public generic_processing_block
     {
     public:
         stream_filter_processing_block();
@@ -143,3 +144,25 @@ namespace librealsense
         bool should_process(const rs2::frame& frame) override;
     };
 }
+
+// API structures
+struct rs2_options
+{
+    rs2_options(librealsense::options_interface* options) : options(options) { }
+
+    librealsense::options_interface* options;
+
+    virtual ~rs2_options() = default;
+};
+
+struct rs2_processing_block : public rs2_options
+{
+    rs2_processing_block(std::shared_ptr<librealsense::processing_block> block)
+        : rs2_options((librealsense::options_interface*)block.get()),
+        block(block) { }
+
+    std::shared_ptr<librealsense::processing_block_interface> block;
+
+    rs2_processing_block& operator=(const rs2_processing_block&) = delete;
+    rs2_processing_block(const rs2_processing_block&) = delete;
+};

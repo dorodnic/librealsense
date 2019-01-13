@@ -2,7 +2,7 @@
 // Copyright(c) 2015 Intel Corporation. All Rights Reserved.
 
 #include "image.h"
-#include "image_avx.h"
+#include "image-avx.h"
 #include "types.h"
 
 #ifdef RS2_USE_CUDA
@@ -307,6 +307,7 @@ namespace librealsense
     // It is expected that all branching outside of the loop control variable will be removed due to constant-folding.
     template<rs2_format FORMAT> void unpack_yuy2(byte * const d[], const byte * s, int width, int height)
     {
+        //auto start = std::chrono::high_resolution_clock::now();
         auto n = width * height;
         assert(n % 16 == 0); // All currently supported color resolutions are multiples of 16 pixels. Could easily extend support to other resolutions by copying final n<16 pixels into a zero-padded buffer and recursively calling self for final iteration.
 #ifdef RS2_USE_CUDA
@@ -605,6 +606,36 @@ namespace librealsense
             }
         }
     #endif
+
+
+        //auto end = std::chrono::high_resolution_clock::now();
+        //auto ms = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        //std::cout << ms << std::endl;
+    }
+
+    void unpack_yuy2_y8(byte * const d[], const byte * s, int w, int h)
+    {
+        unpack_yuy2<RS2_FORMAT_Y8>(d, s, w, h);
+    }
+    void unpack_yuy2_y16(byte * const d[], const byte * s, int w, int h)
+    {
+        unpack_yuy2<RS2_FORMAT_Y16>(d, s, w, h);
+    }
+    void unpack_yuy2_rgb8(byte * const d[], const byte * s, int w, int h)
+    {
+        unpack_yuy2<RS2_FORMAT_RGB8>(d, s, w, h);
+    }
+    void unpack_yuy2_rgba8(byte * const d[], const byte * s, int w, int h)
+    {
+        unpack_yuy2<RS2_FORMAT_RGBA8>(d, s, w, h);
+    }
+    void unpack_yuy2_bgr8(byte * const d[], const byte * s, int w, int h)
+    {
+        unpack_yuy2<RS2_FORMAT_BGR8>(d, s, w, h);
+    }
+    void unpack_yuy2_bgra8(byte * const d[], const byte * s, int w, int h)
+    {
+        unpack_yuy2<RS2_FORMAT_BGRA8>(d, s, w, h);
     }
 
     // This templated function unpacks UYVY into RGB8/RGBA8/BGR8/BGRA8, depending on the compile-time parameter FORMAT.
@@ -974,7 +1005,7 @@ namespace librealsense
 
     const native_pixel_format pf_yuy2                     = { 'YUY2', 1, 2, {  { true,                &unpack_yuy2<RS2_FORMAT_RGB8 >,                { { RS2_STREAM_COLOR,          RS2_FORMAT_RGB8 } } },
                                                                                { true,                &unpack_yuy2<RS2_FORMAT_Y16>,                  { { RS2_STREAM_COLOR,          RS2_FORMAT_Y16 } } },
-                                                                               { false,               &copy_pixels<2>,                               { { RS2_STREAM_COLOR,          RS2_FORMAT_YUYV } } },
+                                                                               { true,                &copy_pixels<2>,                               { { RS2_STREAM_COLOR,          RS2_FORMAT_YUYV } } },
                                                                                { true,                &unpack_yuy2<RS2_FORMAT_RGBA8>,                { { RS2_STREAM_COLOR,          RS2_FORMAT_RGBA8 } } },
                                                                                { true,                &unpack_yuy2<RS2_FORMAT_BGR8 >,                { { RS2_STREAM_COLOR,          RS2_FORMAT_BGR8 } } },
                                                                                { true,                &unpack_yuy2<RS2_FORMAT_BGRA8>,                { { RS2_STREAM_COLOR,          RS2_FORMAT_BGRA8 } } } } };
@@ -1009,7 +1040,7 @@ namespace librealsense
                                                                                                                                                      { { RS2_STREAM_INFRARED, 1 },  RS2_FORMAT_Y16 } } } } };
 
     const native_pixel_format pf_uyvyl                    = { 'UYVY', 1, 2, {  { true,                &unpack_uyvy<RS2_FORMAT_RGB8 >,                { { RS2_STREAM_INFRARED,       RS2_FORMAT_RGB8 } } },
-                                                                               { false,               &copy_pixels<2>,                               { { RS2_STREAM_INFRARED,       RS2_FORMAT_UYVY } } },
+                                                                               { true,                &copy_pixels<2>,                               { { RS2_STREAM_INFRARED,       RS2_FORMAT_UYVY } } },
                                                                                { true,                &unpack_uyvy<RS2_FORMAT_RGBA8>,                { { RS2_STREAM_INFRARED,       RS2_FORMAT_RGBA8} } },
                                                                                { true,                &unpack_uyvy<RS2_FORMAT_BGR8 >,                { { RS2_STREAM_INFRARED,       RS2_FORMAT_BGR8 } } },
                                                                                { true,                &unpack_uyvy<RS2_FORMAT_BGRA8>,                { { RS2_STREAM_INFRARED,       RS2_FORMAT_BGRA8} } } } };
