@@ -78,7 +78,7 @@ namespace librealsense
         virtual void set_c_wrapper(rs2_stream_profile* wrapper) = 0;
     };
 
-    class frame_interface : public sensor_part
+    class EXTENSION_API frame_interface : public sensor_part
     {
     public:
         virtual rs2_metadata_type get_frame_metadata(const rs2_frame_metadata_value& frame_metadata) const = 0;
