@@ -51,9 +51,6 @@ rs2_processing_block* rs2_create_pointcloud(rs2_error** error);
 rs2_processing_block* rs2_create_threshold(rs2_error** error);
 
 /**
-* Creates YUY decoder processing block. This block accepts raw YUY frames and outputs frames of other formats.
-* YUY is a common video format used by a variety of web-cams. It benefits from packing pixels into 2 bytes per pixel
-* without signficant quality drop. YUY representation can be converted back to more usable RGB form,
 * but this requires somewhat costly conversion.
 * The SDK will automatically try to use SSE2 and AVX instructions and CUDA where available to get
 * best performance. Other implementations (using GLSL, OpenCL, Neon and NCS) should follow.

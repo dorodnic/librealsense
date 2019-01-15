@@ -638,6 +638,31 @@ namespace librealsense
         unpack_yuy2<RS2_FORMAT_BGRA8>(d, s, w, h);
     }
 
+    void unpack_yuy2_y8(byte * const d[], const byte * s, int w, int h)
+    {
+        unpack_yuy2<RS2_FORMAT_Y8>(d, s, w, h);
+    }
+    void unpack_yuy2_y16(byte * const d[], const byte * s, int w, int h)
+    {
+        unpack_yuy2<RS2_FORMAT_Y16>(d, s, w, h);
+    }
+    void unpack_yuy2_rgb8(byte * const d[], const byte * s, int w, int h)
+    {
+        unpack_yuy2<RS2_FORMAT_RGB8>(d, s, w, h);
+    }
+    void unpack_yuy2_rgba8(byte * const d[], const byte * s, int w, int h)
+    {
+        unpack_yuy2<RS2_FORMAT_RGBA8>(d, s, w, h);
+    }
+    void unpack_yuy2_bgr8(byte * const d[], const byte * s, int w, int h)
+    {
+        unpack_yuy2<RS2_FORMAT_BGR8>(d, s, w, h);
+    }
+    void unpack_yuy2_bgra8(byte * const d[], const byte * s, int w, int h)
+    {
+        unpack_yuy2<RS2_FORMAT_BGRA8>(d, s, w, h);
+    }
+
     // This templated function unpacks UYVY into RGB8/RGBA8/BGR8/BGRA8, depending on the compile-time parameter FORMAT.
     // It is expected that all branching outside of the loop control variable will be removed due to constant-folding.
     template<rs2_format FORMAT> void unpack_uyvy(byte * const d[], const byte * s, int width, int height)
