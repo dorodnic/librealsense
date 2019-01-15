@@ -1754,7 +1754,6 @@ rs2_processing_block* rs2_create_pointcloud(rs2_error** error) BEGIN_API_CALL
     return new rs2_processing_block { pointcloud::create() };
 }
 NOARGS_HANDLE_EXCEPTIONS_AND_RETURN(nullptr)
-
 rs2_processing_block* rs2_create_threshold(rs2_error** error) BEGIN_API_CALL
 {
     return new rs2_processing_block { std::make_shared<threshold>() };
