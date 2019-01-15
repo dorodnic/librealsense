@@ -483,7 +483,6 @@ HANDLE_EXCEPTIONS_AND_RETURN(, sensor)
 int rs2_is_option_read_only(const rs2_options* options, rs2_option option, rs2_error** error) BEGIN_API_CALL
 {
     VALIDATE_NOT_NULL(options);
-    if (!SUPPORTS_OPTION(options, option)) return 0;
     return options->options->get_option(option).is_read_only();
 }
 HANDLE_EXCEPTIONS_AND_RETURN(0, options, option)
