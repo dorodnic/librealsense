@@ -28,6 +28,10 @@ set(REALSENSE_GL_CPP
     ${LZ4_DIR}/lz4.c
 )
 
+if (${BUILD_SHARED_LIBS} AND ${BUILD_EASYLOGGINGPP})
+    list(APPEND REALSENSE_GL_CPP ../../src/log.cpp ../../third-party/easyloggingpp/src/easylogging++.cc)
+endif()
+
 source_group("3rd Party" FILES
     ../../third-party/glad/glad.c)
 
@@ -35,10 +39,6 @@ source_group("API" FILES
     ../../include/librealsense2-gl/rs_processing_gl.h
     ../../include/librealsense2-gl/rs_processing_gl.hpp
     realsense-gl.def)
-
-if(BUILD_EASYLOGGINGPP)
-    list(APPEND REALSENSE_GL_CPP ../../third-party/easyloggingpp/src/easylogging++.cc)
-endif()
 
 add_library(${PROJECT_NAME} ${REALSENSE_GL_CPP})
 include_directories(${LZ4_DIR})

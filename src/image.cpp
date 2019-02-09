@@ -307,7 +307,6 @@ namespace librealsense
     // It is expected that all branching outside of the loop control variable will be removed due to constant-folding.
     template<rs2_format FORMAT> void unpack_yuy2(byte * const d[], const byte * s, int width, int height)
     {
-        //auto start = std::chrono::high_resolution_clock::now();
         auto n = width * height;
         assert(n % 16 == 0); // All currently supported color resolutions are multiples of 16 pixels. Could easily extend support to other resolutions by copying final n<16 pixels into a zero-padded buffer and recursively calling self for final iteration.
 #ifdef RS2_USE_CUDA
@@ -606,11 +605,6 @@ namespace librealsense
             }
         }
     #endif
-
-
-        //auto end = std::chrono::high_resolution_clock::now();
-        //auto ms = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-        //std::cout << ms << std::endl;
     }
 
     void unpack_yuy2_y8(byte * const d[], const byte * s, int w, int h)

@@ -7,6 +7,16 @@ INITIALIZE_EASYLOGGINGPP
 
 namespace librealsense
 {
+    std::string datetime_string()
+    {
+        auto t = time(nullptr);
+        char buffer[20] = {};
+        const tm* time = localtime(&t);
+        if (nullptr != time)
+            strftime(buffer, sizeof(buffer), "%Y-%m-%d-%H_%M_%S", time);
+        return to_string() << buffer;
+    }
+
     class logger_type
     {
         rs2_log_severity minimum_log_severity = RS2_LOG_SEVERITY_NONE;
@@ -104,7 +114,7 @@ namespace librealsense
                 for (uint32_t i = 0; i < RS2_LOG_SEVERITY_COUNT; i++)
                 {
                     auto current = (rs2_log_severity)i;
-                    std::string name = librealsense::get_string(current);
+                    std::string name = rs2_log_severity_to_string(current);
                     std::transform(name.begin(), name.end(), name.begin(), ::tolower);
                     if (content_str == name)
                     {

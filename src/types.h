@@ -173,7 +173,7 @@ namespace librealsense
     //////////////////////////
 
 
-    class librealsense_exception : public std::exception
+    class EXTENSION_API librealsense_exception : public std::exception
     {
     public:
         const char* get_message() const noexcept
