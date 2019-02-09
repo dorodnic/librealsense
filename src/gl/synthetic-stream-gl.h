@@ -101,8 +101,11 @@ namespace librealsense
 
             bool is_active() const { return _data.active; }
             bool glsl_enabled() const { return _data.use_glsl; }
+
+            static bool is_rendering_thread();
         protected:
             lane _data;
+            static std::thread::id _rendering_thread;
         };
 
         class matrix_container
@@ -278,7 +281,9 @@ namespace librealsense
             bool loaded[MAX_TEXTURES];
             uint32_t width, height;
             bool backup_content = true;
+            bool initialized = false;
             std::unique_ptr<uint8_t[]> backup;
+            void ensure_init();
         };
 
         class gpu_addon_interface

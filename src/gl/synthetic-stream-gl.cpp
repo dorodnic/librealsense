@@ -19,6 +19,21 @@ namespace librealsense
 {
     namespace gl
     {
+        void gpu_section::ensure_init()
+        {
+            if (!initialized)
+            {
+                initialize();
+                initialized = true;
+            }
+        }
+
+        std::thread::id rendering_lane::_rendering_thread {};
+
+        bool rendering_lane::is_rendering_thread()
+        {
+            return std::this_thread::get_id() == _rendering_thread;
+        }
 
         void rendering_lane::register_gpu_object(gpu_rendering_object* obj)
         {
@@ -34,19 +49,7 @@ namespace librealsense
         {
             std::lock_guard<std::mutex> lock(_data.mutex);
 
-            {
-                //auto old = binding.glfwGetCurrentContext();
-                //binding.glfwWindowHint(GLFW_VISIBLE, 0);
-                //auto ctx = binding.glfwCreateWindow(640, 480, "Offscreen Rendering Context", nullptr, nullptr);
-                //if (!ctx) throw std::runtime_error("Could not initialize offscreen context!");
-                //binding.glfwMakeContextCurrent(ctx);
-
-                gladLoadGLLoader((GLADloadproc)binding.glfwGetProcAddress);
-
-                /* binding.glfwDestroyWindow(ctx);
-                binding.glfwMakeContextCurrent(old);*/
-            }
-
+            gladLoadGLLoader((GLADloadproc)binding.glfwGetProcAddress);
             LOG_WARNING("Initializing rendering, GLSL=" << use_glsl);
 
             for (auto&& obj : _data.objs)
@@ -57,6 +60,8 @@ namespace librealsense
             _data.use_glsl = use_glsl;
 
             LOG_WARNING(" " << _data.objs.size() << " GPU objects initialized");
+
+            _rendering_thread = std::this_thread::get_id();
         }
 
         void rendering_lane::shutdown()
@@ -179,11 +184,12 @@ namespace librealsense
                 textures[i] = 0;
                 loaded[i] = false;
             }
-            initialize();
+            
         }
 
         void gpu_section::on_publish()
         {
+            ensure_init();
             for (int i = 0; i < MAX_TEXTURES; i++)
             {
                 loaded[i] = false;
@@ -200,6 +206,8 @@ namespace librealsense
 
         void gpu_section::output_texture(int id, uint32_t* tex, texture_type type)
         {
+            ensure_init();
+            
             auto existing_tex = textures[id];
             if (existing_tex)
                 *tex = existing_tex;
@@ -229,8 +237,6 @@ namespace librealsense
 
         int gpu_section::get_frame_size() const
         {
-            scoped_timer t("fetch frame");
-
             int res = 0;
             for (int i = 0; i < MAX_TEXTURES; i++)
                 if (textures[i] && loaded[i])
@@ -257,6 +263,10 @@ namespace librealsense
 
         void gpu_section::fetch_frame(void* to)
         {
+            scoped_timer t("fetch frame");
+
+            ensure_init();
+
             bool need_to_fetch = false;
             for (int i = 0; i < MAX_TEXTURES; i++)
                 if (loaded[i]) need_to_fetch = true;
@@ -363,12 +373,16 @@ namespace librealsense
         {
             auto curr = _binding.glfwGetCurrentContext();
             if (curr == _ctx) return nullptr;
+            if (rendering_lane::is_rendering_thread()) return nullptr;
 
             _lock.lock();
             _binding.glfwMakeContextCurrent(_ctx);
             auto me = shared_from_this();
             return std::shared_ptr<void>(nullptr, [curr, me](void*){
-                me->_binding.glfwMakeContextCurrent(curr);
+                if (curr)
+                {
+                    me->_binding.glfwMakeContextCurrent(curr);
+                }
                 me->_lock.unlock();
             });
         }
