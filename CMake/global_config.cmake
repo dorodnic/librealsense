@@ -61,7 +61,7 @@ macro(global_set_flags)
 endmacro()
 
 macro(global_target_config)
-    target_link_libraries(${LRS_TARGET} PRIVATE realsense-file ${CMAKE_THREAD_LIBS_INIT} ${TRACKING_DEVICE_LIBS})
+    target_link_libraries(${LRS_TARGET} PRIVATE realsense-file realsense-dfu ${CMAKE_THREAD_LIBS_INIT} ${TRACKING_DEVICE_LIBS})
 
     include_directories(${LRS_TARGET} src)
 

@@ -10,3 +10,4 @@ if(BUILD_EASYLOGGINGPP)
 endif()
 
 add_subdirectory(${_rel_path}/realsense-file)
+add_subdirectory(${_rel_path}/realsense-dfu)

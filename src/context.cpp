@@ -328,15 +328,18 @@ namespace librealsense
         auto ctx = t->shared_from_this();
 
 #ifdef WITH_TRACKING
-        if (_tm2_context)
+        if (_tm2_context && (mask & RS2_PRODUCT_LINE_T200))
         {
             auto tm2_devices = tm2_info::pick_tm2_devices(ctx, _tm2_context->get_manager(), _tm2_context->query_devices());
             std::copy(begin(tm2_devices), end(tm2_devices), std::back_inserter(list));
         }
 #endif
 
-        auto l500_devices = l500_info::pick_l500_devices(ctx, devices.uvc_devices, devices.usb_devices);
-        std::copy(begin(l500_devices), end(l500_devices), std::back_inserter(list));
+        if (mask & RS2_PRODUCT_LINE_L500)
+        {
+            auto l500_devices = l500_info::pick_l500_devices(ctx, devices.uvc_devices, devices.usb_devices);
+            std::copy(begin(l500_devices), end(l500_devices), std::back_inserter(list));
+        }
 
         if (mask & RS2_PRODUCT_LINE_D400)
         {
