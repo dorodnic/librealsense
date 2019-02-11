@@ -203,15 +203,18 @@ namespace librealsense
                             _height = height;
                         }
 
-                        auto gf = points.as<rs2::gl::gpu_frame>();
+                        auto points_f = (frame_interface*)points.get();
 
-                        auto vertex_tex_id = 0;
-                        auto uv_tex_id = 0;
+                        uint32_t vertex_tex_id = 0;
+                        uint32_t uv_tex_id = 0;
+
+                        bool error = false;
                         
-                        if (gf)
+                        if (auto g = dynamic_cast<gpu_points_frame*>(points_f))
                         {
-                            vertex_tex_id = gf.get_texture_id(0);
-                            uv_tex_id = gf.get_texture_id(1);
+                            if (!g->get_gpu_section().input_texture(0, &vertex_tex_id) ||
+                                !g->get_gpu_section().input_texture(1, &uv_tex_id)
+                                ) error = true;
                         }
                         else
                         {
@@ -222,29 +225,32 @@ namespace librealsense
                             uv_tex_id = _uvs_texture->get_gl_handle();
                         }
 
-                        _shader->begin();
-                        _shader->set_mvp(get_matrix(
-                            RS2_GL_MATRIX_TRANSFORMATION), 
-                            get_matrix(RS2_GL_MATRIX_CAMERA), 
-                            get_matrix(RS2_GL_MATRIX_PROJECTION)
-                        );
-                        _shader->set_image_size(vf_profile.width(), vf_profile.height());
+                        if (!error)
+                        {
+                            _shader->begin();
+                            _shader->set_mvp(get_matrix(
+                                RS2_GL_MATRIX_TRANSFORMATION),
+                                get_matrix(RS2_GL_MATRIX_CAMERA),
+                                get_matrix(RS2_GL_MATRIX_PROJECTION)
+                            );
+                            _shader->set_image_size(vf_profile.width(), vf_profile.height());
 
-                        glActiveTexture(GL_TEXTURE0 + _shader->texture_slot());
-                        glBindTexture(GL_TEXTURE_2D, curr_tex);
+                            glActiveTexture(GL_TEXTURE0 + _shader->texture_slot());
+                            glBindTexture(GL_TEXTURE_2D, curr_tex);
 
-                        glActiveTexture(GL_TEXTURE0 + _shader->geometry_slot());
-                        glBindTexture(GL_TEXTURE_2D, vertex_tex_id);
+                            glActiveTexture(GL_TEXTURE0 + _shader->geometry_slot());
+                            glBindTexture(GL_TEXTURE_2D, vertex_tex_id);
 
-                        glActiveTexture(GL_TEXTURE0 + _shader->uvs_slot());
-                        glBindTexture(GL_TEXTURE_2D, uv_tex_id);
+                            glActiveTexture(GL_TEXTURE0 + _shader->uvs_slot());
+                            glBindTexture(GL_TEXTURE_2D, uv_tex_id);
 
-                        if (_filled_opt->query() > 0.f) _model->draw();
-                        else _model->draw_points();
-                        
-                        glActiveTexture(GL_TEXTURE0 + _shader->texture_slot());
+                            if (_filled_opt->query() > 0.f) _model->draw();
+                            else _model->draw_points();
 
-                        _shader->end();
+                            glActiveTexture(GL_TEXTURE0 + _shader->texture_slot());
+
+                            _shader->end();
+                        }
                     }
                     else
                     {

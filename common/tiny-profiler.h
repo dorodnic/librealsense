@@ -60,7 +60,7 @@ public:
             auto l = strlen(key);
             std::cout << key;
             std::cout << " ";
-            for (int i = 0; i < 60 - l - profiler::instance().scope * 2; i++)
+            for (int i = 0; i < std::max(0, (int)(60 - l - profiler::instance().scope * 2)); i++)
                 std::cout << ".";
             auto avg = (profiler::instance().duration[key]
                 / profiler::instance().counts[key]);

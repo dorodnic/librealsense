@@ -138,7 +138,10 @@ namespace librealsense
             void shutdown();
 
             bool is_active() const { return _data.active; }
-            std::shared_ptr<context> get_context() const { return _ctx; }
+            std::shared_ptr<context> get_context() const 
+            { 
+                return _ctx; 
+            }
             bool glsl_enabled() const { return _data.use_glsl; }
         private:
             lane _data;

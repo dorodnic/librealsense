@@ -371,15 +371,33 @@ namespace librealsense
 
         std::shared_ptr<void> context::begin_session()
         {
+            
             auto curr = _binding.glfwGetCurrentContext();
             if (curr == _ctx) return nullptr;
-            if (rendering_lane::is_rendering_thread()) return nullptr;
+            //if (rendering_lane::is_rendering_thread()) return nullptr;
+            {
+                scoped_timer s("waiting on context");
+                _lock.lock();
+            }
 
-            _lock.lock();
+            //if (rendering_lane::is_rendering_thread())
+            //    LOG(INFO) << "Main thread switched from " << curr << " to " << _ctx;
+            //else
+            //    LOG(INFO) << "Thread " << std::this_thread::get_id() << " switched from " << curr << " to " << _ctx;
+
+
             _binding.glfwMakeContextCurrent(_ctx);
             auto me = shared_from_this();
             return std::shared_ptr<void>(nullptr, [curr, me](void*){
-                if (curr)
+
+               /* if (rendering_lane::is_rendering_thread())
+                    LOG(INFO) << "Main thread switched back to " << curr;
+                else
+                    LOG(INFO) << "Thread " << std::this_thread::get_id() << " switched back to " << curr;*/
+
+
+                scoped_timer s("switch back to old context");
+                //if (curr)
                 {
                     me->_binding.glfwMakeContextCurrent(curr);
                 }
