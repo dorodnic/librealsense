@@ -93,9 +93,16 @@ endif()
         ../../third-party/glad ../../common ../../third-party)
     endif()
 
+    target_include_directories(realsense-viewer PRIVATE
+        ${ROSBAG_HEADER_DIRS}
+        ${BOOST_INCLUDE_PATH}
+        ${LZ4_INCLUDE_PATH}
+        )
+
     target_link_libraries(realsense-viewer ${DEPENDENCIES}
                                            ${GTK3_LIBRARIES}
                                            Threads::Threads
+                                           realsense-file 
                                            )
 
     set_target_properties (realsense-viewer PROPERTIES

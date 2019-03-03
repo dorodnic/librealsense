@@ -2,6 +2,8 @@
 // Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 #include <librealsense2/rs.hpp>
+#include <librealsense2/hpp/rs_internal.hpp>
+
 #include "model-views.h"
 #include "os.h"
 #include "ux-window.h"
@@ -16,6 +18,7 @@
 #include <array>
 #include <mutex>
 #include <set>
+#include <regex>
 
 #include <imgui_internal.h>
 
@@ -25,6 +28,8 @@
 using namespace rs2;
 using namespace rs400;
 
+#include "../rosbag-inspector/rosbag_content.h"
+ 
 void add_playback_device(context& ctx, std::shared_ptr<std::vector<device_model>> device_models, 
     std::string& error_message, viewer_model& viewer_model, const std::string& file)
 {
@@ -219,14 +224,213 @@ void refresh_devices(std::mutex& m,
     }
 }
 
+class bag_device
+{
+public:
+    bag_device(std::string filename)
+        : _bag(filename), _t([this] { loop(); })
+    {
+        _dev.create_matcher(RS2_MATCHER_DLR_C);
+
+        for (auto&& topic_to_message_type : _bag.topics_to_message_types)
+        {
+            std::string topic = topic_to_message_type.first;
+            std::vector<std::string> messages_types = topic_to_message_type.second;
+
+            if (messages_types.front() == "tf2_msgs/TFMessage")
+            {
+                // ??
+            }
+
+            if (messages_types.front() == "sensor_msgs/Image")
+            {
+                rosbag::View messages(_bag.bag, rosbag::TopicQuery(topic));
+                auto m = *messages.begin();
+
+                rs2_intrinsics intr;
+                bool found_intr = false;
+
+                auto intr_topic = std::regex_replace(topic, std::regex("/image"), "/camera_info");
+                auto it = _bag.topics_to_message_types.find(intr_topic);
+                if (it != _bag.topics_to_message_types.end())
+                {
+                    if (it->second.front() == "sensor_msgs/CameraInfo")
+                    {
+                        rosbag::View messages(_bag.bag, rosbag::TopicQuery(intr_topic));
+                        auto message = *messages.begin();
+
+                        if (auto intr_msg = rosbag_inspector::try_instantiate<sensor_msgs::CameraInfo>(message))
+                        {
+                            intr = {
+                                (int)intr_msg->width, (int)intr_msg->height,
+                                (float)intr_msg->K[2], (float)intr_msg->K[5],
+                                (float)intr_msg->K[0], (float)intr_msg->K[4],
+                                RS2_DISTORTION_NONE,
+                                { 0.f, 0.f, 0.f, 0.f, 0.f }
+                            };
+                            found_intr = true;
+                        }
+                    }
+                }
+                if (!found_intr) continue;
+
+                if (auto data = rosbag_inspector::try_instantiate<sensor_msgs::Image>(m))
+                {
+                    if (data->encoding == "mono16")
+                    {
+                        auto depth_sensor = _dev.add_sensor(topic);
+                        auto ir_stream = depth_sensor.add_video_stream({ RS2_STREAM_INFRARED, 0, uids++,
+                            (int)data->width, (int)data->height, 30, 2,
+                            RS2_FORMAT_Y16, intr });
+
+                        _profiles[topic] = ir_stream;
+                        _sensors[topic] = depth_sensor;
+                    }
+                    if (data->encoding == "16UC1")
+                    {
+                        auto depth_sensor = _dev.add_sensor(topic);
+                        auto ir_stream = depth_sensor.add_video_stream({ RS2_STREAM_DEPTH, 0, uids++,
+                            (int)data->width, (int)data->height, 30, 2,
+                            RS2_FORMAT_Z16, intr });
+
+                        depth_sensor.add_read_only_option(RS2_OPTION_DEPTH_UNITS, 0.001f);
+
+                        _profiles[topic] = ir_stream;
+                        _sensors[topic] = depth_sensor;
+                    }
+                    if (data->encoding == "mono8")
+                    {
+                        auto depth_sensor = _dev.add_sensor(topic);
+                        auto ir_stream = depth_sensor.add_video_stream({ RS2_STREAM_INFRARED, 0, uids++,
+                            (int)data->width, (int)data->height, 30, 1,
+                            RS2_FORMAT_Y8, intr });
+
+                        _profiles[topic] = ir_stream;
+                        _sensors[topic] = depth_sensor;
+                    }
+                }
+            }
+        }
+
+        rs2_extrinsics extr{
+            { 1.f, 0.f, 0.f, 0.f, 1.f, 0.f, 0.f, 0.f, 1.f },
+            { 0.f, 0.f, 0.f }
+        };
+
+        for (auto&& kvp : _profiles)
+        {
+            kvp.second.register_extrinsics_to(_profiles.begin()->second, extr);
+        }
+
+        _alive = true;
+    }
+
+    ~bag_device()
+    {
+        _alive = false;
+        _t.join();
+    }
+
+    void add_to(context& ctx)
+    {
+        _dev.add_to(ctx);
+    }
+
+    device get() { return _dev; }
+
+    void pause() { _paused = !_paused; }
+    void next() { _frame_number++; }
+    void prev() { _frame_number--; }
+
+private:
+    void loop()
+    {
+        while (!_alive);
+
+        while (_alive) // Application still alive?
+        {
+            for (auto&& kvp : _profiles)
+            {
+                rosbag::View messages(_bag.bag, rosbag::TopicQuery(kvp.first));
+                int count = 0;
+                for (auto&& m : messages)
+                {
+                    count++;
+                    if (count < _frame_number % messages.size()) continue;
+
+                    if (auto data = rosbag_inspector::try_instantiate<sensor_msgs::Image>(m))
+                    {
+                        auto ptr = new uint8_t[data->data.size()];
+                        memcpy(ptr, data->data.data(), data->data.size());
+
+                        auto depth_sensor = _sensors[kvp.first];
+                        depth_sensor.on_video_frame({ (void*)ptr,
+                            [](void* p) { delete[] p; },
+                            (int)data->step, (int)data->step / (int)data->width,
+                            (rs2_time_t)_frame_number * 16, RS2_TIMESTAMP_DOMAIN_HARDWARE_CLOCK, _frame_number,
+                            kvp.second });
+                    }
+
+                    if (count > 1) break;
+                }
+            }
+            if (!_paused) ++_frame_number;
+        }
+    }
+
+    std::atomic_bool _alive = false;
+    std::thread _t;
+    rs2::software_device _dev;
+
+    static int uids;
+
+    bool _paused = false;
+    int _frame_number = 0;
+
+    std::map<std::string, software_sensor> _sensors;
+    std::map<std::string, stream_profile> _profiles;
+    std::map<std::string, rosbag::View> _views;
+    rosbag_inspector::rosbag_content _bag;
+};
+
+int bag_device::uids = 1000;
+
+void add_bag_device(context& ctx, std::shared_ptr<std::vector<device_model>> device_models,
+    std::string& error_message, viewer_model& viewer_model, const std::string& file, std::vector<std::shared_ptr<bag_device>>& bag_devices)
+{
+    bool was_loaded = false;
+    bool failed = false;
+    try
+    {
+        auto dev = std::make_shared<bag_device>(file);
+        bag_devices.push_back(dev);
+        dev->add_to(ctx);
+        was_loaded = true;
+        device_models->emplace_back(dev->get(), error_message, viewer_model); 
+    }
+    catch (const std::exception& e)
+    {
+        error_message = to_string() << "Failed to load file " << file << ". Reason: " << e.what();
+        failed = true;
+    }
+    if (failed && was_loaded)
+    {
+        try { ctx.unload_device(file); }
+        catch (...) {}
+    }
+}
+
 int main(int argv, const char** argc) try
 {
     rs2::log_to_console(RS2_LOG_SEVERITY_WARN);
 
     ux_window window("Intel RealSense Viewer");
 
+    std::vector<std::shared_ptr<bag_device>> bag_devices;
+    
     // Create RealSense Context
     context ctx;
+    
     device_changes devices_connection_changes(ctx);
     std::vector<std::pair<std::string, std::string>> device_names;
 
@@ -331,7 +535,7 @@ int main(int argv, const char** argc) try
 
 
         ImGui::PushFont(window.get_font());
-        ImGui::SetNextWindowSize({ viewer_model.panel_width, 20.f * new_devices_count + 8 });
+        ImGui::SetNextWindowSize({ viewer_model.panel_width, 20.f * new_devices_count + 28 });
         if (ImGui::BeginPopup("select"))
         {
             ImGui::PushStyleColor(ImGuiCol_Text, dark_grey);
@@ -386,6 +590,14 @@ int main(int argv, const char** argc) try
                     add_playback_device(ctx, device_models, error_message, viewer_model, ret);
                 }
             }
+
+            if (ImGui::Selectable("Load Generic ROS-bag", false, ImGuiSelectableFlags_SpanAllColumns))
+            {
+                if (auto ret = file_dialog_open(open_file, "ROS-bag\0*.bag\0", NULL, NULL))
+                {
+                    add_bag_device(ctx, device_models, error_message, viewer_model, ret, bag_devices);
+                }
+            }
             ImGui::NextColumn();
             ImGui::Text("%s", "");
             ImGui::NextColumn();
@@ -420,6 +632,26 @@ int main(int argv, const char** argc) try
         // Creating window menus
         // *********************
         ImGui::Begin("Control Panel", nullptr, flags | ImGuiWindowFlags_AlwaysVerticalScrollbar);
+
+        if (bag_devices.size())
+        {
+            ImGui::Text("Bag Control:");
+            ImGui::SameLine();
+            if (ImGui::Button(textual_icons::step_backward, { 16, 16 }))
+            {
+                bag_devices[0]->prev();
+            }
+            ImGui::SameLine();
+            if (ImGui::Button(textual_icons::pause, { 16, 16 }))
+            {
+                bag_devices[0]->pause();
+            }
+            ImGui::SameLine();
+            if (ImGui::Button(textual_icons::step_forward, { 16, 16 }))
+            {
+                bag_devices[0]->next();
+            }
+        }
 
         if (device_models->size() > 0)
         {
