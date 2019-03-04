@@ -120,6 +120,13 @@ namespace rs2
             return stream;
         }
 
+        void add_recommended_processing(rs2::processing_block& pb)
+        {
+            rs2_error* e = nullptr;
+            rs2_software_sensor_add_recommended_processing_block(_sensor.get(), pb.get(), &e);
+            error::handle(e);
+        }
+
         /**
         * Inject video frame into the sensor
         *
@@ -251,6 +258,13 @@ namespace rs2
         * \param[in] ctx   context to add the device to
         */
         void add_to(context& ctx)
+        {
+            rs2_error* e = nullptr;
+            rs2_context_add_software_device(ctx._context.get(), _dev.get(), &e);
+            error::handle(e);
+        }
+        
+        void inject_to(context ctx)
         {
             rs2_error* e = nullptr;
             rs2_context_add_software_device(ctx._context.get(), _dev.get(), &e);

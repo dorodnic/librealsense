@@ -30,6 +30,8 @@ using namespace rs400;
 
 #include "../rosbag-inspector/rosbag_content.h"
  
+#include "FilteredCaptureNode.h"
+
 void add_playback_device(context& ctx, std::shared_ptr<std::vector<device_model>> device_models, 
     std::string& error_message, viewer_model& viewer_model, const std::string& file)
 {
@@ -230,7 +232,7 @@ public:
     bag_device(std::string filename)
         : _bag(filename), _t([this] { loop(); })
     {
-        _dev.create_matcher(RS2_MATCHER_DLR_C);
+        _dev.create_matcher(RS2_MATCHER_DEFAULT);
 
         for (auto&& topic_to_message_type : _bag.topics_to_message_types)
         {
@@ -280,7 +282,7 @@ public:
                     {
                         auto depth_sensor = _dev.add_sensor(topic);
                         auto ir_stream = depth_sensor.add_video_stream({ RS2_STREAM_INFRARED, 0, uids++,
-                            (int)data->width, (int)data->height, 30, 2,
+                            (int)data->width, (int)data->height, 1, 2,
                             RS2_FORMAT_Y16, intr });
 
                         _profiles[topic] = ir_stream;
@@ -290,7 +292,7 @@ public:
                     {
                         auto depth_sensor = _dev.add_sensor(topic);
                         auto ir_stream = depth_sensor.add_video_stream({ RS2_STREAM_DEPTH, 0, uids++,
-                            (int)data->width, (int)data->height, 30, 2,
+                            (int)data->width, (int)data->height, 1, 2,
                             RS2_FORMAT_Z16, intr });
 
                         depth_sensor.add_read_only_option(RS2_OPTION_DEPTH_UNITS, 0.001f);
@@ -302,7 +304,7 @@ public:
                     {
                         auto depth_sensor = _dev.add_sensor(topic);
                         auto ir_stream = depth_sensor.add_video_stream({ RS2_STREAM_INFRARED, 0, uids++,
-                            (int)data->width, (int)data->height, 30, 1,
+                            (int)data->width, (int)data->height, 1, 1,
                             RS2_FORMAT_Y8, intr });
 
                         _profiles[topic] = ir_stream;
@@ -320,6 +322,17 @@ public:
         for (auto&& kvp : _profiles)
         {
             kvp.second.register_extrinsics_to(_profiles.begin()->second, extr);
+        }
+
+        for (auto&& kvp : _sensors)
+        {
+            auto node = std::make_shared<realsense_ros::FilteredCaptureNode>();
+            rs2::processing_block pb([node](rs2::frame f, rs2::frame_source& src) {
+                rs2::frameset fs(f);
+                if (fs)
+                    node->process(fs, src);
+            });
+            kvp.second.add_recommended_processing(pb);
         }
 
         _alive = true;
@@ -422,7 +435,7 @@ void add_bag_device(context& ctx, std::shared_ptr<std::vector<device_model>> dev
 
 int main(int argv, const char** argc) try
 {
-    rs2::log_to_console(RS2_LOG_SEVERITY_WARN);
+    rs2::log_to_console(RS2_LOG_SEVERITY_DEBUG);
 
     ux_window window("Intel RealSense Viewer");
 

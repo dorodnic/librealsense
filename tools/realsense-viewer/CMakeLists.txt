@@ -75,10 +75,9 @@ endif()
 
     # config-ui
     if(WIN32)
-        add_executable(realsense-viewer WIN32
+        add_executable(realsense-viewer 
                 ${RS_VIEWER_CPP} ${CMAKE_CURRENT_SOURCE_DIR}/res/resource.h
-                ${CMAKE_CURRENT_SOURCE_DIR}/res/realsense-viewer.rc
-                ../../common/windows-app-bootstrap.cpp)
+                ${CMAKE_CURRENT_SOURCE_DIR}/res/realsense-viewer.rc)
 
         source_group("3rd Party" FILES
             ../../third-party/imgui/imgui.cpp

@@ -17,6 +17,8 @@ namespace rs2
     class frame;
     class pipeline_profile;
     class points;
+    class software_sensor;
+    class video_stream_profile;
 
     class stream_profile
     {
@@ -243,6 +245,8 @@ namespace rs2
             error::handle(e);
             return intr;
         }
+
+        using stream_profile::clone;
 
         /**
         * Clone current profile and change the type, index and format to input parameters
@@ -1016,6 +1020,21 @@ namespace rs2
         iterator end() const { return iterator(this, size()); }
     private:
         size_t _size;
+    };
+
+    template<class T>
+    class frame_callback : public rs2_frame_callback
+    {
+        T on_frame_function;
+    public:
+        explicit frame_callback(T on_frame) : on_frame_function(on_frame) {}
+
+        void on_frame(rs2_frame* fref) override
+        {
+            on_frame_function(frame{ fref });
+        }
+
+        void release() override { delete this; }
     };
 }
 #endif // LIBREALSENSE_RS2_FRAME_HPP
