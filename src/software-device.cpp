@@ -144,6 +144,10 @@ namespace librealsense
         return profile;
     }
 
+    void software_sensor::add_processing_block(std::shared_ptr<processing_block_interface> block)
+    {
+    }
+
     stream_profiles software_sensor::init_stream_profiles()
     {
         return _profiles;

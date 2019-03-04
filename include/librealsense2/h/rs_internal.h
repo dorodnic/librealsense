@@ -243,6 +243,10 @@ void rs2_software_sensor_add_read_only_option(rs2_sensor* sensor, rs2_option opt
  * \param[out] error  if non-null, receives any error that occurs during this call, otherwise, errors are ignored
  */
 void rs2_software_sensor_update_read_only_option(rs2_sensor* sensor, rs2_option option, float val, rs2_error** error);
+
+
+void rs2_software_sensor_add_recommended_processing_block(rs2_sensor* sensor, rs2_processing_block* block, rs2_error** error);
+
 #ifdef __cplusplus
 }
 #endif

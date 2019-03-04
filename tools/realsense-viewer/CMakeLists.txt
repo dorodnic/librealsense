@@ -21,6 +21,10 @@ elseif(COMPILER_SUPPORTS_CXX0X)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
 endif()
 
+find_package(OpenCV REQUIRED)
+
+list(APPEND DEPENDENCIES ${OpenCV_LIBS})
+
 if(BUILD_GRAPHICAL_EXAMPLES)
 
 if(APPLE)
@@ -61,6 +65,10 @@ endif()
             ../../common/rs-config.cpp
             ../../common/os.h
             ../../common/os.cpp
+            FilteredCaptureNode.h
+            FilteredCaptureNode.cpp
+            simd.h
+            simd.cpp
         )
 
     include_directories(${LZ4_DIR})

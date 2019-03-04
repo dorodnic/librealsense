@@ -79,6 +79,8 @@ namespace librealsense
         std::shared_ptr<stream_profile_interface> add_motion_stream(rs2_motion_stream motion_stream);
         std::shared_ptr<stream_profile_interface> add_pose_stream(rs2_pose_stream pose_stream);
 
+        void add_processing_block(std::shared_ptr<processing_block_interface> block);
+
         stream_profiles init_stream_profiles() override;
 
         void open(const stream_profiles& requests) override;
