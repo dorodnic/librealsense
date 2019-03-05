@@ -324,9 +324,9 @@ public:
             kvp.second.register_extrinsics_to(_profiles.begin()->second, extr);
         }
 
+        auto node = std::make_shared<realsense_ros::FilteredCaptureNode>();
         for (auto&& kvp : _sensors)
         {
-            auto node = std::make_shared<realsense_ros::FilteredCaptureNode>();
             rs2::processing_block pb([node](rs2::frame f, rs2::frame_source& src) {
                 rs2::frameset fs(f);
                 if (fs)

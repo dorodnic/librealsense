@@ -51,7 +51,11 @@ namespace realsense_ros
         cv::Mat matAbsScharrX_;
         cv::Mat matAbsScharrY_;
 
+        rs2::depth_frame _depthOriginal;
+        rs2::video_frame _grayOriginal;
+
         rs2::stream_profile _output_ir_profile;
+        rs2::stream_profile _output_depth_profile;
 
         void initOrResetImageMatrices(const cv::Mat& matGrayResized);
     };

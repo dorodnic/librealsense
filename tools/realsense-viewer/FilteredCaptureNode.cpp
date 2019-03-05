@@ -4,6 +4,7 @@
 namespace realsense_ros
 {
     FilteredCaptureNode::FilteredCaptureNode()
+        : _depthOriginal(rs2::frame{}), _grayOriginal(rs2::frame{})
     {
     }
 
@@ -11,17 +12,20 @@ namespace realsense_ros
     {
         constexpr float DOWNSAMPLE_FRACTION = 1.0f / DOWNSAMPLE_FACTOR;
 
-        rs2::depth_frame depthOriginal = frames.get_depth_frame();
-        rs2::video_frame grayOriginal = frames.get_infrared_frame(0);
+        if (frames.get_depth_frame())
+            _depthOriginal = frames.get_depth_frame();
 
-        if (!depthOriginal || !grayOriginal)
+        if (frames.get_infrared_frame(0))
+            _grayOriginal = frames.get_infrared_frame(0);
+
+        if (!_depthOriginal || !_grayOriginal)
         {
             //LOG(WARNING) << "No valid image retrieved";
             return;
         }
 
-        cv::Mat matDepth(cv::Size(depthOriginal.get_width(), depthOriginal.get_height()), CV_16U, (void*)depthOriginal.get_data(), cv::Mat::AUTO_STEP);
-        cv::Mat matGray(cv::Size(grayOriginal.get_width(), grayOriginal.get_height()), CV_8U, (void*)grayOriginal.get_data(), cv::Mat::AUTO_STEP);
+        cv::Mat matDepth(cv::Size(_depthOriginal.get_width(), _depthOriginal.get_height()), CV_16U, (void*)_depthOriginal.get_data(), cv::Mat::AUTO_STEP);
+        cv::Mat matGray(cv::Size(_grayOriginal.get_width(), _grayOriginal.get_height()), CV_8U, (void*)_grayOriginal.get_data(), cv::Mat::AUTO_STEP);
 
         downsample4x4SIMDMin(matDepth, &matDepthResized_);
 
@@ -32,12 +36,23 @@ namespace realsense_ros
 
         if (!_output_ir_profile)
         {
-            auto p = grayOriginal.get_profile().as<rs2::video_stream_profile>();
+            auto p = _grayOriginal.get_profile().as<rs2::video_stream_profile>();
             auto intr = p.get_intrinsics();
             intr.width = p.width() / DOWNSAMPLE_FACTOR;
             intr.height = p.height() / DOWNSAMPLE_FACTOR;
             // TODO: Update pp and fp?
             _output_ir_profile = p.clone(p.stream_type(), p.stream_index(), p.format(),
+                p.width() / DOWNSAMPLE_FACTOR, p.height() / DOWNSAMPLE_FACTOR, intr);
+        }
+
+        if (!_output_depth_profile)
+        {
+            auto p = _depthOriginal.get_profile().as<rs2::video_stream_profile>();
+            auto intr = p.get_intrinsics();
+            intr.width = p.width() / DOWNSAMPLE_FACTOR;
+            intr.height = p.height() / DOWNSAMPLE_FACTOR;
+            // TODO: Update pp and fp?
+            _output_depth_profile = p.clone(p.stream_type(), p.stream_index(), p.format(),
                 p.width() / DOWNSAMPLE_FACTOR, p.height() / DOWNSAMPLE_FACTOR, intr);
         }
 
@@ -57,11 +72,27 @@ namespace realsense_ros
             subImages_[i].depthResized.copyTo(subImages_[i].depthOutput, subImages_[i].maskCombined);
         }
 
-        auto res_ir = src.allocate_video_frame(_output_ir_profile, grayOriginal, 0,
-            grayOriginal.get_width() / DOWNSAMPLE_FACTOR, grayOriginal.get_height() / DOWNSAMPLE_FACTOR,
-            grayOriginal.get_bytes_per_pixel() * grayOriginal.get_height() / DOWNSAMPLE_FACTOR);
+        auto newW = _grayOriginal.get_width() / DOWNSAMPLE_FACTOR;
+        auto newH = _grayOriginal.get_height() / DOWNSAMPLE_FACTOR;
+        auto res_ir = src.allocate_video_frame(_output_ir_profile, _grayOriginal, 0,
+            newW, newH, _grayOriginal.get_bytes_per_pixel() * newW);
 
-        src.frame_ready(res_ir);
+        memcpy((void*)res_ir.get_data(), matGrayResized_.data, newW * newH);
+        
+        //src.frame_ready(res_ir);
+
+
+        auto res_depth = src.allocate_video_frame(_output_depth_profile, _depthOriginal, 0,
+            newW, newH, _depthOriginal.get_bytes_per_pixel() * newW);
+
+        
+        memcpy((void*)res_depth.get_data(), matDepthOutput_.data, newW * newH);
+
+        std::vector<rs2::frame> fs{ res_ir, res_depth };
+
+        auto cmp = src.allocate_composite_frame(fs);
+        
+        src.frame_ready(cmp);
 
         ////opencvTimer_.stop();
 
