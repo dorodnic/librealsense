@@ -25,6 +25,8 @@
 
 #include "os.h"
 
+#include "../tools/realsense-viewer/FilteredCaptureNode.h"
+
 constexpr const char* recommended_fw_url = "https://downloadcenter.intel.com/download/27522/Latest-Firmware-for-Intel-RealSense-D400-Product-Family?v=t";
 constexpr const char* store_url = "https://click.intel.com/realsense.html";
 
@@ -917,6 +919,22 @@ namespace rs2
             if (shared_filter->is<zero_order_invalidation>())
                 zero_order_artifact_fix = model;
 
+            model->enabled = false;
+
+            post_processing.push_back(model);
+        }
+
+        {
+            auto node = std::make_shared<realsense_ros::FilteredCaptureNode>();
+            rs2::processing_block pb([node](rs2::frame f, rs2::frame_source& src) {
+                rs2::frameset fs(f);
+                if (fs)
+                    node->process(fs, src);
+            });
+            auto shared_filter = std::make_shared<filter>(pb);
+            auto model = std::make_shared<processing_block_model>(
+                this, "Collision Avoidance Decimation", shared_filter,
+                [=](rs2::frame f) { return shared_filter->process(f); }, error_message);
             post_processing.push_back(model);
         }
 
@@ -2294,6 +2312,8 @@ namespace rs2
             label = to_string() << textual_icons::cubes << "##Render Quads";
             if (ImGui::Button(label.c_str(), { 24, buttons_heights }))
             {
+                config_file::instance().set(
+                    configurations::viewer::is_3d_quads, false);
                 render_quads = false;
             }
             if (ImGui::IsItemHovered())
@@ -2307,6 +2327,8 @@ namespace rs2
             label = to_string() << textual_icons::cubes << "##Render Points";
             if (ImGui::Button(label.c_str(), { 24, buttons_heights }))
             {
+                config_file::instance().set(
+                    configurations::viewer::is_3d_quads, true);
                 render_quads = true;
             }
             if (ImGui::IsItemHovered())
@@ -2459,6 +2481,9 @@ namespace rs2
                 xyz.x *= -1;
                 xyz.y *= -1;
             }
+
+        render_quads = config_file::instance().get_or_default(
+            configurations::viewer::is_3d_quads, false);
     }
 
     void viewer_model::gc_streams()

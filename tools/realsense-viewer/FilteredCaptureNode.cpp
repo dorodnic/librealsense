@@ -1,5 +1,6 @@
 #include "FilteredCaptureNode.h"
 #include "simd.h"
+#include <opencv2/opencv.hpp>
 
 namespace realsense_ros
 {
@@ -34,27 +35,39 @@ namespace realsense_ros
 
         //opencvTimer_.start();
 
-        if (!_output_ir_profile)
+        if (!_output_ir_profile || _input_ir_profile.get() != _grayOriginal.get_profile().get())
         {
             auto p = _grayOriginal.get_profile().as<rs2::video_stream_profile>();
             auto intr = p.get_intrinsics();
             intr.width = p.width() / DOWNSAMPLE_FACTOR;
             intr.height = p.height() / DOWNSAMPLE_FACTOR;
-            // TODO: Update pp and fp?
+            intr.fx /= DOWNSAMPLE_FACTOR;
+            intr.fy /= DOWNSAMPLE_FACTOR;
+            intr.ppx /= DOWNSAMPLE_FACTOR;
+            intr.ppy /= DOWNSAMPLE_FACTOR;
+            _input_ir_profile = p;
             _output_ir_profile = p.clone(p.stream_type(), p.stream_index(), p.format(),
                 p.width() / DOWNSAMPLE_FACTOR, p.height() / DOWNSAMPLE_FACTOR, intr);
         }
 
-        if (!_output_depth_profile)
+        if (!_output_depth_profile || _input_depth_profile.get() != _depthOriginal.get_profile().get())
         {
             auto p = _depthOriginal.get_profile().as<rs2::video_stream_profile>();
             auto intr = p.get_intrinsics();
             intr.width = p.width() / DOWNSAMPLE_FACTOR;
             intr.height = p.height() / DOWNSAMPLE_FACTOR;
-            // TODO: Update pp and fp?
+            intr.fx  /= DOWNSAMPLE_FACTOR;
+            intr.fy  /= DOWNSAMPLE_FACTOR;
+            intr.ppx /= DOWNSAMPLE_FACTOR;
+            intr.ppy /= DOWNSAMPLE_FACTOR;
+            _input_depth_profile = p;
             _output_depth_profile = p.clone(p.stream_type(), p.stream_index(), p.format(),
                 p.width() / DOWNSAMPLE_FACTOR, p.height() / DOWNSAMPLE_FACTOR, intr);
         }
+
+        if (_output_depth_profile.as<rs2::video_stream_profile>().width() !=
+            _output_ir_profile.as<rs2::video_stream_profile>().width())
+            return;
 
         // make sure proper matrices are allocated and necessary resets from frame to frame are happening
         initOrResetImageMatrices(matGrayResized_);
@@ -83,10 +96,12 @@ namespace realsense_ros
 
 
         auto res_depth = src.allocate_video_frame(_output_depth_profile, _depthOriginal, 0,
-            newW, newH, _depthOriginal.get_bytes_per_pixel() * newW);
+            newW, newH, _depthOriginal.get_bytes_per_pixel() * newW, RS2_EXTENSION_DEPTH_FRAME);
 
         
-        memcpy((void*)res_depth.get_data(), matDepthOutput_.data, newW * newH);
+        memcpy((void*)res_depth.get_data(), matDepthOutput_.data, newW * newH * 2);
+
+        //cv::imshow("Display Image", matDepthOutput_);
 
         std::vector<rs2::frame> fs{ res_ir, res_depth };
 

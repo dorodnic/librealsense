@@ -57,6 +57,9 @@ namespace realsense_ros
         rs2::stream_profile _output_ir_profile;
         rs2::stream_profile _output_depth_profile;
 
+        rs2::stream_profile _input_ir_profile;
+        rs2::stream_profile _input_depth_profile;
+
         void initOrResetImageMatrices(const cv::Mat& matGrayResized);
     };
 

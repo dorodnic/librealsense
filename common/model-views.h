@@ -98,6 +98,7 @@ namespace rs2
         namespace viewer
         {
             static const char* is_3d_view          { "viewer_model.is_3d_view" };
+            static const char* is_3d_quads         { "viewer_model.is_3d_quads" };
             static const char* continue_with_ui_not_aligned { "viewer_model.continue_with_ui_not_aligned" };
             static const char* settings_tab        { "viewer_model.settings_tab" };
 
@@ -944,7 +945,7 @@ namespace rs2
     class viewer_model
     {
     public:
-        void reset_camera(float3 pos = { 0.0f, 0.0f, -1.0f });
+        void reset_camera(float3 pos = { -5.0f, 0.0f, 0.0f });
 
         void update_configuration();
 
@@ -1068,7 +1069,7 @@ namespace rs2
         std::chrono::high_resolution_clock::time_point _transition_start_time;
 
         // 3D-Viewer state
-        float3 pos = { 0.0f, 0.0f, -0.5f };
+        float3 pos = { -3.0f, 0.0f, 0.0f };
         float3 target = { 0.0f, 0.0f, 0.0f };
         float3 up;
         bool fixed_up = true;

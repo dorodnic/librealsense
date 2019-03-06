@@ -280,17 +280,16 @@ public:
                 {
                     if (data->encoding == "mono16")
                     {
-                        auto depth_sensor = _dev.add_sensor(topic);
+                        auto depth_sensor = find_sensor(topic);
                         auto ir_stream = depth_sensor.add_video_stream({ RS2_STREAM_INFRARED, 0, uids++,
                             (int)data->width, (int)data->height, 1, 2,
                             RS2_FORMAT_Y16, intr });
 
                         _profiles[topic] = ir_stream;
-                        _sensors[topic] = depth_sensor;
                     }
                     if (data->encoding == "16UC1")
                     {
-                        auto depth_sensor = _dev.add_sensor(topic);
+                        auto depth_sensor = find_sensor(topic);
                         auto ir_stream = depth_sensor.add_video_stream({ RS2_STREAM_DEPTH, 0, uids++,
                             (int)data->width, (int)data->height, 1, 2,
                             RS2_FORMAT_Z16, intr });
@@ -298,17 +297,15 @@ public:
                         depth_sensor.add_read_only_option(RS2_OPTION_DEPTH_UNITS, 0.001f);
 
                         _profiles[topic] = ir_stream;
-                        _sensors[topic] = depth_sensor;
                     }
                     if (data->encoding == "mono8")
                     {
-                        auto depth_sensor = _dev.add_sensor(topic);
+                        auto depth_sensor = find_sensor(topic);
                         auto ir_stream = depth_sensor.add_video_stream({ RS2_STREAM_INFRARED, 0, uids++,
                             (int)data->width, (int)data->height, 1, 1,
                             RS2_FORMAT_Y8, intr });
 
                         _profiles[topic] = ir_stream;
-                        _sensors[topic] = depth_sensor;
                     }
                 }
             }
@@ -355,6 +352,25 @@ public:
     void next() { _frame_number++; }
     void prev() { _frame_number--; }
 
+    software_sensor find_sensor(const std::string& s)
+    {
+        std::regex rgx(".*/ds5node/(\\w+)/.*");
+        std::smatch match;
+
+        auto topic = s;
+        if (std::regex_search(s.begin(), s.end(), match, rgx))
+        {
+            topic = match[1];
+        }
+
+        auto it = _sensors.find(topic);
+        if (it == _sensors.end())
+        {
+            _sensors[topic] = _dev.add_sensor(topic);
+        }
+        return _sensors[topic];
+    }
+
 private:
     void loop()
     {
@@ -376,7 +392,7 @@ private:
                         auto ptr = new uint8_t[data->data.size()];
                         memcpy(ptr, data->data.data(), data->data.size());
 
-                        auto depth_sensor = _sensors[kvp.first];
+                        auto depth_sensor = find_sensor(kvp.first);
                         depth_sensor.on_video_frame({ (void*)ptr,
                             [](void* p) { delete[] p; },
                             (int)data->step, (int)data->step / (int)data->width,
@@ -435,7 +451,11 @@ void add_bag_device(context& ctx, std::shared_ptr<std::vector<device_model>> dev
 
 int main(int argv, const char** argc) try
 {
-    rs2::log_to_console(RS2_LOG_SEVERITY_DEBUG);
+    /*using namespace cv;
+    const auto window_name = "Display Image";
+    namedWindow(window_name, WINDOW_AUTOSIZE);*/
+
+    //rs2::log_to_console(RS2_LOG_SEVERITY_DEBUG);
 
     ux_window window("Intel RealSense Viewer");
 
@@ -567,7 +587,7 @@ int main(int argv, const char** argc) try
                         auto dev = connected_devs[i];
                         device_models->emplace_back(dev, error_message, viewer_model);
                     }
-                    catch (const error& e)
+                    catch (const rs2::error& e)
                     {
                         error_message = error_to_string(e);
                     }
@@ -718,7 +738,7 @@ int main(int argv, const char** argc) try
                 {
                     lambda();
                 }
-                catch (const error& e)
+                catch (const rs2::error& e)
                 {
                     error_message = error_to_string(e);
                 }
