@@ -23,6 +23,7 @@ namespace librealsense
 {
     const uint16_t SR300_PID = 0x0aa5;
     const uint16_t SR300v2_PID = 0x0B48;
+    const uint16_t SR300_RECOVERY = 0x0ab3;
 
     const double TIMESTAMP_10NSEC_TO_MSEC = 0.00001;
 
@@ -520,9 +521,9 @@ namespace librealsense
         }
         void create_snapshot(std::shared_ptr<debug_interface>& snapshot) const override;
         void enable_recording(std::function<void(const debug_interface&)> record_action) override;
-
-
+        void enter_to_fw_update_mode() const override;
         virtual std::shared_ptr<matcher> create_matcher(const frame_holder& frame) const override;
+
     private:
         const uint8_t _depth_device_idx;
         const uint8_t _color_device_idx;

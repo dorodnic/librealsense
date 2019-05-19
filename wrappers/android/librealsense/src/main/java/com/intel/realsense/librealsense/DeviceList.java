@@ -11,7 +11,10 @@ public class DeviceList extends LrsClass {
     }
 
     public Device createDevice(int index){
-        return new Device(nCreateDevice(mHandle, index));
+        long deviceHandle = nCreateDevice(mHandle, index);
+        if (nIsDeviceExtendableTo(deviceHandle, Extension.FW_UPDATE_DEVICE.value()))
+            return new FwUpdateDevice(deviceHandle);
+        return new Device(deviceHandle);
     }
 
     public boolean containesDevice(Device device){
@@ -32,6 +35,7 @@ public class DeviceList extends LrsClass {
         nRelease(mHandle);
     }
 
+    private static native boolean nIsDeviceExtendableTo(long handle, int extension);
     private static native int nGetDeviceCount(long handle);
     private static native long nCreateDevice(long handle, int index);
     private static native boolean nContainsDevice(long handle, long deviceHandle);
