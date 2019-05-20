@@ -93,10 +93,6 @@ namespace librealsense
             ds::RS430_MM_RGB_PID,
         };
 
-        static const std::set<std::uint16_t> recovery_pid = {
-            ds::RS_RECOVERY_PID,
-        };
-
         static const std::map<std::uint16_t, std::string> rs400_sku_names = {
             { RS_RECOVERY_PID,  "Intel RealSense D4xx Recovery"},
             { RS400_PID,        "Intel RealSense D400"},

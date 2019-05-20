@@ -15,7 +15,7 @@ namespace librealsense
         virtual ~ds_fw_update_device() = default;
 
     protected:
-        virtual const std::string get_name() const override { return _name; }
+        virtual const std::string& get_name() const override { return _name; }
 
     private:
         std::string _name;

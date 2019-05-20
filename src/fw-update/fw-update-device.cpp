@@ -35,7 +35,7 @@ namespace librealsense
         do {
             dfu_status_payload status;
             uint32_t transferred = 0;
-            messenger->control_transfer(0xa1 /*DFU_GETSTATUS_PACKET*/, RS2_DFU_GET_STATUS, 0, 0, (uint8_t*)&status, sizeof(status), transferred, 5000);
+            auto sts = messenger->control_transfer(0xa1 /*DFU_GETSTATUS_PACKET*/, RS2_DFU_GET_STATUS, 0, 0, (uint8_t*)&status, sizeof(status), transferred, 5000);
 
             if (status.is_in_state(state)) {
                 return true;
@@ -103,8 +103,8 @@ namespace librealsense
             size_t chunk_size = std::min(transfer_size, remaining_bytes);
 
             auto curr_block = ((uint8_t*)fw_image + offset);
-            messenger->control_transfer(0x21 /*DFU_DOWNLOAD_PACKET*/, RS2_DFU_DOWNLOAD, block_number, 0, curr_block, chunk_size, transferred, 10);
-            if(!wait_for_state(messenger, RS2_DFU_STATE_DFU_DOWNLOAD_IDLE))
+            auto sts = messenger->control_transfer(0x21 /*DFU_DOWNLOAD_PACKET*/, RS2_DFU_DOWNLOAD, block_number, 0, curr_block, chunk_size, transferred, 10);
+            if(sts != platform::RS2_USB_STATUS_SUCCESS || !wait_for_state(messenger, RS2_DFU_STATE_DFU_DOWNLOAD_IDLE))
                 throw std::runtime_error("failed to download firmware");
 
             block_number++;
@@ -121,7 +121,9 @@ namespace librealsense
         // DFU_DNLOAD request with the wLength field cleared to 0 and then solicits the status again.If the
         // result indicates that the device is ready and there are no errors, then the Transfer phase is complete and
         // the Manifestation phase begins.
-        messenger->control_transfer(0x21 /*DFU_DOWNLOAD_PACKET*/, RS2_DFU_DOWNLOAD, block_number, 0, NULL, 0, transferred, 10);
+        auto sts = messenger->control_transfer(0x21 /*DFU_DOWNLOAD_PACKET*/, RS2_DFU_DOWNLOAD, block_number, 0, NULL, 0, transferred, 10);
+        if (sts != platform::RS2_USB_STATUS_SUCCESS)
+            throw std::runtime_error("failed to send final FW packet");
 
         // After the zero length DFU_DNLOAD request terminates the Transfer
         // phase, the device is ready to manifest the new firmware. As described

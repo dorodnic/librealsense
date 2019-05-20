@@ -76,6 +76,10 @@ std::map<std::string,int> create_device_table(rs2::context ctx)
             continue;
         rv[d.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER)] = RS2_PRODUCT_LINE_D400;
     }
+    auto d400_recovery = ctx.query_devices(RS2_PRODUCT_LINE_D400_RECOVERY);
+    for (auto&& d : d400_recovery)
+        rv["D4xx recovery"] = RS2_PRODUCT_LINE_D400_RECOVERY;
+
     auto sr300 = ctx.query_devices(RS2_PRODUCT_LINE_SR300);
     for (auto&& d : sr300)
     {
@@ -83,6 +87,9 @@ std::map<std::string,int> create_device_table(rs2::context ctx)
             continue;
         rv[d.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER)] = RS2_PRODUCT_LINE_SR300;
     }
+    auto sr300_recovery = ctx.query_devices(RS2_PRODUCT_LINE_SR300_RECOVERY);
+    for (auto&& d : sr300_recovery)
+        rv["SR300xx recovery"] = RS2_PRODUCT_LINE_SR300_RECOVERY;
 
     return rv;
 }
@@ -178,6 +185,11 @@ int main(int argc, char** argv) try
     {
         list_devices(ctx);
         return EXIT_SUCCESS;
+    }
+
+    for (auto&& d : devices)
+    {
+
     }
 
     if (serial_number_arg.isSet())
@@ -297,11 +309,11 @@ int main(int argc, char** argv) try
         auto devs = ctx.query_devices(RS2_PRODUCT_LINE_RECOVERY);
         for (auto&& d : devs)
         {
-            auto sn = d.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
+            auto sn = d.supports(RS2_CAMERA_INFO_SERIAL_NUMBER) ? d.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER) : "unknown";
             if (sn != selected_serial_number)
                 continue;
 
-            auto fw = d.get_info(RS2_CAMERA_INFO_FIRMWARE_VERSION);
+            auto fw = d.supports(RS2_CAMERA_INFO_FIRMWARE_VERSION) ? d.get_info(RS2_CAMERA_INFO_FIRMWARE_VERSION) : "unknown";
             std::cout << std::endl << "device " << sn << " successfully updated to FW: " << fw << std::endl;
         }
     }

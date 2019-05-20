@@ -15,7 +15,7 @@ namespace librealsense
         std::shared_ptr<device_interface> create(std::shared_ptr<context> ctx, bool register_device_notifications) const override;
 
         static std::vector<std::shared_ptr<device_info>> pick_recovery_devices(std::shared_ptr<context> ctx,
-            const std::vector<platform::usb_device_info>& usb_devices);
+            const std::vector<platform::usb_device_info>& usb_devices, int mask);
 
         explicit fw_update_info(std::shared_ptr<context> ctx, platform::usb_device_info dfu)
             : device_info(ctx), _dfu(std::move(dfu)) {}

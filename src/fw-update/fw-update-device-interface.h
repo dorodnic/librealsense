@@ -14,8 +14,8 @@ namespace librealsense
         virtual void update_fw(const void* fw_image, int fw_image_size, fw_update_progress_callback_ptr = nullptr) const = 0;
 
     protected:
-        virtual const std::string get_name() const = 0;
-        virtual const std::string get_serial_number() const = 0;
+        virtual const std::string& get_name() const = 0;
+        virtual const std::string& get_serial_number() const = 0;
         virtual void finishing_task() const = 0;
     };
 

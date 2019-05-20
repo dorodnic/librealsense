@@ -11,24 +11,25 @@
 
 namespace librealsense
 {
-    bool is_recovery_pid(uint16_t pid)
+    int get_product_line(uint16_t pid, platform::usb_class cls)
     {
-        return (
-            std::find(ds::recovery_pid.begin(), ds::recovery_pid.end(), pid) != ds::recovery_pid.end()) ||
-            SR300_RECOVERY == pid;
+        if (SR300_RECOVERY == pid && platform::RS2_USB_CLASS_VENDOR_SPECIFIC == cls)
+            return RS2_PRODUCT_LINE_SR300_RECOVERY;
+        if(ds::RS_RECOVERY_PID == pid)
+            return RS2_PRODUCT_LINE_D400_RECOVERY;
+        return 0;
     }
 
     std::vector<std::shared_ptr<device_info>> fw_update_info::pick_recovery_devices(
         std::shared_ptr<context> ctx,
-        const std::vector<platform::usb_device_info>& usb_devices)
+        const std::vector<platform::usb_device_info>& usb_devices, int mask)
     {
         std::vector<std::shared_ptr<device_info>> list;
         for (auto&& usb : usb_devices)
         {
-            if (is_recovery_pid(usb.pid))
-            {
+            auto pl = get_product_line(usb.pid, usb.cls);
+            if(pl & mask)
                 list.push_back(std::make_shared<fw_update_info>(ctx, usb));
-            }
         }
         return list;
     }
@@ -37,14 +38,15 @@ namespace librealsense
     {
         try
         {
-            for (auto&& info : platform::usb_enumerator::query_devices_info())
+            auto devices = platform::usb_enumerator::query_devices_info();
+            for (auto&& info : devices)
             {
-                if (info.unique_id == _dfu.unique_id && info.cls == platform::RS2_USB_CLASS_UNSPECIFIED)
+                if (info.unique_id == _dfu.unique_id)
                 {
                     auto usb = platform::usb_enumerator::create_usb_device(info);
                     if (!usb)
                         return nullptr;
-                    if (std::find(ds::recovery_pid.begin(), ds::recovery_pid.end(), info.pid) != ds::recovery_pid.end())
+                    if (ds::RS_RECOVERY_PID == info.pid)
                         return std::make_shared<ds_fw_update_device>(ctx, register_device_notifications, usb);
                     if (SR300_RECOVERY == info.pid)
                         return std::make_shared<sr300_fw_update_device>(ctx, register_device_notifications, usb);
