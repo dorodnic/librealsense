@@ -9,22 +9,6 @@ set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
 if(BUILD_GRAPHICAL_EXAMPLES)
-
-if(APPLE)
-    add_definitions(-DNOC_FILE_DIALOG_OSX)
-elseif(UNIX)
-    find_package(PkgConfig REQUIRED)
-    pkg_check_modules(GTK3 REQUIRED gtk+-3.0)
-
-    include_directories(${GTK3_INCLUDE_DIRS})
-    link_directories(${GTK3_LIBRARY_DIRS})
-    add_definitions(${GTK3_CFLAGS_OTHER})
-
-    add_definitions(-DNOC_FILE_DIALOG_GTK)
-elseif(WIN32)
-    add_definitions(-DNOC_FILE_DIALOG_WIN32)
-endif()
-
     set(RS_VIEWER_CPP
             realsense-viewer.cpp
             ../../third-party/imgui/imgui.cpp
@@ -46,6 +30,8 @@ endif()
             ../../common/rs-config.cpp
             ../../common/os.h
             ../../common/os.cpp
+            ../../third-party/tinyfiledialogs/tinyfiledialogs.c
+            ../../third-party/tinyfiledialogs/tinyfiledialogs.h
         )
 
     # config-ui
@@ -56,6 +42,8 @@ endif()
                 ../../common/windows-app-bootstrap.cpp)
 
         source_group("3rd Party" FILES
+            ../../third-party/tinyfiledialogs/tinyfiledialogs.c
+            ../../third-party/tinyfiledialogs/tinyfiledialogs.h
             ../../third-party/imgui/imgui.cpp
             ../../third-party/imgui/imgui_draw.cpp
             ../../third-party/imgui/imgui_impl_glfw.cpp
@@ -73,7 +61,7 @@ endif()
     else()
         add_executable(realsense-viewer ${RS_VIEWER_CPP})
         include_directories(realsense-viewer ../../third-party/imgui 
-        ../../third-party/glad ../../common ../../third-party)
+        ../../third-party/glad ../../common ../../third-party ../../third-party/tinyfiledialogs)
     endif()
     set_property(TARGET realsense-viewer PROPERTY CXX_STANDARD 11)
 

@@ -9,22 +9,6 @@ set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
 if(BUILD_GRAPHICAL_EXAMPLES)
-
-if(APPLE)
-    add_definitions(-DNOC_FILE_DIALOG_OSX)
-elseif(UNIX)
-    find_package(PkgConfig REQUIRED)
-    pkg_check_modules(GTK3 REQUIRED gtk+-3.0)
-
-    include_directories(${GTK3_INCLUDE_DIRS})
-    link_directories(${GTK3_LIBRARY_DIRS})
-    add_definitions(${GTK3_CFLAGS_OTHER})
-
-    add_definitions(-DNOC_FILE_DIALOG_GTK)
-elseif(WIN32)
-    add_definitions(-DNOC_FILE_DIALOG_WIN32)
-endif()
-
     set(RS_QUALITY_TOOL_CPP
             ./rs-depth-quality.cpp
             ./depth-quality-model.h
@@ -49,6 +33,8 @@ endif()
             ../../common/rs-config.cpp
             ../../common/os.h
             ../../common/os.cpp
+            ../../third-party/tinyfiledialogs/tinyfiledialogs.c
+            ../../third-party/tinyfiledialogs/tinyfiledialogs.h
         )
 
     if(WIN32)
@@ -63,6 +49,8 @@ endif()
                 ${CMAKE_CURRENT_SOURCE_DIR}/res/realsense-viewer.rc)
 
         source_group("3rd Party" FILES
+            ../../third-party/tinyfiledialogs/tinyfiledialogs.c
+            ../../third-party/tinyfiledialogs/tinyfiledialogs.h
             ../../third-party/imgui/imgui.cpp
             ../../third-party/imgui/imgui_draw.cpp
             ../../third-party/imgui/imgui_impl_glfw.cpp
@@ -84,6 +72,7 @@ endif()
                                              ../../third-party/imgui
                                              ../../third-party/glad
                                              ../../third-party/tclap/include
+                                             ../../third-party/tinyfiledialogs
                                              ${CMAKE_CURRENT_SOURCE_DIR}/res/)
 
     else()

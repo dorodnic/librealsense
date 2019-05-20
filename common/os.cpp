@@ -16,8 +16,7 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image_write.h>
 
-#define NOC_FILE_DIALOG_IMPLEMENTATION
-#include <noc_file_dialog.h>
+#include <tinyfiledialogs.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -154,7 +153,15 @@ Some auxillary functionalities might be affected. Please report this message if 
 
     const char* file_dialog_open(file_dialog_mode flags, const char* filters, const char* default_path, const char* default_name)
     {
-        return noc_file_dialog_open(flags, filters, default_path, default_name);
+        if (flags == save_file)
+        {
+            return tinyfd_saveFileDialog("File Save", default_path, 0, nullptr, nullptr, 0);
+        }
+        if (flags == open_file)
+        {
+            return tinyfd_openFileDialog("File Open", default_path, 0, nullptr, nullptr, 0);
+        }
+        return nullptr;
     }
 
     int save_to_png(const char* filename,
