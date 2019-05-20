@@ -16,11 +16,6 @@ namespace librealsense
 
     void ds_fw_update_device::finishing_task() const
     {
-        auto messenger = _usb_device->open();
-        // WaitForDFU state sends several DFU_GETSTATUS requests, until we hit
-        // either RS2_DFU_STATE_DFU_MANIFEST_WAIT_RESET or RS2_DFU_STATE_DFU_ERROR status.
-        // This command also reset the device
-        if (!wait_for_state(messenger, RS2_DFU_STATE_DFU_MANIFEST_WAIT_RESET))
-            throw std::runtime_error("firmware manifest failed");
+
     }
 }
