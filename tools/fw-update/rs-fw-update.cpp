@@ -117,7 +117,7 @@ bool try_update(rs2::context ctx, std::vector<uint8_t> fw_image)
 
 void list_devices(rs2::context ctx)
 {
-    auto devs = ctx.query_devices();
+    auto devs = ctx.query_devices(RS2_PRODUCT_LINE_DEPTH | RS2_PRODUCT_LINE_RECOVERY);
     switch (devs.size())
     {
     case 0: std::cout << std::endl << "There are no connected devices" << std::endl; break;
@@ -306,7 +306,7 @@ int main(int argc, char** argv) try
 
     if (done)
     {
-        auto devs = ctx.query_devices(RS2_PRODUCT_LINE_RECOVERY);
+        auto devs = ctx.query_devices(RS2_PRODUCT_LINE_DEPTH);
         for (auto&& d : devs)
         {
             auto sn = d.supports(RS2_CAMERA_INFO_SERIAL_NUMBER) ? d.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER) : "unknown";
