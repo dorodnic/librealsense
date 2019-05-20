@@ -16,11 +16,6 @@
 #include "tclap/CmdLine.h"
 #include "tclap/ValueArg.h"
 
-#ifdef INTERNAL_FW
-#include "common/fw/D4XX_FW_Image.h"
-#include "common/fw/SR3XX_FW_Image.h"
-#endif // INTERNAL_FW
-
 using namespace TCLAP;
 
 std::vector<uint8_t> read_fw_file(std::string file_path)
@@ -36,60 +31,6 @@ std::vector<uint8_t> read_fw_file(std::string file_path)
         file.read((char*)rv.data(), rv.size());
         file.close();
     }
-
-    return rv;
-}
-
-std::map<int, std::string> create_default_fw_names_table()
-{
-    std::map<int, std::string> rv;
-
-    rv[RS2_PRODUCT_LINE_D400] = FW_D4XX_FW_IMAGE_VERSION;
-    rv[RS2_PRODUCT_LINE_SR300] = FW_SR3XX_FW_IMAGE_VERSION;
-
-    return rv;
-}
-
-std::map<int, std::vector<uint8_t>> create_default_fw_table()
-{
-    std::map<int, std::vector<uint8_t>> rv;
-
-    int d4xx_size = 0;
-    auto d4xx_hex = fw_get_D4XX_FW_Image(d4xx_size);
-    rv[RS2_PRODUCT_LINE_D400] = std::vector<uint8_t>(d4xx_hex, d4xx_hex + d4xx_size);
-    
-    int sr3xx_size = 0;
-    auto sr3xx_hex = fw_get_SR3XX_FW_Image(sr3xx_size);
-    rv[RS2_PRODUCT_LINE_SR300] = std::vector<uint8_t>(sr3xx_hex, sr3xx_hex + sr3xx_size);
-
-    return rv;
-}
-
-std::map<std::string,int> create_device_table(rs2::context ctx)
-{
-    std::map<std::string, int> rv;
-
-    auto d400 = ctx.query_devices(RS2_PRODUCT_LINE_D400);
-    for (auto&& d : d400)
-    {
-        if (!d.supports(RS2_CAMERA_INFO_SERIAL_NUMBER))
-            continue;
-        rv[d.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER)] = RS2_PRODUCT_LINE_D400;
-    }
-    auto d400_recovery = ctx.query_devices(RS2_PRODUCT_LINE_D400_RECOVERY);
-    for (auto&& d : d400_recovery)
-        rv["D4xx recovery"] = RS2_PRODUCT_LINE_D400_RECOVERY;
-
-    auto sr300 = ctx.query_devices(RS2_PRODUCT_LINE_SR300);
-    for (auto&& d : sr300)
-    {
-        if (!d.supports(RS2_CAMERA_INFO_SERIAL_NUMBER))
-            continue;
-        rv[d.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER)] = RS2_PRODUCT_LINE_SR300;
-    }
-    auto sr300_recovery = ctx.query_devices(RS2_PRODUCT_LINE_SR300_RECOVERY);
-    for (auto&& d : sr300_recovery)
-        rv["SR300xx recovery"] = RS2_PRODUCT_LINE_SR300_RECOVERY;
 
     return rv;
 }
@@ -158,24 +99,17 @@ int main(int argc, char** argv) try
     bool device_available = false;
     bool done = false;
 
-    auto devices = create_device_table(ctx);
-    auto default_fws = create_default_fw_table();
-    auto default_fw_names = create_default_fw_names_table();
     CmdLine cmd("librealsense rs-fw-update tool", ' ', RS2_API_VERSION_STR);
-
-    auto default_fw_msg = std::string("") + "Update to the default FW (d4xx: " + FW_D4XX_FW_IMAGE_VERSION + ", SR3xx: " + FW_SR3XX_FW_IMAGE_VERSION + ")";
 
     SwitchArg list_devices_arg("l", "list_devices", "List all available devices");
     SwitchArg recover_arg("r", "recover", "Recover all connected deviced which are in recovery mode and update them to the default fw");
     ValueArg<std::string> file_arg("f", "file", "Path to a fw image file to update", false, "", "string");
     ValueArg<std::string> serial_number_arg("s", "serial_number", "The serial number of the device to be update", false, "", "string");
-    SwitchArg default_fw_arg("d", "default_fw", default_fw_msg);
 
     cmd.add(list_devices_arg);
     cmd.add(recover_arg);
     cmd.add(file_arg);
     cmd.add(serial_number_arg);
-    cmd.add(default_fw_arg);
 
     cmd.parse(argc, argv);
 
@@ -185,11 +119,6 @@ int main(int argc, char** argv) try
     {
         list_devices(ctx);
         return EXIT_SUCCESS;
-    }
-
-    for (auto&& d : devices)
-    {
-
     }
 
     if (serial_number_arg.isSet())
@@ -204,30 +133,14 @@ int main(int argc, char** argv) try
         return EXIT_FAILURE;
     }
 
-    if (!file_arg.isSet() && !default_fw_arg.isSet())
+    if (!file_arg.isSet())
     {
-        std::cout << std::endl << "Either default FW or FW file must be selected" << std::endl << std::endl;
+        std::cout << std::endl << "FW file must be selected" << std::endl << std::endl;
         return EXIT_FAILURE;
     }
 
-    if (file_arg.isSet() && default_fw_arg.isSet())
-    {
-        std::cout << std::endl << "Both default FW and FW file were selected" << std::endl << std::endl;
-        return EXIT_FAILURE;
-    }
-
-    std::vector<uint8_t> fw_image;
-    std::string fw_file_path;
-    if (devices.find(selected_serial_number) != devices.end())
-    {
-        fw_image = default_fws.at(devices.at(selected_serial_number));
-        fw_file_path = default_fw_names.at(devices.at(selected_serial_number));
-    }
-    if (file_arg.isSet())
-    {
-        fw_file_path = file_arg.getValue();
-        fw_image = read_fw_file(fw_file_path);
-    }
+    std::string fw_file_path = file_arg.getValue();
+    std::vector<uint8_t> fw_image = read_fw_file(fw_file_path);
 
     if (fw_image.size() == 0)
     {
