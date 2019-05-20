@@ -56,7 +56,8 @@ namespace librealsense
         return false;
     }
 
-    fw_update_device::fw_update_device(std::shared_ptr<context> ctx, bool register_device_notifications, std::shared_ptr<platform::usb_device> usb_device) : _context(ctx), _usb_device(usb_device)
+    fw_update_device::fw_update_device(const std::shared_ptr<context>& ctx, bool register_device_notifications, std::shared_ptr<platform::usb_device> usb_device)
+        : _context(ctx), _usb_device(usb_device)
     {
         auto messenger = _usb_device->open();
 
@@ -83,6 +84,25 @@ namespace librealsense
     fw_update_device::~fw_update_device()
     {
 
+    }
+
+    //since we currently don't have serial number that we can use to identify the device
+    //this method looks for changes in the DFU device list
+    bool fw_update_device::wait_for_device(int mask, uint32_t timeout) const
+    {
+        auto dfu_dev_count = _context->query_devices(mask).size();
+        if (dfu_dev_count == 0)
+            return true;
+
+        auto begin = std::chrono::system_clock::now();
+        while (dfu_dev_count == _context->query_devices(mask).size())
+        {
+            auto end = std::chrono::system_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
+            if (duration > timeout)
+                break;
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+        }
     }
 
     void fw_update_device::update_fw(const void* fw_image, int fw_image_size, fw_update_progress_callback_ptr update_progress_callback) const
@@ -140,7 +160,6 @@ namespace librealsense
         // This command also reset the device
         if (!wait_for_state(messenger, RS2_DFU_STATE_DFU_MANIFEST_WAIT_RESET, 20000))
             throw std::runtime_error("firmware manifest failed");
-        finishing_task();
     }
 
     sensor_interface& fw_update_device::get_sensor(size_t i)

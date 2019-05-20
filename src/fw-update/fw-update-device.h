@@ -97,7 +97,7 @@ namespace librealsense
     class fw_update_device : public fw_update_device_interface
     {
     public:
-        fw_update_device(std::shared_ptr<context> ctx, bool register_device_notifications, std::shared_ptr<platform::usb_device> usb_device);
+        fw_update_device(const std::shared_ptr<context>& ctx, bool register_device_notifications, std::shared_ptr<platform::usb_device> usb_device);
         virtual ~fw_update_device();
 
         virtual void update_fw(const void* fw_image, int fw_image_size, fw_update_progress_callback_ptr = nullptr) const override;
@@ -146,8 +146,10 @@ namespace librealsense
         bool wait_for_state(std::shared_ptr<platform::usb_messenger> messenger, const rs2_dfu_state state, size_t timeout = 1000) const;
         virtual const std::string& get_serial_number() const override { return _serial_number; }
 
-        std::shared_ptr<context> _context;
-        std::shared_ptr<platform::usb_device> _usb_device;
+        virtual bool wait_for_device(int mask, uint32_t timeout) const override;
+
+        const std::shared_ptr<context> _context;
+        const platform::rs_usb_device _usb_device;
         std::string _serial_number;
     };
 }

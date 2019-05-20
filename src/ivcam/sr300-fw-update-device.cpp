@@ -15,11 +15,12 @@ namespace librealsense
         auto info = usb_device->get_info();
     }
 
-    void sr300_fw_update_device::finishing_task() const
+    void sr300_fw_update_device::update_fw(const void* fw_image, int fw_image_size, fw_update_progress_callback_ptr callback) const
     {
-        auto messenger = _usb_device->open();
+        fw_update_device::update_fw(fw_image, fw_image_size, callback);
 
+        auto messenger = _usb_device->open();
         auto state = get_dfu_state(messenger);
-        std::this_thread::sleep_for(std::chrono::seconds(2));
+        wait_for_device(RS2_PRODUCT_LINE_SR300_RECOVERY, 10000);
     }
 }
