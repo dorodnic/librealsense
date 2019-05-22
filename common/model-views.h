@@ -60,13 +60,17 @@ inline ImVec4 blend(const ImVec4& c, float a)
     return{ c.x, c.y, c.z, a * c.w };
 }
 
-struct fw_info
+struct upgradeable_device
 {
-    int product_line;
-    bool is_upgradeable;
+    rs2::device device;
     std::string serial_number;
-    std::string curr_fw;
-    std::string available_fw;
+    std::string curr_fw_version;
+    std::string available_fw_version;
+};
+
+struct recovery_device
+{
+    rs2::device device;
     std::vector<uint8_t> fw;
 };
 
@@ -109,6 +113,7 @@ namespace rs2
         {
             static const char* is_3d_view          { "viewer_model.is_3d_view" };
             static const char* continue_with_ui_not_aligned { "viewer_model.continue_with_ui_not_aligned" };
+            static const char* continue_with_current_fw{ "viewer_model.continue_with_current_fw" };
             static const char* settings_tab        { "viewer_model.settings_tab" };
 
             static const char* log_to_console      { "viewer_model.log_to_console" };
@@ -992,11 +997,15 @@ namespace rs2
         void show_paused_icon(ImFont* font, int x, int y, int id);
         void show_recording_icon(ImFont* font_18, int x, int y, int id, float alpha_delta);
 
-        void popup_if_error(ImFont* font, std::string& error_message);
+        bool popup_if_error(ImFont* font, std::string& error_message);
 
-        void popup_if_ui_not_aligned(ImFont* font);
+        bool popup_if_ui_not_aligned(const ux_window& window);
 
-        void popup_if_fw_update_required(ImFont* font, const fw_info& info);
+        bool popup_if_fw_update_required(const ux_window& window, const upgradeable_device& ud);
+
+        bool popup_fw_file_select(const ux_window& window);
+
+        void popup(ImFont* font_14, const std::string& header, const std::string& message, const ux_window& window, std::function<void()> configure);
 
         void show_event_log(ImFont* font_14, float x, float y, float w, float h);
 
@@ -1050,6 +1059,7 @@ namespace rs2
         float dim_level = 1.f;
 
         bool continue_with_ui_not_aligned = false;
+        bool continue_with_current_fw = false;
 
         press_button_model trajectory_button{ u8"\uf1b0", u8"\uf1b0","Draw trajectory", "Stop drawing trajectory", true };
         press_button_model grid_object_button{ u8"\uf1cb", u8"\uf1cb",  "Configure Grid", "Configure Grid", false };

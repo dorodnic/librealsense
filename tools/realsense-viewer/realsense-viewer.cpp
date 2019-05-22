@@ -98,35 +98,34 @@ static bool is_upgradeable(const std::string& curr, const std::string& available
     return false; //equle
 }
 
-static void add_device(rs2::context ctx, int mask, std::map<std::string, fw_info>& device_map, bool recovery)
+static void add_device(rs2::context ctx, int mask, std::map<std::string, upgradeable_device>& device_map)
 {
     static auto default_fw_table = create_default_fw_table();
 
     auto devices = ctx.query_devices(mask);
     for (auto&& d : devices)
     {
-        if (!d.supports(RS2_CAMERA_INFO_SERIAL_NUMBER) && !recovery)
+        if (!d.supports(RS2_CAMERA_INFO_SERIAL_NUMBER))
             continue;
         if (!d.supports(RS2_CAMERA_INFO_FIRMWARE_VERSION))
             continue;
-        auto serial = recovery ? "recovery" : d.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
+        auto serial = d.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
         auto fw_version = d.get_info(RS2_CAMERA_INFO_FIRMWARE_VERSION);
         auto available_fw_version = product_line_to_fw.at(mask);
         auto fw = default_fw_table.at(mask);
-
-        fw_info i = { mask, is_upgradeable(fw_version, available_fw_version), serial, fw_version, available_fw_version, fw};
-        device_map[serial] = i;
+        if (!is_upgradeable(fw_version, available_fw_version))
+            continue;
+        upgradeable_device ud = { d, serial, fw_version, available_fw_version };
+        device_map[serial] = ud;
     }
 }
 
-static std::map<std::string, fw_info> create_device_table(rs2::context ctx)
+static std::map<std::string, upgradeable_device> create_upgradeable_device_table(rs2::context ctx)
 {
-    std::map<std::string, fw_info> rv;
+    std::map<std::string, upgradeable_device> rv;
 
-    add_device(ctx, RS2_PRODUCT_LINE_D400, rv, false);
-    add_device(ctx, RS2_PRODUCT_LINE_D400_RECOVERY, rv, true);
-    add_device(ctx, RS2_PRODUCT_LINE_SR300, rv, false);
-    add_device(ctx, RS2_PRODUCT_LINE_SR300_RECOVERY, rv, true);
+    add_device(ctx, RS2_PRODUCT_LINE_D400, rv);
+    add_device(ctx, RS2_PRODUCT_LINE_SR300, rv);
 
     return rv;
 }
@@ -218,13 +217,14 @@ void refresh_devices(std::mutex& m,
     std::vector<std::pair<std::string, std::string>>& device_names,
     std::shared_ptr<std::vector<device_model>> device_models,
     viewer_model& viewer_model,
-    std::string& error_message, ImFont* font)
+    std::string& error_message, std::map<std::string, upgradeable_device>& upgradeable_devices)
 {
     event_information info({}, {});
     if (devices_connection_changes.try_get_next_changes(info))
     {
         try
         {
+            upgradeable_devices = create_upgradeable_device_table(ctx);
             auto prev_size = current_connected_devices.size();
 
             //Remove disconnected
@@ -278,14 +278,6 @@ void refresh_devices(std::mutex& m,
                     viewer_model.not_model.add_notification({ dev_descriptor.first + " Connected\n",
                         0, RS2_LOG_SEVERITY_INFO, RS2_NOTIFICATION_CATEGORY_UNKNOWN_ERROR });
 
-                if (dev.supports(RS2_CAMERA_INFO_SERIAL_NUMBER))
-                {
-                    auto fw_update_info = create_device_table(ctx);
-                    auto sn = dev.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
-                    auto i = fw_update_info.at(sn);
-                    ImGui::SetNextWindowPos({ 0, 0 });
-                    viewer_model.popup_if_fw_update_required(font, i);
-                }
                 current_connected_devices.push_back(dev);
                 for (auto&& s : dev.query_sensors())
                 {
@@ -354,6 +346,7 @@ int main(int argv, const char** argc) try
 
     std::vector<device> connected_devs;
     std::vector<device> fw_update_available;
+    std::map<std::string, upgradeable_device> upgradeable_devices;
     std::mutex m;
 
     window.on_file_drop = [&](std::string filename)
@@ -391,20 +384,28 @@ int main(int argv, const char** argc) try
     window.on_load = [&]()
     {
         refresh_devices(m, ctx, devices_connection_changes, connected_devs, 
-            device_names, device_models, viewer_model, error_message, NULL);
+            device_names, device_models, viewer_model, error_message, upgradeable_devices);
 
         return true;
     };
-    
+
     // Closing the window
     while (window)
     {
+        refresh_devices(m, ctx, devices_connection_changes, connected_devs, 
+            device_names, device_models, viewer_model, error_message, upgradeable_devices);
+
+        bool allow_upgrade_popup = true;
         if (!window.is_ui_aligned())
         {
-            viewer_model.popup_if_ui_not_aligned(window.get_font());
+            allow_upgrade_popup = !viewer_model.popup_if_ui_not_aligned(window);
         }
-        refresh_devices(m, ctx, devices_connection_changes, connected_devs, 
-            device_names, device_models, viewer_model, error_message, window.get_font());
+
+        if (allow_upgrade_popup)
+        {
+            for (auto&& d : upgradeable_devices)
+                viewer_model.popup_if_fw_update_required(window, d.second);
+        }
 
         auto output_height = viewer_model.get_output_height();
 

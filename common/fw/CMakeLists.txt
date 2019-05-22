@@ -26,6 +26,7 @@ if (MSVC)
 endif()
 
 target_include_directories(${PROJECT_NAME} PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>)
+set_target_properties (${PROJECT_NAME} PROPERTIES FOLDER Resources)
 
 function(target_binary url version sha1 symbol ext)
   set(binary "${CMAKE_CURRENT_BINARY_DIR}/${symbol}-${version}${ext}")

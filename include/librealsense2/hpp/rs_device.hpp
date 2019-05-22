@@ -95,7 +95,7 @@ namespace rs2
             error::handle(e);
         }
 
-        void enter_to_fw_update_mode()
+        void enter_to_fw_update_mode() const
         {
             rs2_error* e = nullptr;
 
