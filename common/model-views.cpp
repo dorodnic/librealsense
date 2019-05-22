@@ -3581,6 +3581,68 @@ namespace rs2
         ImGui::PopStyleColor(3);
         ImGui::PopStyleVar(2);
     }
+    
+    void rs2::viewer_model::popup_if_fw_update_required(ImFont* font_14, const fw_info& info)
+    {
+        if (font_14 == NULL)
+            return;
+        std::string header = "It's time to update";
+
+        auto flags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+            ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar |
+            ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysVerticalScrollbar;
+
+        ImGui_ScopePushFont(font_14);
+        ImGui::PushStyleColor(ImGuiCol_PopupBg, sensor_bg);
+        ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, white);
+        ImGui::PushStyleColor(ImGuiCol_Text, light_grey);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(10, 10));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 1);
+
+        std::string name = to_string() << "  " << textual_icons::exclamation_triangle << " " << header;
+
+        ImGui::OpenPopup(name.c_str());
+
+        if (ImGui::BeginPopupModal(name.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+        {
+            ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, regular_blue);
+            std::stringstream ss;
+            ss << "New Firmware is available for device: " << info.serial_number << std::endl <<
+                "Current firmware on the device is: " << info.curr_fw << std::endl <<
+                "Current firmware in file is: " << info.available_fw;
+            ImGui::Text("%s", ss.str().c_str());
+            ImGui::PopStyleColor();
+
+            ImGui::PushStyleColor(ImGuiCol_Button, transparent);
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, transparent);
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, transparent);
+            ImGui::PushStyleColor(ImGuiCol_Text, light_blue);
+            ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, white);
+
+            ImGui::SetCursorPos({ 10, 100 });
+            ImGui::PopStyleColor(5);
+
+            static bool dont_show_again = false;
+
+            if (ImGui::Button(" Update ", ImVec2(0, 0)))
+            {
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::SameLine();
+            if (ImGui::Button(" Skip ", ImVec2(0, 0)))
+            {
+                ImGui::CloseCurrentPopup();
+            }
+
+            ImGui::SameLine();
+            ImGui::Checkbox("Don't show this again", &dont_show_again);
+
+            ImGui::EndPopup();
+        }
+
+        ImGui::PopStyleColor(3);
+        ImGui::PopStyleVar(2);
+    }
 
     void rs2::viewer_model::popup_if_ui_not_aligned(ImFont* font_14)
     {

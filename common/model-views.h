@@ -60,6 +60,16 @@ inline ImVec4 blend(const ImVec4& c, float a)
     return{ c.x, c.y, c.z, a * c.w };
 }
 
+struct fw_info
+{
+    int product_line;
+    bool is_upgradeable;
+    std::string serial_number;
+    std::string curr_fw;
+    std::string available_fw;
+    std::vector<uint8_t> fw;
+};
+
 namespace rs2
 {
     void prepare_config_file();
@@ -985,6 +995,8 @@ namespace rs2
         void popup_if_error(ImFont* font, std::string& error_message);
 
         void popup_if_ui_not_aligned(ImFont* font);
+
+        void popup_if_fw_update_required(ImFont* font, const fw_info& info);
 
         void show_event_log(ImFont* font_14, float x, float y, float w, float h);
 

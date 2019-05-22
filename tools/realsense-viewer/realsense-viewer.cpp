@@ -22,8 +22,114 @@
 // We use NOC file helper function for cross-platform file dialogs
 #include <noc_file_dialog.h>
 
+#ifdef INTERNAL_FW
+#include "common/fw/D4XX_FW_Image.h"
+#include "common/fw/SR3XX_FW_Image.h"
+#else
+#define FW_D4XX_FW_IMAGE_VERSION ""
+#define FW_SR3XX_FW_IMAGE_VERSION ""
+#endif // INTERNAL_FW
+
 using namespace rs2;
 using namespace rs400;
+
+static std::map<int, std::string> product_line_to_fw = 
+{
+    {RS2_PRODUCT_LINE_D400, FW_D4XX_FW_IMAGE_VERSION},
+    {RS2_PRODUCT_LINE_D400_RECOVERY, FW_D4XX_FW_IMAGE_VERSION},
+    {RS2_PRODUCT_LINE_SR300, FW_SR3XX_FW_IMAGE_VERSION},
+    {RS2_PRODUCT_LINE_SR300_RECOVERY, FW_SR3XX_FW_IMAGE_VERSION}
+};
+
+static std::map<int, std::vector<uint8_t>> create_default_fw_table()
+{
+    std::map<int, std::vector<uint8_t>> rv;
+
+    if ("" != FW_D4XX_FW_IMAGE_VERSION)
+    {
+        int size = 0;
+        auto hex = fw_get_D4XX_FW_Image(size);
+        auto vec = std::vector<uint8_t>(hex, hex + size);
+        rv[RS2_PRODUCT_LINE_D400] = vec;
+        rv[RS2_PRODUCT_LINE_D400_RECOVERY] = vec;
+    }
+
+    if ("" != FW_SR3XX_FW_IMAGE_VERSION)
+    {
+        int size = 0;
+        auto hex = fw_get_SR3XX_FW_Image(size);
+        auto vec = std::vector<uint8_t>(hex, hex + size);
+        rv[RS2_PRODUCT_LINE_SR300] = vec;
+        rv[RS2_PRODUCT_LINE_SR300_RECOVERY] = vec;
+    }
+
+    return rv;
+}
+
+static std::vector<int> parse_fw_version(const std::string& fw)
+{
+    std::vector<int> rv;
+    size_t pos = 0;
+    std::string delimiter = ".";
+    auto str = fw + delimiter;
+    while ((pos = str.find(delimiter)) != std::string::npos) {
+        auto s = str.substr(0, pos);
+        int val = std::stoi(s);
+        rv.push_back(val);
+        str.erase(0, pos + delimiter.length());
+    }
+    return rv;
+}
+
+static bool is_upgradeable(const std::string& curr, const std::string& available)
+{
+    size_t fw_string_size = 4;
+    auto c = parse_fw_version(curr);
+    auto a = parse_fw_version(available);
+    if (a.size() != fw_string_size || c.size() != fw_string_size)
+        return false;
+
+    for (int i = 0; i < fw_string_size; i++) {
+        if (c[i] > a[i])
+            return false;
+        if (c[i] < a[i])
+            return true;
+    }
+    return false; //equle
+}
+
+static void add_device(rs2::context ctx, int mask, std::map<std::string, fw_info>& device_map, bool recovery)
+{
+    static auto default_fw_table = create_default_fw_table();
+
+    auto devices = ctx.query_devices(mask);
+    for (auto&& d : devices)
+    {
+        if (!d.supports(RS2_CAMERA_INFO_SERIAL_NUMBER) && !recovery)
+            continue;
+        if (!d.supports(RS2_CAMERA_INFO_FIRMWARE_VERSION))
+            continue;
+        auto serial = recovery ? "recovery" : d.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
+        auto fw_version = d.get_info(RS2_CAMERA_INFO_FIRMWARE_VERSION);
+        auto available_fw_version = product_line_to_fw.at(mask);
+        auto fw = default_fw_table.at(mask);
+
+        fw_info i = { mask, is_upgradeable(fw_version, available_fw_version), serial, fw_version, available_fw_version, fw};
+        device_map[serial] = i;
+    }
+}
+
+static std::map<std::string, fw_info> create_device_table(rs2::context ctx)
+{
+    std::map<std::string, fw_info> rv;
+
+    add_device(ctx, RS2_PRODUCT_LINE_D400, rv, false);
+    add_device(ctx, RS2_PRODUCT_LINE_D400_RECOVERY, rv, true);
+    add_device(ctx, RS2_PRODUCT_LINE_SR300, rv, false);
+    add_device(ctx, RS2_PRODUCT_LINE_SR300_RECOVERY, rv, true);
+
+    return rv;
+}
 
 void add_playback_device(context& ctx, std::shared_ptr<std::vector<device_model>> device_models, 
     std::string& error_message, viewer_model& viewer_model, const std::string& file)
@@ -112,7 +218,7 @@ void refresh_devices(std::mutex& m,
     std::vector<std::pair<std::string, std::string>>& device_names,
     std::shared_ptr<std::vector<device_model>> device_models,
     viewer_model& viewer_model,
-    std::string& error_message)
+    std::string& error_message, ImFont* font)
 {
     event_information info({}, {});
     if (devices_connection_changes.try_get_next_changes(info))
@@ -172,6 +278,14 @@ void refresh_devices(std::mutex& m,
                     viewer_model.not_model.add_notification({ dev_descriptor.first + " Connected\n",
                         0, RS2_LOG_SEVERITY_INFO, RS2_NOTIFICATION_CATEGORY_UNKNOWN_ERROR });
 
+                if (dev.supports(RS2_CAMERA_INFO_SERIAL_NUMBER))
+                {
+                    auto fw_update_info = create_device_table(ctx);
+                    auto sn = dev.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
+                    auto i = fw_update_info.at(sn);
+                    ImGui::SetNextWindowPos({ 0, 0 });
+                    viewer_model.popup_if_fw_update_required(font, i);
+                }
                 current_connected_devices.push_back(dev);
                 for (auto&& s : dev.query_sensors())
                 {
@@ -239,6 +353,7 @@ int main(int argv, const char** argc) try
     viewer_model viewer_model;
 
     std::vector<device> connected_devs;
+    std::vector<device> fw_update_available;
     std::mutex m;
 
     window.on_file_drop = [&](std::string filename)
@@ -276,10 +391,11 @@ int main(int argv, const char** argc) try
     window.on_load = [&]()
     {
         refresh_devices(m, ctx, devices_connection_changes, connected_devs, 
-            device_names, device_models, viewer_model, error_message);
+            device_names, device_models, viewer_model, error_message, NULL);
+
         return true;
     };
-
+    
     // Closing the window
     while (window)
     {
@@ -288,7 +404,7 @@ int main(int argv, const char** argc) try
             viewer_model.popup_if_ui_not_aligned(window.get_font());
         }
         refresh_devices(m, ctx, devices_connection_changes, connected_devs, 
-            device_names, device_models, viewer_model, error_message);
+            device_names, device_models, viewer_model, error_message, window.get_font());
 
         auto output_height = viewer_model.get_output_height();
 
@@ -320,6 +436,7 @@ int main(int argv, const char** argc) try
             ImGui::OpenPopup("select");
 
         auto new_devices_count = device_names.size() + 1;
+
         for (auto&& dev_model : *device_models)
         {
             auto connected_devs_itr = std::find_if(begin(connected_devs), end(connected_devs),
