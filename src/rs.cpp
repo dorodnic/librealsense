@@ -581,6 +581,7 @@ HANDLE_EXCEPTIONS_AND_RETURN(nullptr, dev, info)
 int rs2_supports_device_info(const rs2_device* dev, rs2_camera_info info, rs2_error** error) BEGIN_API_CALL
 {
     VALIDATE_NOT_NULL(dev);
+    VALIDATE_NOT_NULL(dev->device);
     VALIDATE_ENUM(info);
     return dev->device->supports_info(info);
 }

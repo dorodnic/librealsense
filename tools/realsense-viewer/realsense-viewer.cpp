@@ -5,6 +5,7 @@
 #include "model-views.h"
 #include "os.h"
 #include "ux-window.h"
+#include "fw-update-helper.h"
 
 #include <cstdarg>
 #include <thread>
@@ -33,116 +34,6 @@
 using namespace rs2;
 using namespace rs400;
 
-static std::map<int, std::string> product_line_to_fw = 
-{
-    {RS2_PRODUCT_LINE_D400, FW_D4XX_FW_IMAGE_VERSION},
-    {RS2_PRODUCT_LINE_D400_RECOVERY, FW_D4XX_FW_IMAGE_VERSION},
-    {RS2_PRODUCT_LINE_SR300, FW_SR3XX_FW_IMAGE_VERSION},
-    {RS2_PRODUCT_LINE_SR300_RECOVERY, FW_SR3XX_FW_IMAGE_VERSION}
-};
-
-static std::map<int, std::vector<uint8_t>> create_default_fw_table()
-{
-    std::map<int, std::vector<uint8_t>> rv;
-
-    if ("" != FW_D4XX_FW_IMAGE_VERSION)
-    {
-        int size = 0;
-        auto hex = fw_get_D4XX_FW_Image(size);
-        auto vec = std::vector<uint8_t>(hex, hex + size);
-        rv[RS2_PRODUCT_LINE_D400] = vec;
-        rv[RS2_PRODUCT_LINE_D400_RECOVERY] = vec;
-    }
-
-    if ("" != FW_SR3XX_FW_IMAGE_VERSION)
-    {
-        int size = 0;
-        auto hex = fw_get_SR3XX_FW_Image(size);
-        auto vec = std::vector<uint8_t>(hex, hex + size);
-        rv[RS2_PRODUCT_LINE_SR300] = vec;
-        rv[RS2_PRODUCT_LINE_SR300_RECOVERY] = vec;
-    }
-
-    return rv;
-}
-
-static std::vector<int> parse_fw_version(const std::string& fw)
-{
-    std::vector<int> rv;
-    size_t pos = 0;
-    std::string delimiter = ".";
-    auto str = fw + delimiter;
-    while ((pos = str.find(delimiter)) != std::string::npos) {
-        auto s = str.substr(0, pos);
-        int val = std::stoi(s);
-        rv.push_back(val);
-        str.erase(0, pos + delimiter.length());
-    }
-    return rv;
-}
-
-static bool is_upgradeable(const std::string& curr, const std::string& available)
-{
-    size_t fw_string_size = 4;
-    auto c = parse_fw_version(curr);
-    auto a = parse_fw_version(available);
-    if (a.size() != fw_string_size || c.size() != fw_string_size)
-        return false;
-
-    for (int i = 0; i < fw_string_size; i++) {
-        if (c[i] > a[i])
-            return false;
-        if (c[i] < a[i])
-            return true;
-    }
-    return false; //equle
-}
-
-static void add_device(rs2::context ctx, int product_line, std::map<std::string, fw_update_device_info>& device_map)
-{
-    static auto default_fw_table = create_default_fw_table();
-    auto recommended_fw_version = product_line_to_fw.at(product_line);
-    auto fw = default_fw_table.at(product_line);
-
-    auto devices = ctx.query_devices(product_line);
-    if (product_line & RS2_PRODUCT_LINE_RECOVERY)
-    {
-        for (auto&& d : devices)
-        {
-            fw_update_device_info fudi = { d, product_line, true, "", "", recommended_fw_version, "", fw};
-            device_map["recovery"] = fudi;
-        }
-    }
-    else {
-        for (auto&& d : devices)
-        {
-            if (!d.supports(RS2_CAMERA_INFO_SERIAL_NUMBER))
-                continue;
-            if (!d.supports(RS2_CAMERA_INFO_RECOMMENDED_FIRMWARE_VERSION))
-                continue;
-            if (!d.supports(RS2_CAMERA_INFO_FIRMWARE_VERSION))
-                continue;
-            auto serial = d.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
-            auto fw_version = d.get_info(RS2_CAMERA_INFO_FIRMWARE_VERSION);
-            auto minimal_fw_version = d.get_info(RS2_CAMERA_INFO_RECOMMENDED_FIRMWARE_VERSION);
-            bool upgradeable = is_upgradeable(fw_version, recommended_fw_version);
-            fw_update_device_info fudi = { d, product_line, upgradeable, serial, fw_version, recommended_fw_version, minimal_fw_version, fw};
-            device_map[serial] = fudi;
-        }
-    }
-}
-
-static std::map<std::string, fw_update_device_info> create_upgradeable_device_table(rs2::context ctx)
-{
-    std::map<std::string, fw_update_device_info> rv;
-
-    add_device(ctx, RS2_PRODUCT_LINE_D400, rv);
-    add_device(ctx, RS2_PRODUCT_LINE_SR300, rv);
-    add_device(ctx, RS2_PRODUCT_LINE_D400_RECOVERY, rv);
-    add_device(ctx, RS2_PRODUCT_LINE_SR300_RECOVERY, rv);
-
-    return rv;
-}
 
 void add_playback_device(context& ctx, std::shared_ptr<std::vector<device_model>> device_models, 
     std::string& error_message, viewer_model& viewer_model, const std::string& file)
@@ -358,8 +249,6 @@ int main(int argv, const char** argc) try
     viewer_model viewer_model;
 
     std::vector<device> connected_devs;
-    std::vector<device> fw_update_available;
-    std::map<std::string, fw_update_device_info> upgradeable_devices;
     std::mutex m;
 
     window.on_file_drop = [&](std::string filename)
@@ -394,46 +283,17 @@ int main(int argv, const char** argc) try
         }
     }
 
+    fw_update_helper fw_update(ctx, window, viewer_model);
+
     window.on_load = [&]()
     {
         refresh_devices(m, ctx, devices_connection_changes, connected_devs,
             device_names, device_models, viewer_model, error_message);
 
-        upgradeable_devices = create_upgradeable_device_table(ctx);
+        fw_update.update_devices();
         return true;
     };
 
-    class fw_update_helper
-    {
-    public:
-        void set_update_request(std::vector<uint8_t> image)
-        {
-            _fw_image = image;
-        }
-
-        bool has_update_request() { return !_fw_image.empty(); };
-    private:
-        std::vector<uint8_t> _fw_image;
-        std::thread update_thread;
-
-        void recover_devices(rs2::context ctx, std::vector<uint8_t> fw_image, const ux_window& window, viewer_model& vm)
-        {
-            auto fwu_devs = ctx.query_devices(RS2_PRODUCT_LINE_RECOVERY);
-            for (auto&& d : fwu_devs)
-            {
-                auto fwu_dev = d.as<rs2::fw_update_device>();
-
-                if (!fwu_dev)// || !fwu_dev.supports(RS2_CAMERA_INFO_SERIAL_NUMBER))
-                    continue;
-                auto sn = fwu_dev.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
-                fwu_dev.update_fw(fw_image, [&](const float progress)
-                {
-                    vm.popup_firmware_update_progress(window, progress);
-                    vm.not_model.add_log(to_string() << "firmware update progress: " << (int)(progress * 100.0) << "[%]\n");
-                });
-            }
-        }
-    };
 
     // Closing the window
     while (window)
@@ -441,13 +301,16 @@ int main(int argv, const char** argc) try
         auto device_changed = refresh_devices(m, ctx, devices_connection_changes, connected_devs, 
             device_names, device_models, viewer_model, error_message);
 
-        if (device_changed)
+        if (device_changed || fw_update.has_update_request())
         {
-            upgradeable_devices = create_upgradeable_device_table(ctx);
+            fw_update.update_devices();
+        }
 
-            if(!fw_image.empty())
-                recover_devices(ctx, fw_image, window, viewer_model);
-            fw_image.clear();
+        if (fw_update.is_update_in_progress())
+        {
+            auto progress = fw_update.get_progress();
+            viewer_model.popup_firmware_update_progress(window, progress);
+            //viedone wer_model.not_model.add_log(to_string() << "firmware update progress: " << (int)(progress * 100.0) << "[%]\n");
         }
 
         if (!window.is_ui_aligned())
@@ -662,76 +525,12 @@ int main(int argv, const char** argc) try
         ImGui::PopStyleVar();
         ImGui::PopStyleColor();
 
-        for (auto&& dev_model : *device_models)
+        if (!fw_update.is_update_in_progress())
         {
-            // check for fw update recomendation for any of the connected devices
-            for (auto&& d : upgradeable_devices)
-            {
-                if (!d.second.upgrade_recommended)
-                    continue;
-                if (!dev_model.dev.supports(RS2_CAMERA_INFO_SERIAL_NUMBER))
-                    continue;
-                auto sn = dev_model.dev.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
-                bool update = false;
-                if (upgradeable_devices.find(sn) != upgradeable_devices.end())
-                    viewer_model.popup_if_fw_update_required(window, d.second, update);
-                if (update)
-                {
-                    fw_image = d.second.fw_image;
-                }
-            }
-
-            // check if there was a user request for FW update on a standard device
-            if (dev_model.fw_update_requested)
-            {
-                std::vector<uint8_t> fw;
-                bool canceled = false;
-                fw_update_device_info fudi = {};
-
-                if (!dev_model.dev.supports(RS2_CAMERA_INFO_SERIAL_NUMBER))
-                    continue;
-
-                auto sn = dev_model.dev.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
-                auto sn_itr = upgradeable_devices.find(sn);
-                if (sn_itr != upgradeable_devices.end())
-                    fudi = (*sn_itr).second;
-
-                viewer_model.popup_fw_file_select(window, fudi, fw, canceled);
-                if (canceled || fw.size() > 0)
-                    dev_model.fw_update_requested = false;
-                if (fw.size() > 0)
-                    fw_image = fw; //this is the way to signal that there is a panding fw update request.
-            }
-
-            // check if there was a user request for FW update on a device in recovery mode
-            if (dev_model.fw_update_requested)
-            {
-                std::vector<uint8_t> fw;
-                bool canceled = false;
-                fw_update_device_info fudi = {};
-
-                if (!dev_model.dev.supports(RS2_CAMERA_INFO_SERIAL_NUMBER))
-                    continue;
-
-                auto sn = dev_model.dev.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
-                auto sn_itr = upgradeable_devices.find(sn);
-                auto rec_itr = upgradeable_devices.find("recovery");
-
-                if (sn_itr != upgradeable_devices.end())
-                    fudi = (*sn_itr).second;
-                if (rec_itr != upgradeable_devices.end())
-                    fudi = (*rec_itr).second;
-
-                if (!fudi.dev)
-                    continue;
-
-                viewer_model.popup_fw_file_select(window, fudi, fw, canceled);
-                if (canceled || fw.size() > 0)
-                    dev_model.fw_update_requested = false;
-                if (fw.size() > 0)
-                    fw_image = fw;
-            }
+            for (auto&& dev_model : *device_models)
+                fw_update.validate_fw_update_requests(dev_model);
         }
+
 
         // Fetch and process frames from queue
         viewer_model.handle_ready_frames(viewer_rect, window, static_cast<int>(device_models->size()), error_message);

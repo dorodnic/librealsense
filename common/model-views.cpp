@@ -3693,22 +3693,15 @@ namespace rs2
     {
         std::string header = "Firmware update in progress";
         std::stringstream message;
-        message << "";
+        message << std::endl << "Progress: " << (int)(progress *  100.0) << " [%]";
 
         auto config = [&]()
         {
             ImGui::SetCursorPos({ 10, 100 });
             ImGui::PopStyleColor(5);
 
-            //static float progress = 0; static float progressSign = 1.f;
-            //progress += progressSign * .0001f; if (progress >= 1.f || progress <= 0.f) progressSign *= -1.f;
-            // No IDs needed for ProgressBars:
-            ImGui::ProgressBar(progress, { 30 , 100 }, "Firmware update");
-            //ImGui::ProgressBar("ProgressBar", progress);
-            //ImGui::ProgressBar("ProgressBar", 1.f - progress);
-            //ImGui::ProgressBar("", 500 + progress * 1000, 500, 1500, "%4.0f (absolute value in [500,1500] and fixed bar size)", ImVec2(150, -1));
-            //ImGui::ProgressBar("", 500 + progress * 1000, 500, 1500, "%3.0f%% (same as above, but with percentage and new colors)", ImVec2(150, -1), ImVec4(0.7, 0.7, 1, 1), ImVec4(0.05, 0.15, 0.5, 0.8), ImVec4(0.8, 0.8, 0, 1));
 
+            ImGui::ProgressBar(progress, { 300 , 25 }, "Firmware update");
         };
 
         popup(window, header, message.str(), config);
