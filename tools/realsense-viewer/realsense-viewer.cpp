@@ -290,7 +290,7 @@ int main(int argv, const char** argc) try
         refresh_devices(m, ctx, devices_connection_changes, connected_devs,
             device_names, device_models, viewer_model, error_message);
 
-        fw_update.update_devices();
+        fw_update.refresh();
         return true;
     };
 
@@ -303,14 +303,13 @@ int main(int argv, const char** argc) try
 
         if (device_changed || fw_update.has_update_request())
         {
-            fw_update.update_devices();
+            fw_update.refresh();
         }
 
         if (fw_update.is_update_in_progress())
         {
             auto progress = fw_update.get_progress();
             viewer_model.popup_firmware_update_progress(window, progress);
-            //viedone wer_model.not_model.add_log(to_string() << "firmware update progress: " << (int)(progress * 100.0) << "[%]\n");
         }
 
         if (!window.is_ui_aligned())
@@ -530,7 +529,6 @@ int main(int argv, const char** argc) try
             for (auto&& dev_model : *device_models)
                 fw_update.validate_fw_update_requests(dev_model);
         }
-
 
         // Fetch and process frames from queue
         viewer_model.handle_ready_frames(viewer_rect, window, static_cast<int>(device_models->size()), error_message);

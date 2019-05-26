@@ -3643,9 +3643,12 @@ namespace rs2
         std::stringstream header;
         header << "Update device " << ud.serial_number << " firmware";
         std::stringstream message;
-        message << "The current firmware on the device is: " << ud.curr_fw_version << std::endl <<
-            "The minimal firmware for this device is: " << ud.minimal_fw_version << std::endl <<
-            "The recommended firmware is: " << ud.recommended_fw_version;
+        if (ud.curr_fw_version != "")
+            message << "The current firmware on the device is: " << ud.curr_fw_version << std::endl;
+        if (ud.minimal_fw_version != "")
+            message << "The minimal firmware for this device is: " << ud.minimal_fw_version << std::endl;
+        if (ud.recommended_fw_version != "")
+            message << "The recommended firmware is: " << ud.recommended_fw_version;
 
         auto config = [&]()
         {
@@ -3716,9 +3719,10 @@ namespace rs2
         std::string header = "It's time to update";
         std::stringstream message;
         message << "New Firmware is available for device: " << ud.serial_number << std::endl <<
-            "The current firmware on the device is: " << ud.curr_fw_version << std::endl <<
-            "The minimal firmware for this device is: " << ud.minimal_fw_version << std::endl <<
-            "The recommended firmware is: " << ud.recommended_fw_version;
+            "The current firmware on the device is: " << ud.curr_fw_version << std::endl;
+        if (ud.minimal_fw_version != "")
+            message << "The minimal firmware for this device is: " << ud.minimal_fw_version << std::endl;
+        message << "The recommended firmware is: " << ud.recommended_fw_version;
 
         auto config = [&]()
         {

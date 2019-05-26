@@ -105,15 +105,9 @@ namespace rs2
         else {
             for (auto&& d : devices)
             {
-                if (!d.supports(RS2_CAMERA_INFO_SERIAL_NUMBER))
-                    continue;
-                if (!d.supports(RS2_CAMERA_INFO_RECOMMENDED_FIRMWARE_VERSION))
-                    continue;
-                if (!d.supports(RS2_CAMERA_INFO_FIRMWARE_VERSION))
-                    continue;
-                auto serial = d.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
-                auto fw_version = d.get_info(RS2_CAMERA_INFO_FIRMWARE_VERSION);
-                auto minimal_fw_version = d.get_info(RS2_CAMERA_INFO_RECOMMENDED_FIRMWARE_VERSION);
+                auto serial = d.supports(RS2_CAMERA_INFO_SERIAL_NUMBER) ? d.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER) : "";
+                auto fw_version = d.supports(RS2_CAMERA_INFO_FIRMWARE_VERSION) ? d.get_info(RS2_CAMERA_INFO_FIRMWARE_VERSION) : "";
+                auto minimal_fw_version = d.supports(RS2_CAMERA_INFO_RECOMMENDED_FIRMWARE_VERSION) ? d.get_info(RS2_CAMERA_INFO_RECOMMENDED_FIRMWARE_VERSION) : "";
                 bool upgradeable = is_upgradeable(fw_version, recommended_fw_version);
                 fw_update_device_info fudi = { d, product_line, upgradeable, serial, fw_version, recommended_fw_version, minimal_fw_version, fw };
                 device_map[serial] = fudi;
@@ -153,11 +147,21 @@ namespace rs2
 
         float get_progress() { return _update_progress; }
 
-        void update_devices()
+        void refresh()
         {
-            _upgradeable_devices = create_upgradeable_device_table(_context);
-            if (!_fw_image.empty())
-                _update_thread = std::thread(&fw_update_helper::recover_devices, this);
+            try
+            {
+                _upgradeable_devices = create_upgradeable_device_table(_context);
+                if (_update_thread.joinable())
+                    _update_thread.join();
+                if (_fw_image.size() > 0)
+                    _update_thread = std::thread(&fw_update_helper::recover_devices, this, std::move(_fw_image));
+            }
+            catch (...)
+            {
+                //TODO
+            }
+
         }
 
         void validate_fw_update_requests(device_model dev_model)
@@ -224,7 +228,7 @@ namespace rs2
             }
         }
 
-        void recover_devices()
+        void recover_devices(std::vector<uint8_t> fw_image)
         {
             auto fwu_devs = _context.query_devices(RS2_PRODUCT_LINE_RECOVERY);
             for (auto&& d : fwu_devs)
@@ -232,14 +236,14 @@ namespace rs2
                 _update_progress = 0;
                 auto fwu_dev = d.as<rs2::fw_update_device>();
 
-                if (!fwu_dev)// || !fwu_dev.supports(RS2_CAMERA_INFO_SERIAL_NUMBER))
+                if (!fwu_dev)
                     continue;
-                auto temp = std::move(_fw_image);
-                //auto sn = fwu_dev.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
-                fwu_dev.update_fw(temp, [&](const float progress)
+                _viewer_model.not_model.add_log(to_string() << "firmware update started\n");
+                fwu_dev.update_fw(fw_image, [&](const float progress)
                 {
                     _update_progress = progress;
                 });
+                _viewer_model.not_model.add_log(to_string() << "firmware update done\n");
                 _update_progress = -1;
             }
         }
