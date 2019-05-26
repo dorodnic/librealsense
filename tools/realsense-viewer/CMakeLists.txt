@@ -29,6 +29,7 @@ endif()
 
 set(RS_VIEWER_CPP
     realsense-viewer.cpp
+    fw-update-helper.h
     ../../third-party/imgui/imgui.cpp
     ../../third-party/imgui/imgui_draw.cpp
     ../../third-party/imgui/imgui_impl_glfw.cpp

@@ -3518,81 +3518,17 @@ namespace rs2
         ImGui::PopFont();
     }
 
-    bool viewer_model::popup_if_error(ImFont* font_14, std::string& error_message)
+    void rs2::viewer_model::popup(const ux_window& window, const std::string& header, const std::string& message, std::function<void()> configure)
     {
+        if (popup_triggered)
+            return;
+
+        popup_triggered = true;
         auto flags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
             ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar |
             ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysVerticalScrollbar;
 
-        ImGui_ScopePushFont(font_14);
-        ImGui::PushStyleColor(ImGuiCol_PopupBg, sensor_bg);
-        ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, white);
-        ImGui::PushStyleColor(ImGuiCol_Text, light_grey);
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(3, 3));
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 1);
-
-        // The list of errors the user asked not to show again:
-        static std::set<std::string> errors_not_to_show;
-        static bool dont_show_this_error = false;
-        auto simplify_error_message = [](const std::string& s) {
-            std::regex e("\\b(0x)([^ ,]*)");
-            return std::regex_replace(s, e, "address");
-        };
-
-        std::string name = std::string(textual_icons::exclamation_triangle) + " Oops, something went wrong!";
-
-        if (error_message != "")
-        {
-            if (errors_not_to_show.count(simplify_error_message(error_message)))
-            {
-                not_model.add_notification({ error_message,
-                    std::chrono::duration<double, std::milli>(std::chrono::system_clock::now().time_since_epoch()).count(),
-                    RS2_LOG_SEVERITY_ERROR,
-                    RS2_NOTIFICATION_CATEGORY_UNKNOWN_ERROR });
-                error_message = "";
-            }
-            else
-            {
-                ImGui::OpenPopup(name.c_str());
-            }
-
-            if (ImGui::BeginPopupModal(name.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize))
-            {
-                ImGui::Text("RealSense error calling:");
-                ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, regular_blue);
-                ImGui::InputTextMultiline("error", const_cast<char*>(error_message.c_str()),
-                    error_message.size() + 1, { 500,100 }, ImGuiInputTextFlags_AutoSelectAll | ImGuiInputTextFlags_ReadOnly);
-                ImGui::PopStyleColor();
-
-                if (ImGui::Button("OK", ImVec2(120, 0)))
-                {
-                    if (dont_show_this_error)
-                    {
-                        errors_not_to_show.insert(simplify_error_message(error_message));
-                    }
-                    error_message = "";
-                    ImGui::CloseCurrentPopup();
-                    dont_show_this_error = false;
-                }
-
-                ImGui::SameLine();
-                ImGui::Checkbox("Don't show this error again", &dont_show_this_error);
-
-                ImGui::EndPopup();
-            }
-        }
-
-        ImGui::PopStyleColor(3);
-        ImGui::PopStyleVar(2);
-
-        return true;
-    }
-
-    void rs2::viewer_model::popup(ImFont* font_14, const std::string& header, const std::string& message, const ux_window& window, std::function<void()> configure)
-    {
-        auto flags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-            ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar |
-            ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysVerticalScrollbar;
+        auto font_14 = window.get_font();
 
         ImGui_ScopePushFont(font_14);
         ImGui::PushStyleColor(ImGuiCol_PopupBg, sensor_bg);
@@ -3628,6 +3564,60 @@ namespace rs2
         ImGui::PopStyleVar(2);
     }
 
+    void viewer_model::popup_if_error(const ux_window& window, std::string& message)
+    {
+        if (message == "")
+            return;
+
+        // The list of errors the user asked not to show again:
+        static std::set<std::string> errors_not_to_show;
+        static bool dont_show_this_error = false;
+        auto simplify_error_message = [](const std::string& s) {
+            std::regex e("\\b(0x)([^ ,]*)");
+            return std::regex_replace(s, e, "address");
+        };
+
+        if (errors_not_to_show.count(simplify_error_message(message)))
+        {
+            not_model.add_notification({ message,
+                std::chrono::duration<double, std::milli>(std::chrono::system_clock::now().time_since_epoch()).count(),
+                RS2_LOG_SEVERITY_ERROR,
+                RS2_NOTIFICATION_CATEGORY_UNKNOWN_ERROR });
+            message = "";
+            return;
+        }
+
+        std::string header = std::string(textual_icons::exclamation_triangle) + " Oops, something went wrong!";
+
+        auto config = [&]()
+        {
+            //ImGui::Text("RealSense error calling:");
+            //ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, regular_blue);
+            //ImGui::InputTextMultiline("error", const_cast<char*>(message.c_str()),
+            //    message.size() + 1, { 500,100 }, ImGuiInputTextFlags_AutoSelectAll | ImGuiInputTextFlags_ReadOnly);
+            //ImGui::PopStyleColor();
+
+            ImGui::SetCursorPos({ 10, 100 });
+            ImGui::PopStyleColor(5);
+
+            if (ImGui::Button("OK", ImVec2(120, 0)))
+            {
+                if (dont_show_this_error)
+                {
+                    errors_not_to_show.insert(simplify_error_message(message));
+                }
+                message = "";
+                ImGui::CloseCurrentPopup();
+                dont_show_this_error = false;
+            }
+
+            ImGui::SameLine();
+            ImGui::Checkbox("Don't show this error again", &dont_show_this_error);
+        };
+
+        popup(window, header, message, config);
+    }
+
     std::vector<uint8_t> read_fw_file(std::string file_path)
     {
         std::vector<uint8_t> rv;
@@ -3645,7 +3635,7 @@ namespace rs2
         return rv;
     }
 
-    bool rs2::viewer_model::popup_fw_file_select(const ux_window& window, const upgradeable_device& ud, const rs2::device& dev, std::vector<uint8_t>& fw, bool& cancel)
+    void rs2::viewer_model::popup_fw_file_select(const ux_window& window, const fw_update_device_info& ud, std::vector<uint8_t>& fw, bool& cancel)
     {
         ImFont* font_14 = window.get_font();
         cancel = false;
@@ -3654,18 +3644,20 @@ namespace rs2
         header << "Update device " << ud.serial_number << " firmware";
         std::stringstream message;
         message << "The current firmware on the device is: " << ud.curr_fw_version << std::endl <<
-            "The minimal firmware for this device is: " << ud.recommended_fw_version << std::endl <<
-            "The recommended firmware is: " << ud.available_fw_version;
+            "The minimal firmware for this device is: " << ud.minimal_fw_version << std::endl <<
+            "The recommended firmware is: " << ud.recommended_fw_version;
 
         auto config = [&]()
         {
-            if (ud.available_fw_version != "")
+            if (ud.recommended_fw_version != "")
             {
                 ImGui::SetCursorPos({ 10, 100 });
                 ImGui::PopStyleColor(5);
                 if (ImGui::Button(" Update Recommended ", ImVec2(0, 0)))
                 {
-                    dev.enter_to_fw_update_mode();
+                    fw = ud.fw_image;
+                    if (ud.curr_fw_version != "")
+                        ud.dev.enter_to_fw_update_mode();
                     ImGui::CloseCurrentPopup();
                 }
                 ImGui::SameLine();
@@ -3680,9 +3672,10 @@ namespace rs2
             {
                 auto ret = file_dialog_open(open_file, "Firmware\0*.bin\0", NULL, NULL);
                 if (!ret)
-                    return true;
+                    return;
                 fw = read_fw_file(ret);
-                dev.enter_to_fw_update_mode();
+                if(ud.curr_fw_version != "")
+                    ud.dev.enter_to_fw_update_mode();
                 ImGui::CloseCurrentPopup();
             }
             ImGui::SameLine();
@@ -3693,51 +3686,46 @@ namespace rs2
             }
         };
 
-        popup(font_14, header.str(), message.str(), window, config);
-
-        return true;
+        popup(window, header.str(), message.str(), config);
     }
 
-    bool rs2::viewer_model::popup_firmware_update_progress(const ux_window& window, const float progress) const
+    void rs2::viewer_model::popup_firmware_update_progress(const ux_window& window, const float progress)
     {
-        //ImFont* font_14 = window.get_font();
+        std::string header = "Firmware update in progress";
+        std::stringstream message;
+        message << "";
 
-        //std::string header = "Firmware update in progress";
-        //std::stringstream message;
-        //message << "";
+        auto config = [&]()
+        {
+            ImGui::SetCursorPos({ 10, 100 });
+            ImGui::PopStyleColor(5);
 
-        //auto config = [&]()
-        //{
-        //    ImGui::SetCursorPos({ 10, 100 });
-        //    ImGui::PopStyleColor(5);
+            //static float progress = 0; static float progressSign = 1.f;
+            //progress += progressSign * .0001f; if (progress >= 1.f || progress <= 0.f) progressSign *= -1.f;
+            // No IDs needed for ProgressBars:
+            ImGui::ProgressBar(progress, { 30 , 100 }, "Firmware update");
+            //ImGui::ProgressBar("ProgressBar", progress);
+            //ImGui::ProgressBar("ProgressBar", 1.f - progress);
+            //ImGui::ProgressBar("", 500 + progress * 1000, 500, 1500, "%4.0f (absolute value in [500,1500] and fixed bar size)", ImVec2(150, -1));
+            //ImGui::ProgressBar("", 500 + progress * 1000, 500, 1500, "%3.0f%% (same as above, but with percentage and new colors)", ImVec2(150, -1), ImVec4(0.7, 0.7, 1, 1), ImVec4(0.05, 0.15, 0.5, 0.8), ImVec4(0.8, 0.8, 0, 1));
 
-        //    ImVec2 size = {10, 100};
-        //    ImVec2 pos = ImGui::GetCursorScreenPos();
-        //    ImGui::GetWindowDrawList()->AddRectFilled(pos, pos + progress);// fill
-        //    ImGui::GetWindowDrawList()->AddRect(pos, pos + ....); // border
-        //    ImGui::Dummy(size);
+        };
 
-        //};
-
-        //popup(font_14, header, message.str(), window, config);
-
-        return true;
+        popup(window, header, message.str(), config);
     }
 
-    bool rs2::viewer_model::popup_if_fw_update_required(const ux_window& window, const upgradeable_device& ud, bool& update)
+    void rs2::viewer_model::popup_if_fw_update_required(const ux_window& window, const fw_update_device_info& ud, bool& update)
     {
         update = false;
         if (continue_with_current_fw)
-            return false;
-
-        ImFont* font_14 = window.get_font();
+            return;
 
         std::string header = "It's time to update";
         std::stringstream message;
         message << "New Firmware is available for device: " << ud.serial_number << std::endl <<
             "The current firmware on the device is: " << ud.curr_fw_version << std::endl <<
-            "The minimal firmware for this device is: " << ud.recommended_fw_version << std::endl <<
-            "The recommended firmware is: " << ud.available_fw_version;
+            "The minimal firmware for this device is: " << ud.minimal_fw_version << std::endl <<
+            "The recommended firmware is: " << ud.recommended_fw_version;
 
         auto config = [&]()
         {
@@ -3749,7 +3737,7 @@ namespace rs2
             if (ImGui::Button(" Update Recommended ", ImVec2(0, 0)))
             {
                 update = true;
-                ud.device.enter_to_fw_update_mode();
+                ud.dev.enter_to_fw_update_mode();
                 ImGui::CloseCurrentPopup();
             }
             ImGui::SameLine();
@@ -3769,19 +3757,16 @@ namespace rs2
             ImGui::Checkbox("Don't show this again", &dont_show_again);
         };
 
-        popup(font_14, header, message.str(), window, config);
-
-        return true;
+        popup(window, header, message.str(), config);
     }
 
-    bool rs2::viewer_model::popup_if_ui_not_aligned(const ux_window& window)
+    void rs2::viewer_model::popup_if_ui_not_aligned(const ux_window& window)
     {
         constexpr const char* graphics_updated_driver = "https://downloadcenter.intel.com/download/27266/Graphics-Intel-Graphics-Driver-for-Windows-15-60-?product=80939";
 
         if (continue_with_ui_not_aligned)
-            return false;
+            return;
 
-        ImFont* font_14 = window.get_font();
         std::string header = to_string() << "  " << textual_icons::exclamation_triangle << " " << " UI Offset Detected";
 
         std::stringstream message;
@@ -3817,9 +3802,10 @@ namespace rs2
             ImGui::Checkbox("Don't show this again", &dont_show_again);
         };
 
-        popup(font_14, header, message.str(), window, config);
-        return true;
+        popup(window, header, message.str(), config);
+        return;
     }
+
     void viewer_model::show_icon(ImFont* font_18, const char* label_str, const char* text, int x, int y, int id,
         const ImVec4& text_color, const std::string& tooltip)
     {
@@ -4319,8 +4305,9 @@ namespace rs2
 
         not_model.draw(window.get_font(), static_cast<int>(window.width()), static_cast<int>(window.height()));
 
-        popup_if_error(window.get_font(), error_message);
-    
+        popup_if_error(window, error_message);
+
+        popup_triggered = false;
         return f;
     }
 

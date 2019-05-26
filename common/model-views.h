@@ -60,20 +60,16 @@ inline ImVec4 blend(const ImVec4& c, float a)
     return{ c.x, c.y, c.z, a * c.w };
 }
 
-struct upgradeable_device
+struct fw_update_device_info
 {
+    rs2::device dev;
     int product_line;
-    rs2::device device;
+    bool upgrade_recommended;
     std::string serial_number;
     std::string curr_fw_version;
     std::string recommended_fw_version;
-    std::string available_fw_version;
-};
-
-struct recovery_device
-{
-    rs2::device device;
-    std::vector<uint8_t> fw;
+    std::string minimal_fw_version;
+    std::vector<uint8_t> fw_image;
 };
 
 namespace rs2
@@ -1000,17 +996,17 @@ namespace rs2
         void show_paused_icon(ImFont* font, int x, int y, int id);
         void show_recording_icon(ImFont* font_18, int x, int y, int id, float alpha_delta);
 
-        bool popup_if_error(ImFont* font, std::string& error_message);
+        void popup_if_error(const ux_window& window, std::string& error_message);
 
-        bool popup_if_ui_not_aligned(const ux_window& window);
+        void popup_if_ui_not_aligned(const ux_window& window);
 
-        bool popup_if_fw_update_required(const ux_window& window, const upgradeable_device& ud, bool& update);
+        void popup_if_fw_update_required(const ux_window& window, const fw_update_device_info& ud, bool& update);
 
-        bool popup_fw_file_select(const ux_window& window, const upgradeable_device& ud, const rs2::device& dev,  std::vector<uint8_t>& fw, bool& cancel);
+        void popup_fw_file_select(const ux_window& window, const fw_update_device_info& ud, std::vector<uint8_t>& fw, bool& cancel);
 
-        void popup(ImFont* font_14, const std::string& header, const std::string& message, const ux_window& window, std::function<void()> configure);
+        void popup(const ux_window& window, const std::string& header, const std::string& message, std::function<void()> configure);
 
-        bool popup_firmware_update_progress(const ux_window& window, const float progress) const;
+        void popup_firmware_update_progress(const ux_window& window, const float progress);
 
         void show_event_log(ImFont* font_14, float x, float y, float w, float h);
 
@@ -1073,6 +1069,8 @@ namespace rs2
         bool show_pose_info_3d = false;
 
     private:
+        bool popup_triggered = false;
+
         struct rgb {
             uint32_t r, g, b;
         };
