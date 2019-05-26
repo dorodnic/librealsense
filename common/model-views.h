@@ -62,9 +62,11 @@ inline ImVec4 blend(const ImVec4& c, float a)
 
 struct upgradeable_device
 {
+    int product_line;
     rs2::device device;
     std::string serial_number;
     std::string curr_fw_version;
+    std::string recommended_fw_version;
     std::string available_fw_version;
 };
 
@@ -744,6 +746,7 @@ namespace rs2
         std::vector<std::string> restarting_device_info;
         std::set<std::string> advanced_mode_settings_file_names;
         std::string selected_file_preset;
+        bool fw_update_requested = false;
     private:
         void draw_info_icon(ux_window& window, ImFont* font, const ImVec2& size);
         int draw_seek_bar();
@@ -1001,11 +1004,13 @@ namespace rs2
 
         bool popup_if_ui_not_aligned(const ux_window& window);
 
-        bool popup_if_fw_update_required(const ux_window& window, const upgradeable_device& ud);
+        bool popup_if_fw_update_required(const ux_window& window, const upgradeable_device& ud, bool& update);
 
-        bool popup_fw_file_select(const ux_window& window);
+        bool popup_fw_file_select(const ux_window& window, const upgradeable_device& ud, const rs2::device& dev,  std::vector<uint8_t>& fw, bool& cancel);
 
         void popup(ImFont* font_14, const std::string& header, const std::string& message, const ux_window& window, std::function<void()> configure);
+
+        bool popup_firmware_update_progress(const ux_window& window, const float progress) const;
 
         void show_event_log(ImFont* font_14, float x, float y, float w, float h);
 

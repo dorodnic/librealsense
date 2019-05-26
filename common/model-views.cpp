@@ -3601,15 +3601,13 @@ namespace rs2
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(10, 10));
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 1);
 
-        std::string name = to_string() << "  " << textual_icons::exclamation_triangle << " " << header;
-
         //float x = window.width() / 2.0f;
         //float y = 60.0f + (float)index * 150;
         //ImGui::SetNextWindowPos({x, y});// );
 
-        ImGui::OpenPopup(name.c_str());
+        ImGui::OpenPopup(header.c_str());
 
-        if (ImGui::BeginPopupModal(name.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+        if (ImGui::BeginPopupModal(header.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize))
         {
             ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, regular_blue);
             ImGui::Text("%s", message.c_str());
@@ -3630,38 +3628,105 @@ namespace rs2
         ImGui::PopStyleVar(2);
     }
 
-    bool rs2::viewer_model::popup_fw_file_select(const ux_window& window)
+    std::vector<uint8_t> read_fw_file(std::string file_path)
+    {
+        std::vector<uint8_t> rv;
+
+        std::ifstream file(file_path, std::ios::in | std::ios::binary | std::ios::ate);
+        if (file.is_open())
+        {
+            rv.resize(file.tellg());
+
+            file.seekg(0, std::ios::beg);
+            file.read((char*)rv.data(), rv.size());
+            file.close();
+        }
+
+        return rv;
+    }
+
+    bool rs2::viewer_model::popup_fw_file_select(const ux_window& window, const upgradeable_device& ud, const rs2::device& dev, std::vector<uint8_t>& fw, bool& cancel)
     {
         ImFont* font_14 = window.get_font();
+        cancel = false;
 
-        std::string header = "Select firmware file";
-
+        std::stringstream header;
+        header << "Update device " << ud.serial_number << " firmware";
         std::stringstream message;
-        message << "";
+        message << "The current firmware on the device is: " << ud.curr_fw_version << std::endl <<
+            "The minimal firmware for this device is: " << ud.recommended_fw_version << std::endl <<
+            "The recommended firmware is: " << ud.available_fw_version;
 
         auto config = [&]()
         {
-            ImGui::SetCursorPos({ 10, 100 });
-            ImGui::PopStyleColor(5);
-
-            if (ImGui::Button(" Default Firmware ", ImVec2(0, 0)))
+            if (ud.available_fw_version != "")
             {
+                ImGui::SetCursorPos({ 10, 100 });
+                ImGui::PopStyleColor(5);
+                if (ImGui::Button(" Update Recommended ", ImVec2(0, 0)))
+                {
+                    dev.enter_to_fw_update_mode();
+                    ImGui::CloseCurrentPopup();
+                }
+                ImGui::SameLine();
+            }
+            else
+            {
+                ImGui::SetCursorPos({ 10, 100 });
+                ImGui::PopStyleColor(5);
+            }
+
+            if (ImGui::Button(" Pick Firmware ", ImVec2(0, 0)))
+            {
+                auto ret = file_dialog_open(open_file, "Firmware\0*.bin\0", NULL, NULL);
+                if (!ret)
+                    return true;
+                fw = read_fw_file(ret);
+                dev.enter_to_fw_update_mode();
                 ImGui::CloseCurrentPopup();
             }
             ImGui::SameLine();
-            if (ImGui::Button(" Let Me Choose ", ImVec2(0, 0)))
+            if (ImGui::Button(" Cancel ", ImVec2(0, 0)))
             {
+                cancel = true;
                 ImGui::CloseCurrentPopup();
             }
         };
 
-        popup(font_14, header, message.str(), window, config);
+        popup(font_14, header.str(), message.str(), window, config);
 
         return true;
     }
 
-    bool rs2::viewer_model::popup_if_fw_update_required(const ux_window& window, const upgradeable_device& ud)
+    bool rs2::viewer_model::popup_firmware_update_progress(const ux_window& window, const float progress) const
     {
+        //ImFont* font_14 = window.get_font();
+
+        //std::string header = "Firmware update in progress";
+        //std::stringstream message;
+        //message << "";
+
+        //auto config = [&]()
+        //{
+        //    ImGui::SetCursorPos({ 10, 100 });
+        //    ImGui::PopStyleColor(5);
+
+        //    ImVec2 size = {10, 100};
+        //    ImVec2 pos = ImGui::GetCursorScreenPos();
+        //    ImGui::GetWindowDrawList()->AddRectFilled(pos, pos + progress);// fill
+        //    ImGui::GetWindowDrawList()->AddRect(pos, pos + ....); // border
+        //    ImGui::Dummy(size);
+
+        //};
+
+        //popup(font_14, header, message.str(), window, config);
+
+        return true;
+    }
+
+    bool rs2::viewer_model::popup_if_fw_update_required(const ux_window& window, const upgradeable_device& ud, bool& update)
+    {
+        update = false;
         if (continue_with_current_fw)
             return false;
 
@@ -3671,7 +3736,8 @@ namespace rs2
         std::stringstream message;
         message << "New Firmware is available for device: " << ud.serial_number << std::endl <<
             "The current firmware on the device is: " << ud.curr_fw_version << std::endl <<
-            "The current firmware in file is: " << ud.available_fw_version;
+            "The minimal firmware for this device is: " << ud.recommended_fw_version << std::endl <<
+            "The recommended firmware is: " << ud.available_fw_version;
 
         auto config = [&]()
         {
@@ -3680,8 +3746,9 @@ namespace rs2
 
             static bool dont_show_again = false;
 
-            if (ImGui::Button(" Update ", ImVec2(0, 0)))
+            if (ImGui::Button(" Update Recommended ", ImVec2(0, 0)))
             {
+                update = true;
                 ud.device.enter_to_fw_update_mode();
                 ImGui::CloseCurrentPopup();
             }
@@ -3715,7 +3782,8 @@ namespace rs2
             return false;
 
         ImFont* font_14 = window.get_font();
-        std::string header = " UI Offset Detected";
+        std::string header = to_string() << "  " << textual_icons::exclamation_triangle << " " << " UI Offset Detected";
+
         std::stringstream message;
         message << "The application has detected possible UI alignment issue,            \n" <<
             "sometimes caused by outdated graphics card drivers.\n" <<
@@ -6630,9 +6698,7 @@ namespace rs2
                 {
                     try
                     {
-                        restarting_device_info = get_device_info(dev, false);
-                        //popup_fw_file_select(window);
-                        dev.enter_to_fw_update_mode();
+                        fw_update_requested = true;
                     }
                     catch (const error& e)
                     {
