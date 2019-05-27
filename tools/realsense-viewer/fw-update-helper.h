@@ -164,7 +164,7 @@ namespace rs2
 
         }
 
-        void validate_fw_update_requests(device_model dev_model)
+        void validate_fw_update_requests(device_model& dev_model)
         {
             // check for fw update recomendation for any of the connected devices
             for (auto&& d : _upgradeable_devices)
@@ -175,12 +175,10 @@ namespace rs2
                     continue;
                 auto sn = dev_model.dev.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
                 bool update = false;
-                if (_upgradeable_devices.find(sn) != _upgradeable_devices.end())
+                if (d.second.serial_number == sn)
                     _viewer_model.popup_if_fw_update_required(_window, d.second, update);
                 if (update)
-                {
                     _fw_image = d.second.fw_image;
-                }
             }
 
             // check if there was a user request for FW update on a device in recovery mode
@@ -202,7 +200,7 @@ namespace rs2
         std::thread _update_thread;
         std::map<std::string, fw_update_device_info> _upgradeable_devices;
 
-        void check_for_update_request(device_model dev_model, const std::string& id)
+        void check_for_update_request(device_model& dev_model, const std::string& id)
         {
             if (dev_model.fw_update_requested)
             {
@@ -223,7 +221,7 @@ namespace rs2
                     dev_model.fw_update_requested = false;
                 if (fw.size() > 0)
                 {
-                    _fw_image = fw;//this is the way to signal that there is a panding fw update request.
+                    _fw_image = fw;//this is the way to signal that there is a pending fw update request.
                 }
             }
         }
