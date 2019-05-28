@@ -3434,8 +3434,12 @@ namespace rs2
             }
             play_defaults(viewer);
         }
-        else {
+        else
+        {
             _fw_update_helper = std::make_shared<fw_update_helper>(dev);
+
+            if (dev.is<fw_update_device>() && viewer._fw_image.size() > 0)
+                _fw_update_requested = true;
         }
     }
     void device_model::play_defaults(viewer_model& viewer)
@@ -3647,7 +3651,7 @@ namespace rs2
         std::stringstream header;
         header << "Update device " << dm._fw_update_helper->get_serial_number() << " firmware";
         std::stringstream message;
-        if (dm._fw_update_helper->get_curr_fw_version != "")
+        if (dm._fw_update_helper->get_curr_fw_version() != "")
             message << "The current firmware on the device is: " << dm._fw_update_helper->get_curr_fw_version() << std::endl;
         if (dm._fw_update_helper->get_minimal_fw_version() != "")
             message << "The minimal firmware for this device is: " << dm._fw_update_helper->get_minimal_fw_version() << std::endl;
@@ -3662,7 +3666,9 @@ namespace rs2
                 ImGui::PopStyleColor(5);
                 if (ImGui::Button(" Update Recommended ", ImVec2(0, 0)))
                 {
-                    _fw_image = _default_fw_table.at();
+                    if (!dm.dev.supports(RS2_CAMERA_INFO_PRODUCT_LINE))
+                        return;
+                    _fw_image = _default_fw_table.at(dm.dev.get_info(RS2_CAMERA_INFO_PRODUCT_LINE));
                     if (dm._fw_update_helper->get_curr_fw_version() != "")
                         dm.dev.enter_to_fw_update_mode();
                     ImGui::CloseCurrentPopup();
@@ -3680,9 +3686,9 @@ namespace rs2
                 auto ret = file_dialog_open(open_file, "Firmware\0*.bin\0", NULL, NULL);
                 if (!ret)
                     return;
-                fw = read_fw_file(ret);
-                if(ud.curr_fw_version != "")
-                    ud.dev.enter_to_fw_update_mode();
+                _fw_image = read_fw_file(ret);
+                if(dm._fw_update_helper->get_curr_fw_version() != "")
+                    dm.dev.enter_to_fw_update_mode();
                 ImGui::CloseCurrentPopup();
             }
             ImGui::SameLine();
@@ -3716,7 +3722,6 @@ namespace rs2
 
     void rs2::viewer_model::popup_if_fw_update_required(const ux_window& window, const device_model& dm)
     {
-        //update = false;
         if (continue_with_current_fw)
             return;
 
@@ -3737,7 +3742,9 @@ namespace rs2
 
             if (ImGui::Button(" Update Recommended ", ImVec2(0, 0)))
             {
-                //update = true;
+                if (!dm.dev.supports(RS2_CAMERA_INFO_PRODUCT_LINE))
+                    return;
+                _fw_image = _default_fw_table.at(dm.dev.get_info(RS2_CAMERA_INFO_PRODUCT_LINE));
                 dm.dev.enter_to_fw_update_mode();
                 ImGui::CloseCurrentPopup();
             }
@@ -6686,7 +6693,7 @@ namespace rs2
                 {
                     try
                     {
-                        fw_update_requested = true;
+                        _fw_update_requested = true;
                     }
                     catch (const error& e)
                     {

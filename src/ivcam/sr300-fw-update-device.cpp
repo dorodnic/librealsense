@@ -9,7 +9,7 @@
 namespace librealsense
 {
     sr300_fw_update_device::sr300_fw_update_device(std::shared_ptr<context> ctx, bool register_device_notifications, std::shared_ptr<platform::usb_device> usb_device)
-        : fw_update_device(ctx, register_device_notifications, usb_device), _name("Intel RealSense SR300 Recovery")
+        : fw_update_device(ctx, register_device_notifications, usb_device), _name("Intel RealSense SR300 Recovery"), _product_line("SR400_RECOVERY")
     {
         auto messenger = usb_device->open();
         auto info = usb_device->get_info();

@@ -731,7 +731,9 @@ namespace rs2
         std::vector<std::string> restarting_device_info;
         std::set<std::string> advanced_mode_settings_file_names;
         std::string selected_file_preset;
+
         std::shared_ptr<fw_update_helper> _fw_update_helper;
+        bool _fw_update_requested = false;
 
     private:
         void draw_info_icon(ux_window& window, ImFont* font, const ImVec2& size);

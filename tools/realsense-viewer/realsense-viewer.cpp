@@ -500,10 +500,23 @@ int main(int argv, const char** argc) try
         ImGui::PopStyleVar();
         ImGui::PopStyleColor();
 
-        if (!fw_update.is_update_in_progress())
+        for (auto&& dev_model : *device_models)
         {
-            for (auto&& dev_model : *device_models)
-                fw_update.validate_fw_update_requests(dev_model);
+            if (dev_model._fw_update_helper->updating())
+                viewer_model.popup_firmware_update_progress(window, dev_model._fw_update_helper->get_progress());
+            if (dev_model._fw_update_helper->is_upgrade_recommended())
+            {
+                viewer_model.popup_if_fw_update_required(window, dev_model);
+            }
+            if (dev_model._fw_update_requested)
+            {
+                bool cancel = false;
+                viewer_model.popup_fw_file_select(window, dev_model, cancel);
+                dev_model._fw_update_requested = !(cancel || (viewer_model._fw_image.size() > 0));
+                if (dev_model.dev.is<fw_update_device>() && viewer_model._fw_image.size() > 0)
+                    dev_model._fw_update_helper->update(std::move(viewer_model._fw_image));
+                        //[&](float progress) { viewer_model.popup_firmware_update_progress(window, progress); });
+            }
         }
 
         // Fetch and process frames from queue

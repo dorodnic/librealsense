@@ -16,9 +16,10 @@ namespace librealsense
 
     protected:
         virtual const std::string& get_name() const override { return _name; }
-        virtual const std::string& get_product_line() const override { return "SR300_RECOVERY"; }
+        virtual const std::string& get_product_line() const override { return _product_line; }
 
     private:
         std::string _name;
+        std::string _product_line;
     };
 }
