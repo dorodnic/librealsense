@@ -78,6 +78,18 @@ namespace librealsense
         _hw_monitor->send(cmd);
     }
 
+    void ds5_device::enter_to_fw_update_mode() const
+    {
+        try {
+            command cmd(ds::DFU);
+            cmd.param1 = 1;
+            _hw_monitor->send(cmd);
+        }
+        catch (...) {
+            // The set command returns a failure because switching to DFU resets the device while the command is running.
+        }
+    }
+
     class ds5_depth_sensor : public uvc_sensor, public video_sensor_interface, public depth_stereo_sensor, public roi_sensor_base
     {
     public:

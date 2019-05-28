@@ -156,6 +156,18 @@ namespace librealsense
         _hw_monitor->send(cmd);
     }
 
+    void sr300_camera::enter_to_fw_update_mode() const
+    {
+        try {
+            command cmd(ivcam::GoToDFU);
+            cmd.param1 = 1;
+            _hw_monitor->send(cmd);
+        }
+        catch (...) {
+            // The set command returns a failure because switching to DFU resets the device while the command is running.
+        }
+    }
+
     struct sr300_raw_calibration
     {
         uint16_t tableVersion;

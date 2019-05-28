@@ -5,6 +5,7 @@
 #include "model-views.h"
 #include "os.h"
 #include "ux-window.h"
+#include "fw-update-helper.h"
 
 #include <cstdarg>
 #include <thread>
@@ -22,8 +23,17 @@
 // We use NOC file helper function for cross-platform file dialogs
 #include <noc_file_dialog.h>
 
+#ifdef INTERNAL_FW
+#include "common/fw/D4XX_FW_Image.h"
+#include "common/fw/SR3XX_FW_Image.h"
+#else
+#define FW_D4XX_FW_IMAGE_VERSION ""
+#define FW_SR3XX_FW_IMAGE_VERSION ""
+#endif // INTERNAL_FW
+
 using namespace rs2;
 using namespace rs400;
+
 
 void add_playback_device(context& ctx, std::shared_ptr<std::vector<device_model>> device_models, 
     std::string& error_message, viewer_model& viewer_model, const std::string& file)
@@ -105,7 +115,7 @@ void add_playback_device(context& ctx, std::shared_ptr<std::vector<device_model>
 // This function is called every frame
 // If between the frames there was an asyncronous connect/disconnect event
 // the function will pick up on this and add the device to the viewer
-void refresh_devices(std::mutex& m,
+bool refresh_devices(std::mutex& m,
     context& ctx,
     device_changes& devices_connection_changes,
     std::vector<device>& current_connected_devices,
@@ -115,108 +125,108 @@ void refresh_devices(std::mutex& m,
     std::string& error_message)
 {
     event_information info({}, {});
-    if (devices_connection_changes.try_get_next_changes(info))
+    if (!devices_connection_changes.try_get_next_changes(info))
+        return false;
+    try
     {
-        try
+        auto prev_size = current_connected_devices.size();
+
+        //Remove disconnected
+        auto dev_itr = begin(current_connected_devices);
+        while (dev_itr != end(current_connected_devices))
         {
-            auto prev_size = current_connected_devices.size();
-
-            //Remove disconnected
-            auto dev_itr = begin(current_connected_devices);
-            while (dev_itr != end(current_connected_devices))
+            auto dev = *dev_itr;
+            if (info.was_removed(dev))
             {
-                auto dev = *dev_itr;
-                if (info.was_removed(dev))
+                //Notify change
+                viewer_model.not_model.add_notification({ get_device_name(dev).first + " Disconnected\n",
+                    0, RS2_LOG_SEVERITY_INFO, RS2_NOTIFICATION_CATEGORY_UNKNOWN_ERROR });
+
+                //Remove from devices
+                auto dev_model_itr = std::find_if(begin(*device_models), end(*device_models),
+                    [&](const device_model& other) { return get_device_name(other.dev) == get_device_name(dev); });
+
+                if (dev_model_itr != end(*device_models))
                 {
-                    //Notify change
-                    viewer_model.not_model.add_notification({ get_device_name(dev).first + " Disconnected\n",
-                        0, RS2_LOG_SEVERITY_INFO, RS2_NOTIFICATION_CATEGORY_UNKNOWN_ERROR });
+                    for (auto&& s : dev_model_itr->subdevices)
+                        s->streaming = false;
 
-                    //Remove from devices
-                    auto dev_model_itr = std::find_if(begin(*device_models), end(*device_models),
-                        [&](const device_model& other) { return get_device_name(other.dev) == get_device_name(dev); });
+                    dev_model_itr->reset();
+                    device_models->erase(dev_model_itr);
 
-                    if (dev_model_itr != end(*device_models))
+                    if (device_models->size() == 0)
                     {
-                        for (auto&& s : dev_model_itr->subdevices)
-                            s->streaming = false;
+                        viewer_model.ppf.depth_stream_active = false;
 
-                        dev_model_itr->reset();
-                        device_models->erase(dev_model_itr);
+                        // Stopping post processing filter rendering thread in case of disconnection
+                        viewer_model.ppf.stop();
+                    }
+                }
+                auto dev_name_itr = std::find(begin(device_names), end(device_names), get_device_name(dev));
+                if (dev_name_itr != end(device_names))
+                    device_names.erase(dev_name_itr);
 
-                        if(device_models->size() == 0)
+                dev_itr = current_connected_devices.erase(dev_itr);
+                continue;
+            }
+            ++dev_itr;
+        }
+
+        //Add connected
+        static bool initial_refresh = true;
+        for (auto dev : info.get_new_devices())
+        {
+            auto dev_descriptor = get_device_name(dev);
+            device_names.push_back(dev_descriptor);
+            if (!initial_refresh)
+                viewer_model.not_model.add_notification({ dev_descriptor.first + " Connected\n",
+                    0, RS2_LOG_SEVERITY_INFO, RS2_NOTIFICATION_CATEGORY_UNKNOWN_ERROR });
+
+            current_connected_devices.push_back(dev);
+            for (auto&& s : dev.query_sensors())
+            {
+                s.set_notifications_callback([&, dev_descriptor](const notification& n)
+                {
+                    if (n.get_category() == RS2_NOTIFICATION_CATEGORY_HARDWARE_EVENT)
+                    {
+                        auto data = n.get_serialized_data();
+                        if (!data.empty())
                         {
-                            viewer_model.ppf.depth_stream_active = false;
+                            auto dev_model_itr = std::find_if(begin(*device_models), end(*device_models),
+                                [&](const device_model& other) { return get_device_name(other.dev) == dev_descriptor; });
 
-                            // Stopping post processing filter rendering thread in case of disconnection
-                            viewer_model.ppf.stop();
+                            if (dev_model_itr == end(*device_models))
+                                return;
+
+                            dev_model_itr->handle_hardware_events(data);
                         }
                     }
-                    auto dev_name_itr = std::find(begin(device_names), end(device_names), get_device_name(dev));
-                    if (dev_name_itr != end(device_names))
-                        device_names.erase(dev_name_itr);
-
-                    dev_itr = current_connected_devices.erase(dev_itr);
-                    continue;
-                }
-                ++dev_itr;
+                    viewer_model.not_model.add_notification({ n.get_description(), n.get_timestamp(), n.get_severity(), n.get_category() });
+                });
             }
 
-            //Add connected
-            static bool initial_refresh = true;
-            for (auto dev : info.get_new_devices())
+            if (device_models->size() == 0 &&
+                dev.supports(RS2_CAMERA_INFO_NAME) && std::string(dev.get_info(RS2_CAMERA_INFO_NAME)) != "Platform Camera")
             {
-                auto dev_descriptor = get_device_name(dev);
-                device_names.push_back(dev_descriptor);
-                if (!initial_refresh)
-                    viewer_model.not_model.add_notification({ dev_descriptor.first + " Connected\n",
-                        0, RS2_LOG_SEVERITY_INFO, RS2_NOTIFICATION_CATEGORY_UNKNOWN_ERROR });
-
-                current_connected_devices.push_back(dev);
-                for (auto&& s : dev.query_sensors())
-                {
-                    s.set_notifications_callback([&, dev_descriptor](const notification& n)
-                    {
-                        if (n.get_category() == RS2_NOTIFICATION_CATEGORY_HARDWARE_EVENT)
-                        {
-                            auto data = n.get_serialized_data();
-                            if (!data.empty())
-                            {
-                                auto dev_model_itr = std::find_if(begin(*device_models), end(*device_models),
-                                    [&](const device_model& other) { return get_device_name(other.dev) == dev_descriptor; });
-
-                                if (dev_model_itr == end(*device_models))
-                                    return;
-
-                                dev_model_itr->handle_hardware_events(data);
-                            }
-                        }
-                        viewer_model.not_model.add_notification({ n.get_description(), n.get_timestamp(), n.get_severity(), n.get_category() });
-                    });
-                }
-
-                if (device_models->size() == 0 &&
-                    dev.supports(RS2_CAMERA_INFO_NAME) && std::string(dev.get_info(RS2_CAMERA_INFO_NAME)) != "Platform Camera")
-                {
-                    device_models->emplace_back(dev, error_message, viewer_model);
-                    viewer_model.not_model.add_log(to_string() << device_models->rbegin()->dev.get_info(RS2_CAMERA_INFO_NAME) << " was selected as a default device");
-                }
+                device_models->emplace_back(dev, error_message, viewer_model);
+                viewer_model.not_model.add_log(to_string() << device_models->rbegin()->dev.get_info(RS2_CAMERA_INFO_NAME) << " was selected as a default device");
             }
-            initial_refresh = false;
         }
-        catch (const error& e)
-        {
-            error_message = error_to_string(e);
-        }
-        catch (const std::exception& e)
-        {
-            error_message = e.what();
-        }
-        catch (...)
-        {
-            error_message = "Unknown error";
-        }
+        initial_refresh = false;
     }
+    catch (const error& e)
+    {
+        error_message = error_to_string(e);
+    }
+    catch (const std::exception& e)
+    {
+        error_message = e.what();
+    }
+    catch (...)
+    {
+        error_message = "Unknown error";
+    }
+    return true;
 }
 
 int main(int argv, const char** argc) try
@@ -273,22 +283,39 @@ int main(int argv, const char** argc) try
         }
     }
 
+    fw_update_helper fw_update(ctx, window, viewer_model);
+
     window.on_load = [&]()
     {
-        refresh_devices(m, ctx, devices_connection_changes, connected_devs, 
+        refresh_devices(m, ctx, devices_connection_changes, connected_devs,
             device_names, device_models, viewer_model, error_message);
+
+        fw_update.refresh();
         return true;
     };
+
 
     // Closing the window
     while (window)
     {
+        auto device_changed = refresh_devices(m, ctx, devices_connection_changes, connected_devs, 
+            device_names, device_models, viewer_model, error_message);
+
+        if (device_changed || fw_update.has_update_request())
+        {
+            fw_update.refresh();
+        }
+
+        if (fw_update.is_update_in_progress())
+        {
+            auto progress = fw_update.get_progress();
+            viewer_model.popup_firmware_update_progress(window, progress);
+        }
+
         if (!window.is_ui_aligned())
         {
-            viewer_model.popup_if_ui_not_aligned(window.get_font());
+            viewer_model.popup_if_ui_not_aligned(window);
         }
-        refresh_devices(m, ctx, devices_connection_changes, connected_devs, 
-            device_names, device_models, viewer_model, error_message);
 
         auto output_height = viewer_model.get_output_height();
 
@@ -320,6 +347,7 @@ int main(int argv, const char** argc) try
             ImGui::OpenPopup("select");
 
         auto new_devices_count = device_names.size() + 1;
+
         for (auto&& dev_model : *device_models)
         {
             auto connected_devs_itr = std::find_if(begin(connected_devs), end(connected_devs),
@@ -495,6 +523,12 @@ int main(int argv, const char** argc) try
         ImGui::End();
         ImGui::PopStyleVar();
         ImGui::PopStyleColor();
+
+        if (!fw_update.is_update_in_progress())
+        {
+            for (auto&& dev_model : *device_models)
+                fw_update.validate_fw_update_requests(dev_model);
+        }
 
         // Fetch and process frames from queue
         viewer_model.handle_ready_frames(viewer_rect, window, static_cast<int>(device_models->size()), error_message);

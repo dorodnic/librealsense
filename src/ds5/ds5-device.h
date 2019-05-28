@@ -49,6 +49,8 @@ namespace librealsense
         platform::usb_spec get_usb_spec() const;
         double get_device_time();
 
+        void enter_to_fw_update_mode() const override;
+
     protected:
 
         std::vector<uint8_t> get_raw_calibration_table(ds::calibration_table_id table_id) const;

@@ -18,6 +18,26 @@ android {
     }
 }
 
+def getD4xxFwVersion() {
+    try {
+        def stringsFile = file("./src/main/res/values/strings.xml")
+        return new XmlParser().parse(stringsFile).string.find { it.@name.equals 'd4xx_fw_version' }.text()
+    }catch(e){
+        println(e)
+        return "Unknown FW version"
+    }
+}
+
+task downloadFirmware() {
+    def fwVersion = getD4xxFwVersion()
+    println("downloading fw: " + fwVersion)
+    mkdir "$projectDir/src/main/res/raw"
+    def f = new File("$projectDir/src/main/res/raw/fw_d4xx.bin")
+    if (!f.exists()) {
+        new URL('https://bintray.com/api/ui/download/intel-realsense/librealsense-dev/d4xx_fw/d4xx_fw-' + fwVersion + '.bin').withInputStream{ i -> f.withOutputStream{ it << i }}
+    }
+}
+
 dependencies {
     implementation fileTree(include: ['*.jar'], dir: 'libs')
     implementation 'com.android.support:appcompat-v7:26.0.0'

@@ -20,6 +20,7 @@
 #include "stream.h"
 #include "environment.h"
 #include "context.h"
+#include "fw-update/fw-update-factory.h"
 
 #ifdef WITH_TRACKING
 #include "tm2/tm-context.h"
@@ -350,8 +351,17 @@ namespace librealsense
         }
 #endif
 
-        auto recovery_devices = recovery_info::pick_recovery_devices(ctx, devices.usb_devices);
-        std::copy(begin(recovery_devices), end(recovery_devices), std::back_inserter(list));
+        if (mask & RS2_PRODUCT_LINE_D400_RECOVERY)
+        {
+            auto recovery_devices = fw_update_info::pick_recovery_devices(ctx, devices.usb_devices, RS2_PRODUCT_LINE_D400_RECOVERY);
+            std::copy(begin(recovery_devices), end(recovery_devices), std::back_inserter(list));
+        }
+
+        if (mask & RS2_PRODUCT_LINE_SR300_RECOVERY)
+        {
+            auto recovery_devices = fw_update_info::pick_recovery_devices(ctx, devices.usb_devices, RS2_PRODUCT_LINE_SR300_RECOVERY);
+            std::copy(begin(recovery_devices), end(recovery_devices), std::back_inserter(list));
+        }
 
         if (mask & RS2_PRODUCT_LINE_NON_INTEL)
         {

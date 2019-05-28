@@ -34,6 +34,7 @@ public class SettingsActivity extends AppCompatActivity {
     private static final int INDEX_DEVICE_INFO = 0;
     private static final int INDEX_ADVANCE_MODE = 1;
     private static final int INDEX_PRESETS = 2;
+    private static final int INDEX_FW_UPDATE = 3;
 
     private Device _device;
 
@@ -87,6 +88,7 @@ public class SettingsActivity extends AppCompatActivity {
         Map<Integer,String> settingsMap = new TreeMap<>();
         settingsMap.put(INDEX_DEVICE_INFO,"Device info");
         settingsMap.put(INDEX_ADVANCE_MODE,"Enable advanced mode");
+        settingsMap.put(INDEX_FW_UPDATE,"Firmware update");
 
         if(device.supportsInfo(CameraInfo.ADVANCED_MODE) && device.isInAdvancedMode()){
             settingsMap.put(INDEX_ADVANCE_MODE,"Disable advanced mode");
@@ -115,8 +117,13 @@ public class SettingsActivity extends AppCompatActivity {
                         startActivity(intent);
                         break;
                     }
-                        default:
-                            break;
+                    case INDEX_FW_UPDATE: {
+                        Intent intent = new Intent(SettingsActivity.this, FirmwareUpdateActivity.class);
+                        startActivity(intent);
+                        break;
+                    }
+                    default:
+                        break;
                 }
             }
         });
@@ -153,6 +160,8 @@ public class SettingsActivity extends AppCompatActivity {
     private void loadStreamList(Device device, StreamProfileSelector[] lines){
         if(lines == null)
             return;
+        if(!device.supportsInfo(CameraInfo.PRODUCT_ID))
+            throw new RuntimeException("try to config unknown device");
         final String pid = device.getInfo(CameraInfo.PRODUCT_ID);
         final StreamProfileAdapter adapter = new StreamProfileAdapter(this, lines, new StreamProfileAdapter.Listener() {
             @Override
@@ -175,8 +184,9 @@ public class SettingsActivity extends AppCompatActivity {
         Map<Integer, List<VideoStreamProfile>> profilesMap = createProfilesMap(device);
 
         SharedPreferences sharedPref = getSharedPreferences(getString(R.string.app_settings), Context.MODE_PRIVATE);
+        if(!device.supportsInfo(CameraInfo.PRODUCT_ID))
+            throw new RuntimeException("try to config unknown device");
         String pid = device.getInfo(CameraInfo.PRODUCT_ID);
-
         List<StreamProfileSelector> lines = new ArrayList<>();
         for(Map.Entry e : profilesMap.entrySet()){
             List<VideoStreamProfile> list = (List<VideoStreamProfile>) e.getValue();

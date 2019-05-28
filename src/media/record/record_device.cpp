@@ -187,6 +187,12 @@ void librealsense::record_device::hardware_reset()
     m_device->hardware_reset();
 }
 
+void librealsense::record_device::enter_to_fw_update_mode() const
+{
+    m_device->enter_to_fw_update_mode();
+}
+
+
 template <typename T, typename Ext>
 void librealsense::record_device::try_add_snapshot(T* extendable, device_serializer::snapshot_collection& snapshots)
 {

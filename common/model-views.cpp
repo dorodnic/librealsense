@@ -2436,6 +2436,10 @@ namespace rs2
     {
         continue_with_ui_not_aligned = config_file::instance().get_or_default(
             configurations::viewer::continue_with_ui_not_aligned, false);
+
+        continue_with_current_fw = config_file::instance().get_or_default(
+            configurations::viewer::continue_with_current_fw, false);
+
         is_3d_view = config_file::instance().get_or_default(
             configurations::viewer::is_3d_view, false);
 
@@ -3514,18 +3518,56 @@ namespace rs2
         ImGui::PopFont();
     }
 
-    void viewer_model::popup_if_error(ImFont* font_14, std::string& error_message)
+    void rs2::viewer_model::popup(const ux_window& window, const std::string& header, const std::string& message, std::function<void()> configure)
     {
+        if (popup_triggered)
+            return;
+
+        popup_triggered = true;
         auto flags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
             ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar |
             ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysVerticalScrollbar;
+
+        auto font_14 = window.get_font();
 
         ImGui_ScopePushFont(font_14);
         ImGui::PushStyleColor(ImGuiCol_PopupBg, sensor_bg);
         ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, white);
         ImGui::PushStyleColor(ImGuiCol_Text, light_grey);
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(3, 3));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(10, 10));
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 1);
+
+        //float x = window.width() / 2.0f;
+        //float y = 60.0f + (float)index * 150;
+        //ImGui::SetNextWindowPos({x, y});// );
+
+        ImGui::OpenPopup(header.c_str());
+
+        if (ImGui::BeginPopupModal(header.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+        {
+            ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, regular_blue);
+            ImGui::Text("%s", message.c_str());
+            ImGui::PopStyleColor();
+
+            ImGui::PushStyleColor(ImGuiCol_Button, transparent);
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, transparent);
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, transparent);
+            ImGui::PushStyleColor(ImGuiCol_Text, light_blue);
+            ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, white);
+
+            configure();
+
+            ImGui::EndPopup();
+        }
+
+        ImGui::PopStyleColor(3);
+        ImGui::PopStyleVar(2);
+    }
+
+    void viewer_model::popup_if_error(const ux_window& window, std::string& message)
+    {
+        if (message == "")
+            return;
 
         // The list of errors the user asked not to show again:
         static std::set<std::string> errors_not_to_show;
@@ -3535,93 +3577,202 @@ namespace rs2
             return std::regex_replace(s, e, "address");
         };
 
-        std::string name = std::string(textual_icons::exclamation_triangle) + " Oops, something went wrong!";
-
-        if (error_message != "")
+        if (errors_not_to_show.count(simplify_error_message(message)))
         {
-            if (errors_not_to_show.count(simplify_error_message(error_message)))
+            not_model.add_notification({ message,
+                std::chrono::duration<double, std::milli>(std::chrono::system_clock::now().time_since_epoch()).count(),
+                RS2_LOG_SEVERITY_ERROR,
+                RS2_NOTIFICATION_CATEGORY_UNKNOWN_ERROR });
+            message = "";
+            return;
+        }
+
+        std::string header = std::string(textual_icons::exclamation_triangle) + " Oops, something went wrong!";
+
+        auto config = [&]()
+        {
+            //ImGui::Text("RealSense error calling:");
+            //ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, regular_blue);
+            //ImGui::InputTextMultiline("error", const_cast<char*>(message.c_str()),
+            //    message.size() + 1, { 500,100 }, ImGuiInputTextFlags_AutoSelectAll | ImGuiInputTextFlags_ReadOnly);
+            //ImGui::PopStyleColor();
+
+            ImGui::SetCursorPos({ 10, 100 });
+            ImGui::PopStyleColor(5);
+
+            if (ImGui::Button("OK", ImVec2(120, 0)))
             {
-                not_model.add_notification({ error_message,
-                    std::chrono::duration<double, std::milli>(std::chrono::system_clock::now().time_since_epoch()).count(),
-                    RS2_LOG_SEVERITY_ERROR,
-                    RS2_NOTIFICATION_CATEGORY_UNKNOWN_ERROR });
-                error_message = "";
+                if (dont_show_this_error)
+                {
+                    errors_not_to_show.insert(simplify_error_message(message));
+                }
+                message = "";
+                ImGui::CloseCurrentPopup();
+                dont_show_this_error = false;
+            }
+
+            ImGui::SameLine();
+            ImGui::Checkbox("Don't show this error again", &dont_show_this_error);
+        };
+
+        popup(window, header, message, config);
+    }
+
+    std::vector<uint8_t> read_fw_file(std::string file_path)
+    {
+        std::vector<uint8_t> rv;
+
+        std::ifstream file(file_path, std::ios::in | std::ios::binary | std::ios::ate);
+        if (file.is_open())
+        {
+            rv.resize(file.tellg());
+
+            file.seekg(0, std::ios::beg);
+            file.read((char*)rv.data(), rv.size());
+            file.close();
+        }
+
+        return rv;
+    }
+
+    void rs2::viewer_model::popup_fw_file_select(const ux_window& window, const fw_update_device_info& ud, std::vector<uint8_t>& fw, bool& cancel)
+    {
+        ImFont* font_14 = window.get_font();
+        cancel = false;
+
+        std::stringstream header;
+        header << "Update device " << ud.serial_number << " firmware";
+        std::stringstream message;
+        if (ud.curr_fw_version != "")
+            message << "The current firmware on the device is: " << ud.curr_fw_version << std::endl;
+        if (ud.minimal_fw_version != "")
+            message << "The minimal firmware for this device is: " << ud.minimal_fw_version << std::endl;
+        if (ud.recommended_fw_version != "")
+            message << "The recommended firmware is: " << ud.recommended_fw_version;
+
+        auto config = [&]()
+        {
+            if (ud.recommended_fw_version != "")
+            {
+                ImGui::SetCursorPos({ 10, 100 });
+                ImGui::PopStyleColor(5);
+                if (ImGui::Button(" Update Recommended ", ImVec2(0, 0)))
+                {
+                    fw = ud.fw_image;
+                    if (ud.curr_fw_version != "")
+                        ud.dev.enter_to_fw_update_mode();
+                    ImGui::CloseCurrentPopup();
+                }
+                ImGui::SameLine();
             }
             else
             {
-                ImGui::OpenPopup(name.c_str());
+                ImGui::SetCursorPos({ 10, 100 });
+                ImGui::PopStyleColor(5);
             }
 
-            if (ImGui::BeginPopupModal(name.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+            if (ImGui::Button(" Pick Firmware ", ImVec2(0, 0)))
             {
-                ImGui::Text("RealSense error calling:");
-                ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, regular_blue);
-                ImGui::InputTextMultiline("error", const_cast<char*>(error_message.c_str()),
-                    error_message.size() + 1, { 500,100 }, ImGuiInputTextFlags_AutoSelectAll | ImGuiInputTextFlags_ReadOnly);
-                ImGui::PopStyleColor();
-
-                if (ImGui::Button("OK", ImVec2(120, 0)))
-                {
-                    if (dont_show_this_error)
-                    {
-                        errors_not_to_show.insert(simplify_error_message(error_message));
-                    }
-                    error_message = "";
-                    ImGui::CloseCurrentPopup();
-                    dont_show_this_error = false;
-                }
-
-                ImGui::SameLine();
-                ImGui::Checkbox("Don't show this error again", &dont_show_this_error);
-
-                ImGui::EndPopup();
+                auto ret = file_dialog_open(open_file, "Firmware\0*.bin\0", NULL, NULL);
+                if (!ret)
+                    return;
+                fw = read_fw_file(ret);
+                if(ud.curr_fw_version != "")
+                    ud.dev.enter_to_fw_update_mode();
+                ImGui::CloseCurrentPopup();
             }
-        }
+            ImGui::SameLine();
+            if (ImGui::Button(" Cancel ", ImVec2(0, 0)))
+            {
+                cancel = true;
+                ImGui::CloseCurrentPopup();
+            }
+        };
 
-        ImGui::PopStyleColor(3);
-        ImGui::PopStyleVar(2);
+        popup(window, header.str(), message.str(), config);
     }
 
-    void rs2::viewer_model::popup_if_ui_not_aligned(ImFont* font_14)
+    void rs2::viewer_model::popup_firmware_update_progress(const ux_window& window, const float progress)
+    {
+        std::string header = "Firmware update in progress";
+        std::stringstream message;
+        message << std::endl << "Progress: " << (int)(progress *  100.0) << " [%]";
+
+        auto config = [&]()
+        {
+            ImGui::SetCursorPos({ 10, 100 });
+            ImGui::PopStyleColor(5);
+
+
+            ImGui::ProgressBar(progress, { 300 , 25 }, "Firmware update");
+        };
+
+        popup(window, header, message.str(), config);
+    }
+
+    void rs2::viewer_model::popup_if_fw_update_required(const ux_window& window, const fw_update_device_info& ud, bool& update)
+    {
+        update = false;
+        if (continue_with_current_fw)
+            return;
+
+        std::string header = "It's time to update";
+        std::stringstream message;
+        message << "New Firmware is available for device: " << ud.serial_number << std::endl <<
+            "The current firmware on the device is: " << ud.curr_fw_version << std::endl;
+        if (ud.minimal_fw_version != "")
+            message << "The minimal firmware for this device is: " << ud.minimal_fw_version << std::endl;
+        message << "The recommended firmware is: " << ud.recommended_fw_version;
+
+        auto config = [&]()
+        {
+            ImGui::SetCursorPos({ 10, 100 });
+            ImGui::PopStyleColor(5);
+
+            static bool dont_show_again = false;
+
+            if (ImGui::Button(" Update Recommended ", ImVec2(0, 0)))
+            {
+                update = true;
+                ud.dev.enter_to_fw_update_mode();
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::SameLine();
+            if (ImGui::Button(" Ignore & Continue ", ImVec2(0, 0)))
+            {
+                continue_with_current_fw = true;
+                if (dont_show_again)
+                {
+                    config_file::instance().set(
+                        configurations::viewer::continue_with_current_fw,
+                        continue_with_current_fw);
+                }
+                ImGui::CloseCurrentPopup();
+            }
+
+            ImGui::SameLine();
+            ImGui::Checkbox("Don't show this again", &dont_show_again);
+        };
+
+        popup(window, header, message.str(), config);
+    }
+
+    void rs2::viewer_model::popup_if_ui_not_aligned(const ux_window& window)
     {
         constexpr const char* graphics_updated_driver = "https://downloadcenter.intel.com/download/27266/Graphics-Intel-Graphics-Driver-for-Windows-15-60-?product=80939";
 
         if (continue_with_ui_not_aligned)
             return;
 
-        std::string error_message = to_string() <<
-            "The application has detected possible UI alignment issue,            \n" <<
+        std::string header = to_string() << "  " << textual_icons::exclamation_triangle << " " << " UI Offset Detected";
+
+        std::stringstream message;
+        message << "The application has detected possible UI alignment issue,            \n" <<
             "sometimes caused by outdated graphics card drivers.\n" <<
             "For Intel Integrated Graphics driver \n";
 
-        auto flags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-            ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar |
-            ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysVerticalScrollbar;
-
-        ImGui_ScopePushFont(font_14);
-        ImGui::PushStyleColor(ImGuiCol_PopupBg, sensor_bg);
-        ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, white);
-        ImGui::PushStyleColor(ImGuiCol_Text, light_grey);
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(10, 10));
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 1);
-
-        std::string name = to_string() << "  " << textual_icons::exclamation_triangle << " UI Offset Detected";
-
-
-        ImGui::OpenPopup(name.c_str());
-
-        if (ImGui::BeginPopupModal(name.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+        auto config = [&]()
         {
-            ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, regular_blue);
-            ImGui::Text("%s", error_message.c_str());
-            ImGui::PopStyleColor();
-
-            ImGui::PushStyleColor(ImGuiCol_Button, transparent);
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, transparent);
-            ImGui::PushStyleColor(ImGuiCol_ButtonActive, transparent);
-            ImGui::PushStyleColor(ImGuiCol_Text, light_blue);
-            ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, white);
-
             ImGui::SetCursorPos({ 190, 42 });
             if (ImGui::Button("click here", { 150, 60 }))
             {
@@ -3638,7 +3789,7 @@ namespace rs2
                 if (dont_show_again)
                 {
                     config_file::instance().set(
-                        configurations::viewer::continue_with_ui_not_aligned, 
+                        configurations::viewer::continue_with_ui_not_aligned,
                         continue_with_ui_not_aligned);
                 }
                 ImGui::CloseCurrentPopup();
@@ -3646,13 +3797,12 @@ namespace rs2
 
             ImGui::SameLine();
             ImGui::Checkbox("Don't show this again", &dont_show_again);
+        };
 
-            ImGui::EndPopup();
-        }
-
-        ImGui::PopStyleColor(3);
-        ImGui::PopStyleVar(2);
+        popup(window, header, message.str(), config);
+        return;
     }
+
     void viewer_model::show_icon(ImFont* font_18, const char* label_str, const char* text, int x, int y, int id,
         const ImVec4& text_color, const std::string& tooltip)
     {
@@ -4152,8 +4302,9 @@ namespace rs2
 
         not_model.draw(window.get_font(), static_cast<int>(window.width()), static_cast<int>(window.height()));
 
-        popup_if_error(window.get_font(), error_message);
-    
+        popup_if_error(window, error_message);
+
+        popup_triggered = false;
         return f;
     }
 
@@ -6514,6 +6665,24 @@ namespace rs2
                     {
                         restarting_device_info = get_device_info(dev, false);
                         dev.hardware_reset();
+                    }
+                    catch (const error& e)
+                    {
+                        error_message = error_to_string(e);
+                    }
+                    catch (const std::exception& e)
+                    {
+                        error_message = e.what();
+                    }
+                }
+
+                ImGui::Separator();
+
+                if (ImGui::Selectable("Update FW"))
+                {
+                    try
+                    {
+                        fw_update_requested = true;
                     }
                     catch (const error& e)
                     {

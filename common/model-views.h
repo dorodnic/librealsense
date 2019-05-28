@@ -60,6 +60,18 @@ inline ImVec4 blend(const ImVec4& c, float a)
     return{ c.x, c.y, c.z, a * c.w };
 }
 
+struct fw_update_device_info
+{
+    rs2::device dev;
+    int product_line;
+    bool upgrade_recommended;
+    std::string serial_number;
+    std::string curr_fw_version;
+    std::string recommended_fw_version;
+    std::string minimal_fw_version;
+    std::vector<uint8_t> fw_image;
+};
+
 namespace rs2
 {
     void prepare_config_file();
@@ -99,6 +111,7 @@ namespace rs2
         {
             static const char* is_3d_view          { "viewer_model.is_3d_view" };
             static const char* continue_with_ui_not_aligned { "viewer_model.continue_with_ui_not_aligned" };
+            static const char* continue_with_current_fw{ "viewer_model.continue_with_current_fw" };
             static const char* settings_tab        { "viewer_model.settings_tab" };
 
             static const char* log_to_console      { "viewer_model.log_to_console" };
@@ -729,6 +742,7 @@ namespace rs2
         std::vector<std::string> restarting_device_info;
         std::set<std::string> advanced_mode_settings_file_names;
         std::string selected_file_preset;
+        bool fw_update_requested = false;
     private:
         void draw_info_icon(ux_window& window, ImFont* font, const ImVec2& size);
         int draw_seek_bar();
@@ -982,9 +996,17 @@ namespace rs2
         void show_paused_icon(ImFont* font, int x, int y, int id);
         void show_recording_icon(ImFont* font_18, int x, int y, int id, float alpha_delta);
 
-        void popup_if_error(ImFont* font, std::string& error_message);
+        void popup_if_error(const ux_window& window, std::string& error_message);
 
-        void popup_if_ui_not_aligned(ImFont* font);
+        void popup_if_ui_not_aligned(const ux_window& window);
+
+        void popup_if_fw_update_required(const ux_window& window, const fw_update_device_info& ud, bool& update);
+
+        void popup_fw_file_select(const ux_window& window, const fw_update_device_info& ud, std::vector<uint8_t>& fw, bool& cancel);
+
+        void popup(const ux_window& window, const std::string& header, const std::string& message, std::function<void()> configure);
+
+        void popup_firmware_update_progress(const ux_window& window, const float progress);
 
         void show_event_log(ImFont* font_14, float x, float y, float w, float h);
 
@@ -1038,6 +1060,7 @@ namespace rs2
         float dim_level = 1.f;
 
         bool continue_with_ui_not_aligned = false;
+        bool continue_with_current_fw = false;
 
         press_button_model trajectory_button{ u8"\uf1b0", u8"\uf1b0","Draw trajectory", "Stop drawing trajectory", true };
         press_button_model grid_object_button{ u8"\uf1cb", u8"\uf1cb",  "Configure Grid", "Configure Grid", false };
@@ -1046,6 +1069,8 @@ namespace rs2
         bool show_pose_info_3d = false;
 
     private:
+        bool popup_triggered = false;
+
         struct rgb {
             uint32_t r, g, b;
         };
