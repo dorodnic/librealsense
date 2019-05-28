@@ -24,6 +24,7 @@
 #include "../third-party/json.hpp"
 
 #include "realsense-ui-advanced-mode.h"
+#include "fw-update-helper.h"
 
 ImVec4 from_rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a, bool consistent_color = false);
 ImVec4 operator+(const ImVec4& c, float v);
@@ -59,18 +60,6 @@ inline ImVec4 blend(const ImVec4& c, float a)
 {
     return{ c.x, c.y, c.z, a * c.w };
 }
-
-struct fw_update_device_info
-{
-    rs2::device dev;
-    int product_line;
-    bool upgrade_recommended;
-    std::string serial_number;
-    std::string curr_fw_version;
-    std::string recommended_fw_version;
-    std::string minimal_fw_version;
-    std::vector<uint8_t> fw_image;
-};
 
 namespace rs2
 {
@@ -742,7 +731,8 @@ namespace rs2
         std::vector<std::string> restarting_device_info;
         std::set<std::string> advanced_mode_settings_file_names;
         std::string selected_file_preset;
-        bool fw_update_requested = false;
+        std::shared_ptr<fw_update_helper> _fw_update_helper;
+
     private:
         void draw_info_icon(ux_window& window, ImFont* font, const ImVec2& size);
         int draw_seek_bar();
@@ -1000,9 +990,9 @@ namespace rs2
 
         void popup_if_ui_not_aligned(const ux_window& window);
 
-        void popup_if_fw_update_required(const ux_window& window, const fw_update_device_info& ud, bool& update);
+        void popup_if_fw_update_required(const ux_window& window, const device_model& ud);
 
-        void popup_fw_file_select(const ux_window& window, const fw_update_device_info& ud, std::vector<uint8_t>& fw, bool& cancel);
+        void popup_fw_file_select(const ux_window& window, const device_model& ud, bool& cancel);
 
         void popup(const ux_window& window, const std::string& header, const std::string& message, std::function<void()> configure);
 
@@ -1068,6 +1058,8 @@ namespace rs2
 
         bool show_pose_info_3d = false;
 
+        std::vector<uint8_t> _fw_image;
+        std::map<std::string, std::vector<uint8_t>> _default_fw_table;
     private:
         bool popup_triggered = false;
 

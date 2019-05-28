@@ -5,7 +5,6 @@
 #include "model-views.h"
 #include "os.h"
 #include "ux-window.h"
-#include "fw-update-helper.h"
 
 #include <cstdarg>
 #include <thread>
@@ -22,14 +21,6 @@
 
 // We use NOC file helper function for cross-platform file dialogs
 #include <noc_file_dialog.h>
-
-#ifdef INTERNAL_FW
-#include "common/fw/D4XX_FW_Image.h"
-#include "common/fw/SR3XX_FW_Image.h"
-#else
-#define FW_D4XX_FW_IMAGE_VERSION ""
-#define FW_SR3XX_FW_IMAGE_VERSION ""
-#endif // INTERNAL_FW
 
 using namespace rs2;
 using namespace rs400;
@@ -283,14 +274,10 @@ int main(int argv, const char** argc) try
         }
     }
 
-    fw_update_helper fw_update(ctx, window, viewer_model);
-
     window.on_load = [&]()
     {
         refresh_devices(m, ctx, devices_connection_changes, connected_devs,
             device_names, device_models, viewer_model, error_message);
-
-        fw_update.refresh();
         return true;
     };
 
@@ -300,17 +287,6 @@ int main(int argv, const char** argc) try
     {
         auto device_changed = refresh_devices(m, ctx, devices_connection_changes, connected_devs, 
             device_names, device_models, viewer_model, error_message);
-
-        if (device_changed || fw_update.has_update_request())
-        {
-            fw_update.refresh();
-        }
-
-        if (fw_update.is_update_in_progress())
-        {
-            auto progress = fw_update.get_progress();
-            viewer_model.popup_firmware_update_progress(window, progress);
-        }
 
         if (!window.is_ui_aligned())
         {

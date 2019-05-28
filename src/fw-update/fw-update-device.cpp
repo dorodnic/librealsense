@@ -233,6 +233,7 @@ namespace librealsense
         {
         case RS2_CAMERA_INFO_SERIAL_NUMBER: return get_serial_number();
         case RS2_CAMERA_INFO_NAME: return get_name();
+        case RS2_CAMERA_INFO_PRODUCT_LINE: get_product_line();
         default:
             throw std::runtime_error(std::string(rs2_camera_info_to_string(info)) + " is not supported by fw update device");
         }
@@ -243,7 +244,8 @@ namespace librealsense
         switch (info)
         {
         case RS2_CAMERA_INFO_SERIAL_NUMBER:
-        case RS2_CAMERA_INFO_NAME: return true;
+        case RS2_CAMERA_INFO_NAME:
+        case RS2_CAMERA_INFO_PRODUCT_LINE:return true;
         default: return false;
         }
     }

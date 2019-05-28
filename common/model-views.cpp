@@ -2471,6 +2471,7 @@ namespace rs2
         not_model.add_log(to_string() << "librealsense version: " << api_version_to_string(rs2_get_api_version(&e)) << "\n");
     
         update_configuration();
+        _default_fw_table = create_default_fw_table();
     }
 
     void viewer_model::gc_streams()
@@ -3433,6 +3434,9 @@ namespace rs2
             }
             play_defaults(viewer);
         }
+        else {
+            _fw_update_helper = std::make_shared<fw_update_helper>(dev);
+        }
     }
     void device_model::play_defaults(viewer_model& viewer)
     {
@@ -3635,32 +3639,32 @@ namespace rs2
         return rv;
     }
 
-    void rs2::viewer_model::popup_fw_file_select(const ux_window& window, const fw_update_device_info& ud, std::vector<uint8_t>& fw, bool& cancel)
+    void rs2::viewer_model::popup_fw_file_select(const ux_window& window, const device_model& dm, bool& cancel)
     {
         ImFont* font_14 = window.get_font();
         cancel = false;
 
         std::stringstream header;
-        header << "Update device " << ud.serial_number << " firmware";
+        header << "Update device " << dm._fw_update_helper->get_serial_number() << " firmware";
         std::stringstream message;
-        if (ud.curr_fw_version != "")
-            message << "The current firmware on the device is: " << ud.curr_fw_version << std::endl;
-        if (ud.minimal_fw_version != "")
-            message << "The minimal firmware for this device is: " << ud.minimal_fw_version << std::endl;
-        if (ud.recommended_fw_version != "")
-            message << "The recommended firmware is: " << ud.recommended_fw_version;
+        if (dm._fw_update_helper->get_curr_fw_version != "")
+            message << "The current firmware on the device is: " << dm._fw_update_helper->get_curr_fw_version() << std::endl;
+        if (dm._fw_update_helper->get_minimal_fw_version() != "")
+            message << "The minimal firmware for this device is: " << dm._fw_update_helper->get_minimal_fw_version() << std::endl;
+        if (dm._fw_update_helper->get_recommended_fw_version() != "")
+            message << "The recommended firmware is: " << dm._fw_update_helper->get_recommended_fw_version();
 
         auto config = [&]()
         {
-            if (ud.recommended_fw_version != "")
+            if (dm._fw_update_helper->get_recommended_fw_version() != "")
             {
                 ImGui::SetCursorPos({ 10, 100 });
                 ImGui::PopStyleColor(5);
                 if (ImGui::Button(" Update Recommended ", ImVec2(0, 0)))
                 {
-                    fw = ud.fw_image;
-                    if (ud.curr_fw_version != "")
-                        ud.dev.enter_to_fw_update_mode();
+                    _fw_image = _default_fw_table.at();
+                    if (dm._fw_update_helper->get_curr_fw_version() != "")
+                        dm.dev.enter_to_fw_update_mode();
                     ImGui::CloseCurrentPopup();
                 }
                 ImGui::SameLine();
@@ -3710,19 +3714,19 @@ namespace rs2
         popup(window, header, message.str(), config);
     }
 
-    void rs2::viewer_model::popup_if_fw_update_required(const ux_window& window, const fw_update_device_info& ud, bool& update)
+    void rs2::viewer_model::popup_if_fw_update_required(const ux_window& window, const device_model& dm)
     {
-        update = false;
+        //update = false;
         if (continue_with_current_fw)
             return;
 
         std::string header = "It's time to update";
         std::stringstream message;
-        message << "New Firmware is available for device: " << ud.serial_number << std::endl <<
-            "The current firmware on the device is: " << ud.curr_fw_version << std::endl;
-        if (ud.minimal_fw_version != "")
-            message << "The minimal firmware for this device is: " << ud.minimal_fw_version << std::endl;
-        message << "The recommended firmware is: " << ud.recommended_fw_version;
+        message << "New Firmware is available for device: " << dm._fw_update_helper->get_serial_number() << std::endl <<
+            "The current firmware on the device is: " << dm._fw_update_helper->get_curr_fw_version() << std::endl;
+        if (dm._fw_update_helper->get_minimal_fw_version() != "")
+            message << "The minimal firmware for this device is: " << dm._fw_update_helper->get_minimal_fw_version() << std::endl;
+        message << "The recommended firmware is: " << dm._fw_update_helper->get_recommended_fw_version();
 
         auto config = [&]()
         {
@@ -3733,8 +3737,8 @@ namespace rs2
 
             if (ImGui::Button(" Update Recommended ", ImVec2(0, 0)))
             {
-                update = true;
-                ud.dev.enter_to_fw_update_mode();
+                //update = true;
+                dm.dev.enter_to_fw_update_mode();
                 ImGui::CloseCurrentPopup();
             }
             ImGui::SameLine();
