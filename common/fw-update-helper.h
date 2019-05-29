@@ -22,9 +22,7 @@ namespace rs2
     static std::map<std::string, std::string> product_line_to_fw =
     {
         {"D400", FW_D4XX_FW_IMAGE_VERSION},
-        {"D400_RECOVERY", FW_D4XX_FW_IMAGE_VERSION},
         {"SR300", FW_SR3XX_FW_IMAGE_VERSION},
-        {"SR300_RECOVERY", FW_SR3XX_FW_IMAGE_VERSION}
     };
 
     static std::map<std::string, std::vector<uint8_t>> create_default_fw_table()
@@ -37,7 +35,6 @@ namespace rs2
             auto hex = fw_get_D4XX_FW_Image(size);
             auto vec = std::vector<uint8_t>(hex, hex + size);
             rv["D400"] = vec;
-            rv["D400_RECOVERY"] = vec;
         }
 
         if ("" != FW_SR3XX_FW_IMAGE_VERSION)
@@ -46,7 +43,6 @@ namespace rs2
             auto hex = fw_get_SR3XX_FW_Image(size);
             auto vec = std::vector<uint8_t>(hex, hex + size);
             rv["SR300"] = vec;
-            rv["SR300_RECOVERY"] = vec;
         }
 
         return rv;
