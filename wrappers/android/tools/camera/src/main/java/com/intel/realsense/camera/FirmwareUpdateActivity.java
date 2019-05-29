@@ -43,51 +43,56 @@ public class FirmwareUpdateActivity extends AppCompatActivity {
             }
         });
 
-        try(DeviceList dl = mRsContext.queryDevices(ProductClass.DEPTH)){
-            if(dl.getDeviceCount() > 0){
-                mFwUpdateButton.setVisibility(View.VISIBLE);
-                printInfo();
-            }
-        }
-        try(DeviceList dl = mRsContext.queryDevices(ProductClass.D400_RECOVERY)) {
-            if(dl.getDeviceCount() > 0){
-                mFwUpdateButton.setVisibility(View.GONE);
-                Thread t = new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        updateFirmware(FirmwareUpdateActivity.this, R.raw.fw_d4xx);
-                    }
-                });
-                t.start();
-            }
-        }
-        try(DeviceList dl = mRsContext.queryDevices(ProductClass.SR300_RECOVERY)) {
-            if(dl.getDeviceCount() > 0){
-                Log.e(TAG, "SR300 FW update is not supported");
-                Toast.makeText(this, "SR300 FW update is not supported", Toast.LENGTH_LONG).show();
-                finish();
+        try(DeviceList dl = mRsContext.queryDevices()){
+            if(dl.getDeviceCount() == 0)
+                return;
+            try(Device device = dl.createDevice(0)){
+                if(device.getClass() == FwUpdateDevice.class)
+                    tryUpdate(device);
+                else
+                    printInfo(device);
             }
         }
     }
 
-    private void printInfo(){
-        try(DeviceList dl = mRsContext.queryDevices(ProductClass.DEPTH)) {
-            if(dl.getDeviceCount() == 0)
-                return;
-            try(Device device = dl.createDevice(0)){
-                final String recFw = device.getInfo(CameraInfo.RECOMMENDED_FIRMWARE_VERSION);
-                final String fw = device.getInfo(CameraInfo.FIRMWARE_VERSION);
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        TextView textView = findViewById(R.id.fwUpdateMainText);
-                        textView.setText("The FW of the connected device is:\n " + fw +
-                                "\n\nThe minimal recommended FW for this device is:\n " + recFw +
-                                "\n\nClicking " + mFwUpdateButton.getText() + " will update to FW " + getString(R.string.d4xx_fw_version));
-                    }
-                });
-            }
+    private void tryUpdate(final Device device){
+        if(!device.supportsInfo(CameraInfo.PRODUCT_LINE)){
+            String msg = "FW update is not supported for the connected device";
+            Log.e(TAG, msg);
+            Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
+            finish();
         }
+        int fw_image = -1;
+        if(device.getInfo(CameraInfo.PRODUCT_LINE) == "D400")
+            fw_image = R.raw.fw_d4xx;
+        if(device.getInfo(CameraInfo.PRODUCT_LINE) == "SR300")
+            fw_image = R.raw.fw_sr3xx;
+        mFwUpdateButton.setVisibility(View.GONE);
+        final int final_fw_image = fw_image;
+        Thread t = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try(FwUpdateDevice fwud = device.as(FwUpdateDevice.class)) {
+                    updateFirmware(fwud, FirmwareUpdateActivity.this, final_fw_image);
+                }
+            }
+        });
+        t.start();
+    }
+
+    private void printInfo(Device device){
+        mFwUpdateButton.setVisibility(View.VISIBLE);
+        final String recFw = device.getInfo(CameraInfo.RECOMMENDED_FIRMWARE_VERSION);
+        final String fw = device.getInfo(CameraInfo.FIRMWARE_VERSION);
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                TextView textView = findViewById(R.id.fwUpdateMainText);
+                textView.setText("The FW of the connected device is:\n " + fw +
+                        "\n\nThe minimal recommended FW for this device is:\n " + recFw +
+                        "\n\nClicking " + mFwUpdateButton.getText() + " will update to FW " + getString(R.string.d4xx_fw_version));
+            }
+        });
     }
 
     public static byte[] readFwFile(Context context, int fwResId) throws IOException {
@@ -101,28 +106,21 @@ public class FirmwareUpdateActivity extends AppCompatActivity {
         return buff.array();
     }
 
-    private synchronized void updateFirmware(Context context, int fwResId) {
+    private synchronized void updateFirmware(FwUpdateDevice device,Context context, int fwResId) {
         try {
             final byte[] bytes = readFwFile(context, fwResId);
-            try (DeviceList dl = mRsContext.queryDevices(ProductClass.D400_RECOVERY)) {
-                if (dl.getDeviceCount() == 0)
-                    throw new Exception("device not found");
-                try (Device d = dl.createDevice(0)) {
-                    FwUpdateDevice fwud = d.as(FwUpdateDevice.class);
-                    fwud.updateFw(bytes, new ProgressListener() {
+            device.updateFw(bytes, new ProgressListener() {
+                @Override
+                public void onProgress(final float progress) {
+                    runOnUiThread(new Runnable() {
                         @Override
-                        public void onProgress(final float progress) {
-                            runOnUiThread(new Runnable() {
-                                @Override
-                                public void run() {
-                                    TextView tv = findViewById(R.id.fwUpdateMainText);
-                                    tv.setText("FW update progress: " + (int) (progress * 100) + "[%]");
-                                }
-                            });
+                        public void run() {
+                            TextView tv = findViewById(R.id.fwUpdateMainText);
+                            tv.setText("FW update progress: " + (int) (progress * 100) + "[%]");
                         }
                     });
                 }
-            }
+            });
             Log.i(TAG, "Firmware update process finished successfully");
             runOnUiThread(new Runnable() {
                 @Override

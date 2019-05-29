@@ -18,10 +18,10 @@ android {
     }
 }
 
-def getD4xxFwVersion() {
+def getFwVersion(String productLine) {
     try {
         def stringsFile = file("./src/main/res/values/strings.xml")
-        return new XmlParser().parse(stringsFile).string.find { it.@name.equals 'd4xx_fw_version' }.text()
+        return new XmlParser().parse(stringsFile).string.find { it.@name.equals productLine }.text()
     }catch(e){
         println(e)
         return "Unknown FW version"
@@ -29,12 +29,20 @@ def getD4xxFwVersion() {
 }
 
 task downloadFirmware() {
-    def fwVersion = getD4xxFwVersion()
-    println("downloading fw: " + fwVersion)
     mkdir "$projectDir/src/main/res/raw"
-    def f = new File("$projectDir/src/main/res/raw/fw_d4xx.bin")
-    if (!f.exists()) {
-        new URL('https://bintray.com/api/ui/download/intel-realsense/librealsense-dev/d4xx_fw/d4xx_fw-' + fwVersion + '.bin').withInputStream{ i -> f.withOutputStream{ it << i }}
+
+    def d4xxFwVersion = getFwVersion('d4xx_fw_version')
+    def d4xxFile = new File("$projectDir/src/main/res/raw/fw_d4xx.bin")
+    if (!d4xxFile.exists()) {
+        println("downloading D4xx fw: " + d4xxFwVersion)
+        new URL('http://realsense-hw-public.s3-eu-west-1.amazonaws.com/Releases/RS4xx/FW/D4XX_FW_Image-' + d4xxFwVersion + '.bin').withInputStream{ i -> d4xxFile.withOutputStream{ it << i }}
+    }
+
+    def sr3xxFwVersion = getFwVersion('sr3xx_fw_version')
+    def sr3xxFile = new File("$projectDir/src/main/res/raw/fw_sr3xx.bin")
+    if (!sr3xxFile.exists()) {
+        println("downloading SR3xx fw: " + sr3xxFwVersion)
+        new URL('http://realsense-hw-public.s3-eu-west-1.amazonaws.com/Releases/SR300/FW/SR3XX_FW_Image-' + sr3xxFwVersion + '.bin').withInputStream{ i -> sr3xxFile.withOutputStream{ it << i }}
     }
 }
 

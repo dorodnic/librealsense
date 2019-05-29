@@ -16,6 +16,7 @@ import com.intel.realsense.librealsense.CameraInfo;
 import com.intel.realsense.librealsense.Device;
 import com.intel.realsense.librealsense.DeviceList;
 import com.intel.realsense.librealsense.DeviceListener;
+import com.intel.realsense.librealsense.FwUpdateDevice;
 import com.intel.realsense.librealsense.ProductClass;
 import com.intel.realsense.librealsense.RsContext;
 
@@ -89,52 +90,47 @@ public class DetachedActivity extends AppCompatActivity {
     private synchronized void validatedDevice(){
         if(mFinished)
             return;
-        try(DeviceList dl = mRsContext.queryDevices(ProductClass.DEPTH)){
-            if(dl.getDeviceCount() > 0){
-                if(!verifyMinimalFwVersion())
-                    return;
-                mFinished = true;
-                Intent intent = new Intent(mAppContext, PreviewActivity.class);
-                startActivity(intent);
-                finish();
-            }
-        }
-
-        try(DeviceList dl = mRsContext.queryDevices(ProductClass.RECOVERY)) {
-            if(dl.getDeviceCount() > 0){
-                mFinished = true;
-                Intent intent = new Intent(mAppContext, FirmwareUpdateActivity.class);
-                startActivity(intent);
-                finish();
+        try(DeviceList dl = mRsContext.queryDevices()){
+            if(dl.getDeviceCount() == 0)
+                return;
+            try(Device device = dl.createDevice(0)){
+                if(device.getClass() == FwUpdateDevice.class){
+                    mFinished = true;
+                    Intent intent = new Intent(mAppContext, FirmwareUpdateActivity.class);
+                    startActivity(intent);
+                    finish();
+                }
+                else {
+                    if (!verifyMinimalFwVersion(device))
+                        return;
+                    mFinished = true;
+                    Intent intent = new Intent(mAppContext, PreviewActivity.class);
+                    startActivity(intent);
+                    finish();
+                }
             }
         }
     }
 
-    private boolean verifyMinimalFwVersion(){
-        try(DeviceList dl = mRsContext.queryDevices()) {
-            if(dl.getDeviceCount() == 0)
+    private boolean verifyMinimalFwVersion(Device device){
+        if (!device.supportsInfo(CameraInfo.RECOMMENDED_FIRMWARE_VERSION))
+            return true;
+        final String recFw = device.getInfo(CameraInfo.RECOMMENDED_FIRMWARE_VERSION);
+        final String fw = device.getInfo(CameraInfo.FIRMWARE_VERSION);
+        String[] sFw = fw.split("\\.");
+        String[] sRecFw = recFw.split("\\.");
+        for (int i = 0; i < sRecFw.length; i++) {
+            if (Integer.parseInt(sFw[i]) > Integer.parseInt(sRecFw[i]))
+                break;
+            if (Integer.parseInt(sFw[i]) < Integer.parseInt(sRecFw[i])) {
+                mFinished = true;
+                Intent intent = new Intent(mAppContext, FirmwareUpdateActivity.class);
+                startActivity(intent);
+                finish();
                 return false;
-            try(Device device = dl.createDevice(0)) {
-                if (!device.supportsInfo(CameraInfo.RECOMMENDED_FIRMWARE_VERSION))
-                    return true;
-                final String recFw = device.getInfo(CameraInfo.RECOMMENDED_FIRMWARE_VERSION);
-                final String fw = device.getInfo(CameraInfo.FIRMWARE_VERSION);
-                String[] sFw = fw.split("\\.");
-                String[] sRecFw = recFw.split("\\.");
-                for (int i = 0; i < sRecFw.length; i++) {
-                    if (Integer.parseInt(sFw[i]) > Integer.parseInt(sRecFw[i]))
-                        break;
-                    if (Integer.parseInt(sFw[i]) < Integer.parseInt(sRecFw[i])) {
-                        mFinished = true;
-                        Intent intent = new Intent(mAppContext, FirmwareUpdateActivity.class);
-                        startActivity(intent);
-                        finish();
-                        return false;
-                    }
-                }
-                return true;
             }
         }
+        return true;
     }
 
     private DeviceListener mListener = new DeviceListener() {
