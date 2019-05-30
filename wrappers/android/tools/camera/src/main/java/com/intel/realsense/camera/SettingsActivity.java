@@ -85,7 +85,7 @@ public class SettingsActivity extends AppCompatActivity {
     private void loadSettingsList(final Device device){
         final ListView listview = findViewById(R.id.settings_list_view);
 
-        Map<Integer,String> settingsMap = new TreeMap<>();
+        final Map<Integer,String> settingsMap = new TreeMap<>();
         settingsMap.put(INDEX_DEVICE_INFO,"Device info");
         settingsMap.put(INDEX_ADVANCE_MODE,"Enable advanced mode");
         settingsMap.put(INDEX_FW_UPDATE,"Firmware update");
@@ -104,7 +104,8 @@ public class SettingsActivity extends AppCompatActivity {
             @Override
             public void onItemClick(AdapterView<?> parent, final View view,
                                     int position, long id) {
-                switch (position){
+                Object[] keys = settingsMap.keySet().toArray();
+                switch ((int)keys[position]){
                     case INDEX_DEVICE_INFO: {
                         Intent intent = new Intent(SettingsActivity.this, InfoActivity.class);
                         startActivity(intent);

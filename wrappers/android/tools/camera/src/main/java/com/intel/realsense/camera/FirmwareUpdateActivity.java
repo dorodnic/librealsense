@@ -47,37 +47,52 @@ public class FirmwareUpdateActivity extends AppCompatActivity {
             if(dl.getDeviceCount() == 0)
                 return;
             try(Device device = dl.createDevice(0)){
-                if(device.getClass() == FwUpdateDevice.class)
-                    tryUpdate(device);
+                if(device.getClass() == FwUpdateDevice.class){
+                    int fw_image = getFwImageId(device);
+                    tryUpdate(fw_image);
+                }
                 else
                     printInfo(device);
             }
         }
     }
 
-    private void tryUpdate(final Device device){
-        if(!device.supportsInfo(CameraInfo.PRODUCT_LINE)){
-            String msg = "FW update is not supported for the connected device";
-            Log.e(TAG, msg);
-            Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
+    private void tryUpdate(final int fw_image){
+        try{
+            mFwUpdateButton.setVisibility(View.GONE);
+            Thread t = new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    try(DeviceList dl = mRsContext.queryDevices()){
+                        if(dl.getDeviceCount() == 0)
+                            return;
+                        try(Device device = dl.createDevice(0)){
+                            if(device.getClass() == FwUpdateDevice.class){
+                                FwUpdateDevice fwud = device.as(FwUpdateDevice.class);
+                                updateFirmware(fwud, FirmwareUpdateActivity.this, fw_image);
+                            }
+                        }
+                    }
+                }
+            });
+            t.start();
+        }
+        catch(Exception e){
+            Log.e(TAG, e.getMessage());
+            Toast.makeText(this, e.getMessage(), Toast.LENGTH_LONG).show();
             finish();
         }
-        int fw_image = -1;
-        if(device.getInfo(CameraInfo.PRODUCT_LINE) == "D400")
-            fw_image = R.raw.fw_d4xx;
-        if(device.getInfo(CameraInfo.PRODUCT_LINE) == "SR300")
-            fw_image = R.raw.fw_sr3xx;
-        mFwUpdateButton.setVisibility(View.GONE);
-        final int final_fw_image = fw_image;
-        Thread t = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try(FwUpdateDevice fwud = device.as(FwUpdateDevice.class)) {
-                    updateFirmware(fwud, FirmwareUpdateActivity.this, final_fw_image);
-                }
-            }
-        });
-        t.start();
+    }
+
+    private int getFwImageId(Device device){
+        if(device.supportsInfo(CameraInfo.PRODUCT_LINE)){
+            String pl = device.getInfo(CameraInfo.PRODUCT_LINE);
+            if(pl.equals("D400"))
+                return R.raw.fw_d4xx;
+            if(pl.equals("SR300"))
+                return R.raw.fw_sr3xx;
+        }
+        throw new RuntimeException("FW update is not supported for the connected device");
     }
 
     private void printInfo(Device device){
