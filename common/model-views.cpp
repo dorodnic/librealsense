@@ -2281,9 +2281,7 @@ namespace rs2
             if (auto ret = file_dialog_open(save_file, "Polygon File Format (PLY)\0*.ply\0", NULL, NULL))
             {
                 auto model = ppf.get_points();
-
-
-
+                
                 frame tex;
                 if (selected_tex_source_uid >= 0 && streams.find(selected_tex_source_uid) != streams.end())
                 {
