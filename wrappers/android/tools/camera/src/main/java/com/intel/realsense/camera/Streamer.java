@@ -66,6 +66,8 @@ public class Streamer {
         String pid;
         Map<Integer, List<VideoStreamProfile>> profilesMap;
         try(Device device = ctx.queryDevices().createDevice(0)){
+            if(!device.supportsInfo(CameraInfo.PRODUCT_ID))
+                throw new RuntimeException("try to config unknown device");
             pid = device.getInfo(CameraInfo.PRODUCT_ID);
             profilesMap = SettingsActivity.createProfilesMap(device);
         }

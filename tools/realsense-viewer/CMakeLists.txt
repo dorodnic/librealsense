@@ -8,6 +8,8 @@ project(RealsenseToolsRealSenseViewer)
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
+include_directories(${CMAKE_BINARY_DIR})
+
 if(BUILD_GRAPHICAL_EXAMPLES)
     set(RS_VIEWER_CPP
             realsense-viewer.cpp
@@ -74,6 +76,11 @@ if(BUILD_GRAPHICAL_EXAMPLES)
     set_target_properties (realsense-viewer PROPERTIES
         FOLDER Tools
     )
+
+    if (IMPORT_UVC_FW)
+        add_definitions(-DINTERNAL_FW)
+        target_link_libraries(realsense-viewer uvc_fw)
+    endif()
 
     install(
         TARGETS

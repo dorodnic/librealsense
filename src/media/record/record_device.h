@@ -31,6 +31,7 @@ namespace librealsense
         bool supports_info(rs2_camera_info info) const override;
         const sensor_interface& get_sensor(size_t i) const override;
         void hardware_reset() override;
+        virtual void enter_to_fw_update_mode() const override;
 
 
         bool extend_to(rs2_extension extension_type, void** ext) override;

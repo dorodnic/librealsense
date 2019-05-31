@@ -309,3 +309,6 @@ EXPORTS
     rs2_get_processing_block_info
     rs2_supports_processing_block_info
     rs2_is_processing_block_extendable_to
+    rs2_update_fw_cpp
+    rs2_update_fw
+    rs2_enter_to_fw_update_mode

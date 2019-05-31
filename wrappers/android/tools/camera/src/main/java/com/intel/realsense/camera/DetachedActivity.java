@@ -10,12 +10,12 @@ import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.view.View;
 import android.widget.Button;
-import android.widget.TextView;
 
 import com.intel.realsense.librealsense.CameraInfo;
 import com.intel.realsense.librealsense.Device;
 import com.intel.realsense.librealsense.DeviceList;
 import com.intel.realsense.librealsense.DeviceListener;
+import com.intel.realsense.librealsense.ProductClass;
 import com.intel.realsense.librealsense.RsContext;
 
 public class DetachedActivity extends AppCompatActivity {
@@ -29,6 +29,7 @@ public class DetachedActivity extends AppCompatActivity {
     private Context mAppContext;
     private RsContext mRsContext = new RsContext();
 
+    private boolean mFinished = false;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -51,6 +52,7 @@ public class DetachedActivity extends AppCompatActivity {
             return;
         }
 
+        mFinished = false;
         mPermissionsGrunted = true;
     }
 
@@ -75,18 +77,30 @@ public class DetachedActivity extends AppCompatActivity {
     private void init() {
         RsContext.init(getApplicationContext());
         mRsContext.setDevicesChangedCallback(mListener);
+        validated_device();
+    }
 
-        if(mRsContext.queryDevices().getDeviceCount() > 0){
-            if(!validated_device())
+    private synchronized void validated_device(){
+        if(mFinished)
+            return;
+        if(mRsContext.queryDevices(ProductClass.D400).getDeviceCount() > 0){
+            if(!verify_minimal_fw_version())
                 return;
+            mFinished = true;
             Intent intent = new Intent(mAppContext, PreviewActivity.class);
+            startActivity(intent);
+            finish();
+        }
+        if(mRsContext.queryDevices(ProductClass.D400_RECOVERY).getDeviceCount() > 0){
+            mFinished = true;
+            Intent intent = new Intent(mAppContext, FirmwareUpdateActivity.class);
             startActivity(intent);
             finish();
         }
     }
 
-    private boolean validated_device(){
-         DeviceList devices = mRsContext.queryDevices();
+    private boolean verify_minimal_fw_version(){
+        DeviceList devices = mRsContext.queryDevices();
         if(devices.getDeviceCount() == 0)
             return false;
         Device device = devices.createDevice(0);
@@ -100,15 +114,10 @@ public class DetachedActivity extends AppCompatActivity {
             if(Integer.parseInt(sFw[i]) > Integer.parseInt(sRecFw[i]))
                 break;
             if(Integer.parseInt(sFw[i]) < Integer.parseInt(sRecFw[i])){
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        TextView textView = findViewById(R.id.connectCameraText);
-                        textView.setText("The FW of the connected device is:\n " + fw +
-                                "\n\nThe recommended FW for this device is:\n " + recFw +
-                                "\n\nPlease update your device to the recommended FW or higher");
-                    }
-                });
+                mFinished = true;
+                Intent intent = new Intent(mAppContext, FirmwareUpdateActivity.class);
+                startActivity(intent);
+                finish();
                 return false;
             }
         }
@@ -118,11 +127,7 @@ public class DetachedActivity extends AppCompatActivity {
     private DeviceListener mListener = new DeviceListener() {
         @Override
         public void onDeviceAttach() {
-            if(!validated_device())
-                return;
-            Intent intent = new Intent(mAppContext, PreviewActivity.class);
-            startActivity(intent);
-            finish();
+            validated_device();
         }
 
         @Override

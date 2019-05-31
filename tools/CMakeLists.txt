@@ -41,4 +41,3 @@ else()
     #    set(DEPENDENCIES realsense2)
     endif()
 endif()
-

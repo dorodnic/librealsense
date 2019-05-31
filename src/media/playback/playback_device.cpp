@@ -186,6 +186,11 @@ void playback_device::hardware_reset()
     //Nothing to see here folks
 }
 
+void playback_device::enter_to_fw_update_mode() const
+{
+    //Nothing to see here folks
+}
+
 bool playback_device::extend_to(rs2_extension extension_type, void** ext)
 {
     std::shared_ptr<extension_snapshot> e = m_device_description.get_device_extensions_snapshots().find(extension_type);

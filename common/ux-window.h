@@ -79,6 +79,9 @@ namespace rs2
 
         void setup_icon();
 
+        void imgui_config_push();
+        void imgui_config_pop();
+
         GLFWwindow               *_win;
         int                      _width, _height, _output_height;
         int                     _fb_width, _fb_height;
