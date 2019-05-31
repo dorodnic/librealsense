@@ -174,6 +174,8 @@ namespace rs2
         static const textual_icon window_restore           { u8"\uf2d2" };
         static const textual_icon grid                     { u8"\uf1cb" };
         static const textual_icon exit                     { u8"\uf011" };
+        static const textual_icon see_less                 { u8"\uf070" };
+        static const textual_icon dotdotdot                { u8"\uf141" };
     }
 
     class subdevice_model;
@@ -783,7 +785,8 @@ namespace rs2
         notification_model();
         notification_model(const notification_data& n);
         double get_age_in_ms() const;
-        void draw(int w, int y, notification_model& selected);
+        bool interacted() const;
+        void draw(ux_window& win, int w, int y, notification_model& selected);
         void set_color_scheme(float t) const;
         void unset_color_scheme() const;
         const int get_max_lifetime_ms() const;
@@ -797,12 +800,14 @@ namespace rs2
         rs2_notification_category category;
         bool to_close = false; // true when user clicks on close notification
         // TODO: Add more info
+
+        std::chrono::high_resolution_clock::time_point last_interacted;
     };
 
     struct notifications_model
     {
         void add_notification(const notification_data& n);
-        void draw(ImFont* font, int w, int h);
+        void draw(ux_window& win, int w, int h);
 
         void foreach_log(std::function<void(const std::string& line)> action)
         {

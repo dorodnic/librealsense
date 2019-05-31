@@ -155,7 +155,7 @@ Some auxillary functionalities might be affected. Please report this message if 
     {
         if (flags == save_file)
         {
-            return tinyfd_saveFileDialog("File Save", default_path, 0, nullptr, nullptr, 0);
+            return tinyfd_openFileDialog("File Open", default_path, 0, nullptr, nullptr, 0);
         }
         if (flags == open_file)
         {

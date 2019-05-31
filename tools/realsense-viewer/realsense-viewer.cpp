@@ -19,9 +19,6 @@
 
 #include <imgui_internal.h>
 
-// We use NOC file helper function for cross-platform file dialogs
-#include <noc_file_dialog.h>
-
 using namespace rs2;
 using namespace rs400;
 
@@ -279,6 +276,17 @@ int main(int argv, const char** argc) try
             device_names, device_models, viewer_model, error_message);
         return true;
     };
+
+    std::thread t([&](){
+        while (true)
+        {
+            viewer_model.not_model.add_notification({ "Testing testing...\n",
+                            0, RS2_LOG_SEVERITY_INFO, RS2_NOTIFICATION_CATEGORY_UNKNOWN_ERROR });
+            using namespace std::chrono;
+            std::this_thread::sleep_for(milliseconds(300));
+        }
+    });
+    t.detach();
 
     // Closing the window
     while (window)
