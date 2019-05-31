@@ -8101,7 +8101,7 @@ namespace rs2
 
         if (ImGui::IsWindowHovered())
         {
-            last_interacted = std::chrono::steady_clock::now();
+            last_interacted = std::chrono::system_clock::now();
             ImGui::FocusWindow(ImGui::GetCurrentWindow());
         }
 
