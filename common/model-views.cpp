@@ -286,7 +286,6 @@ namespace rs2
             {
                 p.export_to_ply(fname, texture);
                 if (notify) ns.add_notification({ to_string() << "Finished saving 3D view " << (texture ? "to " : "without texture to ") << fname,
-                    std::chrono::duration_cast<std::chrono::duration<double,std::micro>>(std::chrono::high_resolution_clock::now().time_since_epoch()).count(),
                     RS2_LOG_SEVERITY_INFO,
                     RS2_NOTIFICATION_CATEGORY_UNKNOWN_ERROR });
             }
@@ -771,9 +770,7 @@ namespace rs2
         catch (const error& e)
         {
             if (read_only) {
-                auto timestamp = std::chrono::duration<double, std::milli>(std::chrono::system_clock::now().time_since_epoch()).count();
                 model.add_notification({ to_string() << "Could not refresh read-only option " << endpoint->get_option_name(opt) << ": " << e.what(),
-                    timestamp,
                     RS2_LOG_SEVERITY_WARN,
                     RS2_NOTIFICATION_CATEGORY_UNKNOWN_ERROR });
             }
@@ -2548,7 +2545,7 @@ namespace rs2
                 ss << "Raw data is captured into " << filename << std::endl;
             else
                 viewer.not_model.add_notification({ to_string() << "Failed to save frame raw data  " << filename,
-                    0, RS2_LOG_SEVERITY_INFO, RS2_NOTIFICATION_CATEGORY_UNKNOWN_ERROR });
+                    RS2_LOG_SEVERITY_INFO, RS2_NOTIFICATION_CATEGORY_UNKNOWN_ERROR });
 
             // And the frame's attributes
             filename = filename_base + "_" + stream_desc + "_metadata.csv";
@@ -2559,17 +2556,17 @@ namespace rs2
                     ss << "The frame attributes are saved into " << filename;
                 else
                     viewer.not_model.add_notification({ to_string() << "Failed to save frame metadata file " << filename,
-                        0, RS2_LOG_SEVERITY_INFO, RS2_NOTIFICATION_CATEGORY_UNKNOWN_ERROR });
+                        RS2_LOG_SEVERITY_INFO, RS2_NOTIFICATION_CATEGORY_UNKNOWN_ERROR });
             }
             catch (std::exception& e)
             {
                 viewer.not_model.add_notification({ to_string() << e.what(),
-                    0, RS2_LOG_SEVERITY_INFO, RS2_NOTIFICATION_CATEGORY_UNKNOWN_ERROR });
+                    RS2_LOG_SEVERITY_INFO, RS2_NOTIFICATION_CATEGORY_UNKNOWN_ERROR });
             }
         }
 
         if (ss.str().size())
-            viewer.not_model.add_notification({ ss.str().c_str(), 0, RS2_LOG_SEVERITY_INFO, RS2_NOTIFICATION_CATEGORY_HARDWARE_EVENT });
+            viewer.not_model.add_notification({ ss.str().c_str(), RS2_LOG_SEVERITY_INFO, RS2_NOTIFICATION_CATEGORY_HARDWARE_EVENT });
 
     }
 
@@ -3099,7 +3096,6 @@ namespace rs2
         }
         is_recording = false;
         notification_data nd{ to_string() << "Saved recording to: " << saved_to_filename,
-            (double)std::chrono::high_resolution_clock::now().time_since_epoch().count(),
             RS2_LOG_SEVERITY_INFO,
             RS2_NOTIFICATION_CATEGORY_COUNT };
         viewer.not_model.add_notification(nd);

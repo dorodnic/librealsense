@@ -9,17 +9,18 @@ namespace rs2
     constexpr const char* recommended_fw_url = "https://downloadcenter.intel.com/download/27522/Latest-Firmware-for-Intel-RealSense-D400-Product-Family?v=t";
     constexpr const char* store_url = "https://store.intelrealsense.com/";
 
-    struct notification_data
+    class notification_data
     {
+    public:
         notification_data(std::string description,
-                            double timestamp,
-                            rs2_log_severity severity,
-                            rs2_notification_category category);
+                          rs2_log_severity severity,
+                          rs2_notification_category category);
+
         rs2_notification_category get_category() const;
         std::string get_description() const;
         double get_timestamp() const;
         rs2_log_severity get_severity() const;
-
+    private:
         std::string _description;
         double _timestamp;
         rs2_log_severity _severity;
@@ -30,13 +31,14 @@ namespace rs2
     {
         notification_model();
         notification_model(const notification_data& n);
-        double get_age_in_ms() const;
+        double get_age_in_ms(bool total = false) const;
         bool interacted() const;
         void draw(ux_window& win, int w, int y, notification_model& selected);
         void set_color_scheme(float t) const;
         void unset_color_scheme() const;
         const int get_max_lifetime_ms() const;
 
+        int count = 1;
         int height = 40;
         int index = 0;
         std::string message;
@@ -45,8 +47,19 @@ namespace rs2
         std::chrono::high_resolution_clock::time_point created_time;
         rs2_notification_category category;
         bool to_close = false; // true when user clicks on close notification
-        // TODO: Add more info
 
+        int width = 320;
+        int stack_offset = 4;
+        int max_stack = 3;
+
+        bool dismissed = false;
+        bool pinned = false;
+        bool enable_dismiss = true;
+        bool enable_expand = true;
+
+        float last_x, last_y;
+        bool animating = false;
+        std::chrono::high_resolution_clock::time_point last_moved;
         std::chrono::high_resolution_clock::time_point last_interacted;
     };
 

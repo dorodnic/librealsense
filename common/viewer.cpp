@@ -572,22 +572,16 @@ namespace rs2
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(10, 10));
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 1);
 
-        //float x = window.width() / 2.0f;
-        //float y = 60.0f + (float)index * 150;
-        //ImGui::SetNextWindowPos({x, y});// );
+        ImGui::SetNextWindowSize({520, 180});
 
         ImGui::OpenPopup(header.c_str());
 
         if (ImGui::BeginPopupModal(header.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize))
         {
-            ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, regular_blue);
-            ImGui::Text("%s", message.c_str());
-            ImGui::PopStyleColor();
-
             ImGui::PushStyleColor(ImGuiCol_Button, transparent);
             ImGui::PushStyleColor(ImGuiCol_ButtonHovered, transparent);
             ImGui::PushStyleColor(ImGuiCol_ButtonActive, transparent);
-            ImGui::PushStyleColor(ImGuiCol_Text, light_blue);
+            ImGui::PushStyleColor(ImGuiCol_Text, light_grey);
             ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, white);
 
             configure();
@@ -615,7 +609,6 @@ namespace rs2
         if (errors_not_to_show.count(simplify_error_message(message)))
         {
             not_model.add_notification({ message,
-                std::chrono::duration<double, std::milli>(std::chrono::system_clock::now().time_since_epoch()).count(),
                 RS2_LOG_SEVERITY_ERROR,
                 RS2_NOTIFICATION_CATEGORY_UNKNOWN_ERROR });
             message = "";
@@ -628,11 +621,11 @@ namespace rs2
         {
             ImGui::Text("RealSense error calling:");
             ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, regular_blue);
-            ImGui::InputTextMultiline("error", const_cast<char*>(message.c_str()),
-               message.size() + 1, { 500,100 }, ImGuiInputTextFlags_AutoSelectAll | ImGuiInputTextFlags_ReadOnly);
+            ImGui::InputTextMultiline("##error", const_cast<char*>(message.c_str()),
+               message.size() + 1, { 500,95 }, ImGuiInputTextFlags_AutoSelectAll | ImGuiInputTextFlags_ReadOnly);
             ImGui::PopStyleColor();
 
-            ImGui::SetCursorPos({ 10, 100 });
+            //ImGui::SetCursorPos({ 10, 130 });
             ImGui::PopStyleColor(5);
 
             if (ImGui::Button("OK", ImVec2(120, 0)))

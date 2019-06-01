@@ -137,7 +137,7 @@ bool refresh_devices(std::mutex& m,
             {
                 //Notify change
                 viewer_model.not_model.add_notification({ get_device_name(dev).first + " Disconnected\n",
-                    0, RS2_LOG_SEVERITY_INFO, RS2_NOTIFICATION_CATEGORY_UNKNOWN_ERROR });
+                    RS2_LOG_SEVERITY_INFO, RS2_NOTIFICATION_CATEGORY_UNKNOWN_ERROR });
 
                 //Remove from devices
                 auto dev_model_itr = std::find_if(begin(*device_models), end(*device_models),
@@ -177,7 +177,7 @@ bool refresh_devices(std::mutex& m,
             device_names.push_back(dev_descriptor);
             if (!initial_refresh)
                 viewer_model.not_model.add_notification({ dev_descriptor.first + " Connected\n",
-                    0, RS2_LOG_SEVERITY_INFO, RS2_NOTIFICATION_CATEGORY_UNKNOWN_ERROR });
+                    RS2_LOG_SEVERITY_INFO, RS2_NOTIFICATION_CATEGORY_UNKNOWN_ERROR });
 
             current_connected_devices.push_back(dev);
             for (auto&& s : dev.query_sensors())
@@ -198,7 +198,7 @@ bool refresh_devices(std::mutex& m,
                             dev_model_itr->handle_hardware_events(data);
                         }
                     }
-                    viewer_model.not_model.add_notification({ n.get_description(), n.get_timestamp(), n.get_severity(), n.get_category() });
+                    viewer_model.not_model.add_notification({ n.get_description(), n.get_severity(), n.get_category() });
                 });
             }
 
@@ -255,7 +255,7 @@ int main(int argv, const char** argc) try
         if (!error_message.empty())
         {
             viewer_model.not_model.add_notification({ error_message,
-                0, RS2_LOG_SEVERITY_ERROR, RS2_NOTIFICATION_CATEGORY_UNKNOWN_ERROR });
+                RS2_LOG_SEVERITY_ERROR, RS2_NOTIFICATION_CATEGORY_UNKNOWN_ERROR });
         }
     };
 
@@ -296,7 +296,7 @@ int main(int argv, const char** argc) try
         while (true)
         {
             viewer_model.not_model.add_notification({ "Testing testing...\n",
-                            0, RS2_LOG_SEVERITY_INFO, RS2_NOTIFICATION_CATEGORY_UNKNOWN_ERROR });
+                            RS2_LOG_SEVERITY_INFO, RS2_NOTIFICATION_CATEGORY_UNKNOWN_ERROR });
             using namespace std::chrono;
             std::this_thread::sleep_for(milliseconds(3000));
         }
