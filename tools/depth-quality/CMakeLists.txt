@@ -8,33 +8,23 @@ project(RealsenseToolsDepthQuality)
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
+include(../../common/CMakeLists.txt)
+
 if(BUILD_GRAPHICAL_EXAMPLES)
     set(RS_QUALITY_TOOL_CPP
-            ./rs-depth-quality.cpp
-            ./depth-quality-model.h
-            ./depth-quality-model.cpp
-            ./depth-metrics.h
-            ../../common/rendering.h
-            ../../common/ux-window.h
-            ../../common/ux-window.cpp
-            ../../common/model-views.h
-            ../../common/model-views.cpp
-            ../../third-party/imgui/imgui.cpp
-            ../../third-party/imgui/imgui_draw.cpp
-            ../../third-party/imgui/imgui_impl_glfw.cpp
-            ../../third-party/imgui/imgui-fonts-karla.hpp
-            ../../third-party/imgui/imgui-fonts-fontawesome.hpp
-            ../../common/ux-alignment.cpp
-            ../../common/ux-alignment.h
-            ../../third-party/glad/glad.c
-            ../../common/opengl3.cpp
-            ../../common/opengl3.h
-            ../../common/rs-config.h
-            ../../common/rs-config.cpp
-            ../../common/os.h
-            ../../common/os.cpp
-            ../../third-party/tinyfiledialogs/tinyfiledialogs.c
-            ../../third-party/tinyfiledialogs/tinyfiledialogs.h
+        ${COMMON_SRC}
+        rs-depth-quality.cpp
+        depth-quality-model.h
+        depth-quality-model.cpp
+        depth-metrics.h
+        ../../third-party/imgui/imgui.cpp
+        ../../third-party/imgui/imgui_draw.cpp
+        ../../third-party/imgui/imgui_impl_glfw.cpp
+        ../../third-party/imgui/imgui-fonts-karla.hpp
+        ../../third-party/imgui/imgui-fonts-fontawesome.hpp
+        ../../third-party/glad/glad.c
+        ../../third-party/tinyfiledialogs/tinyfiledialogs.c
+        ../../third-party/tinyfiledialogs/tinyfiledialogs.h
         )
 
     if(WIN32)
@@ -58,15 +48,10 @@ if(BUILD_GRAPHICAL_EXAMPLES)
             ../../third-party/imgui/imgui-fonts-fontawesome.hpp)
 
         source_group("Utils" FILES
-            ./depth-quality-model.h
-            ./depth-quality-model.cpp
-            ./depth-metrics.h
-            ../../common/rendering.h
-            ../../common/ux-window.h
-            ../../common/ux-window.cpp
-            ../../common/model-views.h
-            ../../common/model-views.cpp
-            ../../common/windows-app-bootstrap.cpp)
+            depth-quality-model.h
+            depth-quality-model.cpp
+            depth-metrics.h
+            ${COMMON_SRC})
 
         include_directories(rs-depth-quality ../../common  ../../third-party
                                              ../../third-party/imgui

@@ -2,7 +2,7 @@
 // Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 #include <librealsense2/rs.hpp>
-#include "model-views.h"
+#include "viewer.h"
 #include "os.h"
 #include "ux-window.h"
 #include "fw-update-helper.h"

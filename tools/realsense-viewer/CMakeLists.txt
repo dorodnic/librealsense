@@ -10,30 +10,20 @@ find_package(Threads REQUIRED)
 
 include_directories(${CMAKE_BINARY_DIR})
 
+include(../../common/CMakeLists.txt)
+
 if(BUILD_GRAPHICAL_EXAMPLES)
     set(RS_VIEWER_CPP
-            realsense-viewer.cpp
-            ../../third-party/imgui/imgui.cpp
-            ../../third-party/imgui/imgui_draw.cpp
-            ../../third-party/imgui/imgui_impl_glfw.cpp
-            ../../third-party/imgui/imgui-fonts-karla.hpp
-            ../../third-party/imgui/imgui-fonts-fontawesome.hpp
-            ../../common/rendering.h
-            ../../common/model-views.h
-            ../../common/model-views.cpp
-            ../../common/ux-window.h
-            ../../common/ux-window.cpp
-            ../../common/ux-alignment.cpp
-            ../../common/ux-alignment.h
-            ../../third-party/glad/glad.c
-            ../../common/opengl3.cpp
-            ../../common/opengl3.h
-            ../../common/rs-config.h
-            ../../common/rs-config.cpp
-            ../../common/os.h
-            ../../common/os.cpp
-            ../../third-party/tinyfiledialogs/tinyfiledialogs.c
-            ../../third-party/tinyfiledialogs/tinyfiledialogs.h
+        ${COMMON_SRC}
+        realsense-viewer.cpp
+        ../../third-party/imgui/imgui.cpp
+        ../../third-party/imgui/imgui_draw.cpp
+        ../../third-party/imgui/imgui_impl_glfw.cpp
+        ../../third-party/imgui/imgui-fonts-karla.hpp
+        ../../third-party/imgui/imgui-fonts-fontawesome.hpp
+        ../../third-party/glad/glad.c
+        ../../third-party/tinyfiledialogs/tinyfiledialogs.c
+        ../../third-party/tinyfiledialogs/tinyfiledialogs.h
         )
 
     # config-ui
