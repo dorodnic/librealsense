@@ -52,7 +52,7 @@ static const ImVec4 title_color = from_rgba(27, 33, 38, 255);
 static const ImVec4 device_info_color = from_rgba(33, 40, 46, 255);
 static const ImVec4 yellow = from_rgba(229, 195, 101, 255, true);
 static const ImVec4 green = from_rgba(0x20, 0xe0, 0x20, 0xff, true);
-static const ImVec4 dark_sensor_bg = from_rgba(0x1b, 0x21, 0x25, 200);
+static const ImVec4 dark_sensor_bg = from_rgba(0x1b, 0x21, 0x25, 170);
 static const ImVec4 red = from_rgba(233, 0, 0, 255, true);
 
 inline ImVec4 blend(const ImVec4& c, float a)
@@ -99,6 +99,8 @@ namespace rs2
         return os << static_cast<const char*>(i);
     }
 
+    static const float FEET_TO_METER = 0.3048f;
+
     namespace configurations
     {
         namespace record
@@ -119,6 +121,9 @@ namespace rs2
             static const char* log_filename        { "viewer_model.log_filename" };
             static const char* log_severity        { "viewer_model.log_severity" };
             static const char* post_processing     { "viewer_model.post_processing" };
+            static const char* show_map_ruler      { "viewer_model.show_map_ruler" };
+            static const char* show_stream_details { "viewer_model.show_stream_details" };
+            static const char* metric_system       { "viewer_model.metric_system" };
         }
         namespace window
         {
@@ -654,10 +659,11 @@ namespace rs2
 
         bool is_stream_alive();
 
-        void show_stream_footer(ImFont* font, const rect& stream_rect,const mouse_info& mouse);
+        void show_stream_footer(ImFont* font, const rect& stream_rect,const mouse_info& mouse, viewer_model& viewer);
         void show_stream_header(ImFont* font, const rect& stream_rect, viewer_model& viewer);
-        void show_stream_imu(ImFont* font, const rect& stream_rect, const rs2_vector& axis);
-        void show_stream_pose(ImFont* font, const rect& stream_rect, const rs2_pose& pose_data, rs2_stream stream_type, bool fullScreen, float y_offset);
+        void show_stream_imu(ImFont* font, const rect& stream_rect, const rs2_vector& axis, const mouse_info& mouse);
+        void show_stream_pose(ImFont* font, const rect& stream_rect, const rs2_pose& pose_data, 
+            rs2_stream stream_type, bool fullScreen, float y_offset, viewer_model& viewer);
 
         void snapshot_frame(const char* filename,viewer_model& viewer) const;
 
@@ -1015,7 +1021,7 @@ namespace rs2
 
         void show_event_log(ImFont* font_14, float x, float y, float w, float h);
 
-        void render_pose(rs2::rect stream_rect, float buttons_heights, ImGuiWindowFlags flags);
+        void render_pose(rs2::rect stream_rect, float buttons_heights);
 
         void show_3dviewer_header(ImFont* font, rs2::rect stream_rect, bool& paused, std::string& error_message);
 
@@ -1043,6 +1049,7 @@ namespace rs2
         bool is_output_collapsed = false;
         bool is_3d_view = false;
         bool paused = false;
+        bool metric_system = true;
 
 
         void draw_viewport(const rect& viewer_rect, 

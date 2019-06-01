@@ -298,7 +298,7 @@ int main(int argv, const char** argc) try
             viewer_model.not_model.add_notification({ "Testing testing...\n",
                             0, RS2_LOG_SEVERITY_INFO, RS2_NOTIFICATION_CATEGORY_UNKNOWN_ERROR });
             using namespace std::chrono;
-            std::this_thread::sleep_for(milliseconds(300));
+            std::this_thread::sleep_for(milliseconds(3000));
         }
     });
     t.detach();
