@@ -111,7 +111,7 @@ namespace rs2
 
         if (category == RS2_NOTIFICATION_CATEGORY_FIRMWARE_UPDATE_RECOMMENDED)
         {
-            c = alpha(sensor_header_light_blue, 1 - t);
+            c = alpha(sensor_bg, 1 - t);
             ImGui::PushStyleColor(ImGuiCol_WindowBg, c);
         }
         else
@@ -219,42 +219,56 @@ namespace rs2
             ImGui::Text("%s", count_str.c_str());
         }
 
-        ImGui::SetCursorScreenPos({ float(x + 10), float(y + 5) });
+        ImGui::SetCursorScreenPos({ float(x + 5), float(y + 5) });
 
         if (category == RS2_NOTIFICATION_CATEGORY_FIRMWARE_UPDATE_RECOMMENDED)
         {
-            // std::regex version_regex("([0-9]+.[0-9]+.[0-9]+.[0-9]+\n)");
-            // std::smatch sm;
-            // std::regex_search(message, sm, version_regex);
-            // std::string message_prefix = sm.prefix();
-            // std::string curr_version = sm.str();
-            // std::string message_suffix = sm.suffix();
-            // ImGui::Text("%s", message_prefix.c_str());
-            // ImGui::SameLine(0, 0);
-            // ImGui::PushStyleColor(ImGuiCol_Text, { (float)255 / 255, (float)46 / 255, (float)54 / 255, 1 - t });
-            // ImGui::Text("%s", curr_version.c_str());
-            // ImGui::PopStyleColor();
-            // ImGui::Text("%s", message_suffix.c_str());
+            ImVec4 shadow { 1.f, 1.f, 1.f, 0.1f };
+            ImGui::GetWindowDrawList()->AddRectFilled({ float(x), float(y) },
+                { float(x + width), float(y + 25) }, ImColor(shadow));
 
-            // ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, { 1, 1, 1, 1 - t });
-            // ImGui::PushStyleColor(ImGuiCol_Button, { 62 / 255.f, 77 / 255.f, 89 / 255.f, 1 - t });
-            // ImGui::PushStyleColor(ImGuiCol_ButtonHovered, { 62 / 255.f + 0.1f, 77 / 255.f + 0.1f, 89 / 255.f + 0.1f, 1 - t });
-            // ImGui::PushStyleColor(ImGuiCol_ButtonActive, { 62 / 255.f - 0.1f, 77 / 255.f - 0.1f, 89 / 255.f - 0.1f, 1 - t });
-            // ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 2);
-            // std::string button_name = to_string() << "Download update" << "##" << index;
-            // ImGui::Indent(80);
-            // if (ImGui::Button(button_name.c_str(), { 130, 30 }))
-            // {
-            //     open_url(recommended_fw_url);
-            // }
-            // if (ImGui::IsItemHovered())
-            //     ImGui::SetTooltip("%s", "Internet connection required");
-            // ImGui::PopStyleVar();
-            // ImGui::PopStyleColor(4);
+            ImGui::Text("Firmware Update Recommended!");
+
+            ImGui::PushStyleColor(ImGuiCol_Text, light_grey);
+
+            ImGui::SetCursorScreenPos({ float(x + 5), float(y + 27) });
+
+            std::regex version_regex("([0-9]+.[0-9]+.[0-9]+.[0-9]+\n)");
+            std::smatch sm;
+            std::regex_search(message, sm, version_regex);
+            std::string message_prefix = sm.prefix();
+            std::string curr_version = sm.str();
+            std::string message_suffix = sm.suffix();
+            ImGui::Text("%s", message_prefix.c_str());
+            ImGui::SameLine(0, 0);
+            ImGui::PushStyleColor(ImGuiCol_Text, alpha(light_red, 1 - t));
+            ImGui::Text("%s", curr_version.c_str());
+            ImGui::PopStyleColor();
+            
+            ImGui::SetCursorScreenPos({ float(x + 5), float(y + 47) });
+            ImGui::Text("%s", message_suffix.c_str());
+
+            ImGui::PopStyleColor();
+
+            std::string button_name = to_string() << "Learn More..." << "##" << index;
+
+            ImGui::SetCursorScreenPos({ float(x + 5), float(y + height - 25) });
+            if (ImGui::Button(button_name.c_str(), { 130, 20 }))
+            {
+                open_url(recommended_fw_url);
+            }
+            if (ImGui::IsItemHovered())
+            {
+                win.link_hovered();
+                ImGui::SetTooltip("%s", "Internet connection required");
+            }
         }
         else
         {
+            ImGui::PushTextWrapPos(x + width - 100);
             ImGui::Text("%s", message.c_str());
+            ImGui::PopTextWrapPos();
+
             if (ImGui::IsItemHovered())
             {
                 last_interacted = system_clock::now();
@@ -324,7 +338,7 @@ namespace rs2
                 m.pinned = true;
                 m.enable_expand = false;
             }
-
+            
             pending_notifications.push_back(m);
 
             if (pending_notifications.size() > (size_t)MAX_SIZE)
