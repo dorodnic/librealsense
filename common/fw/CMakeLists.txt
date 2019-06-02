@@ -4,17 +4,22 @@ cmake_minimum_required(VERSION 3.1.3)
 
 project(uvc_fw)
 
-set(D4XX_FW_VERSION "5.11.1.100")
+file(READ "firmware-version.h" ver)
+
+message(STATUS "Fetching recommended firmwares:")
+
+string(REGEX MATCH "D4XX_RECOMMENDED_FIRMWARE_VERSION \"([0-9]+.[0-9]+.[0-9]+.[0-9]+)\"" _ ${ver})
+set(D4XX_FW_VERSION ${CMAKE_MATCH_1})
+message(STATUS "D4XX_FW_VERSION: ${D4XX_FW_VERSION}")
 set(D4XX_FW_SHA1 261af89df41949a53909c6088131ad1dd3d184ee)
 set(D4XX_FW_URL "http://realsense-hw-public.s3-eu-west-1.amazonaws.com/Releases/RS4xx/FW")
 
-set(SR3XX_FW_VERSION "3.27.3.0")
+string(REGEX MATCH "SR3XX_RECOMMENDED_FIRMWARE_VERSION \"([0-9]+.[0-9]+.[0-9]+.[0-9]+)\"" _ ${ver})
+set(SR3XX_FW_VERSION ${CMAKE_MATCH_1})
+message(STATUS "SR3XX_FW_VERSION: ${SR3XX_FW_VERSION}")
 set(SR3XX_FW_SHA1 ddc6d015ee3ec46f5e5587cc5ca17d343654ce85)
 set(SR3XX_FW_URL "http://realsense-hw-public.s3-eu-west-1.amazonaws.com/Releases/SR300/FW")
 
-#set(FW_URL "https://ubit-artifactory-il.intel.com/artifactory/realsense_maven_local-il-local/librealsense/FW")
-#http://realsense-hw-public.s3-eu-west-1.amazonaws.com/Releases/RS4xx/FW/D4XX_FW_Image-5.11.1.100.bin 
-#http://realsense-hw-public.s3-eu-west-1.amazonaws.com/Releases/SR300/FW/SR3XX_FW_Image-3.27.3.0.bin 
 add_library(${PROJECT_NAME} STATIC empty.c)
 
 if (MSVC)

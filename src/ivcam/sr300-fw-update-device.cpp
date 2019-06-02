@@ -19,8 +19,6 @@ namespace librealsense
     {
         fw_update_device::update_fw(fw_image, fw_image_size, callback);
 
-        auto messenger = _usb_device->open();
-        auto state = get_dfu_state(messenger);
         wait_for_device(RS2_PRODUCT_LINE_SR300, 10000);
     }
 }

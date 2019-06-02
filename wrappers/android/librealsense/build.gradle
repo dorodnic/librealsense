@@ -13,7 +13,7 @@ android {
 
         externalNativeBuild {
             cmake {
-                arguments "-DANDROID_USB_HOST_UVC=TRUE"
+                arguments "-DANDROID_USB_HOST_UVC=TRUE -DIMPORT_UVC_FW=FALSE"
             }
         }
     }

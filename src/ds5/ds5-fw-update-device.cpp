@@ -17,7 +17,5 @@ namespace librealsense
     void ds_fw_update_device::update_fw(const void* fw_image, int fw_image_size, fw_update_progress_callback_ptr callback) const
     {
         fw_update_device::update_fw(fw_image, fw_image_size, callback);
-
-        wait_for_device(RS2_PRODUCT_LINE_D400, 10000);
     }
 }
