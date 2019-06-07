@@ -756,6 +756,7 @@ namespace rs2
         std::set<std::string> advanced_mode_settings_file_names;
         std::string selected_file_preset;
         bool fw_update_requested = false;
+        int fw_update_notification = -1; // id of the firmware update dialog to close it when not relevant
     private:
         void draw_info_icon(ux_window& window, ImFont* font, const ImVec2& size);
         int draw_seek_bar();

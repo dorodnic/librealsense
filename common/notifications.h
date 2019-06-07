@@ -4,6 +4,11 @@
 #pragma once
 #include "model-views.h"
 
+#include <string>
+#include <functional>
+#include <vector>
+#include <chrono>
+
 namespace rs2
 {
     constexpr const char* recommended_fw_url = "https://downloadcenter.intel.com/download/27522/Latest-Firmware-for-Intel-RealSense-D400-Product-Family?v=t";
@@ -33,10 +38,12 @@ namespace rs2
         notification_model(const notification_data& n);
         double get_age_in_ms(bool total = false) const;
         bool interacted() const;
-        void draw(ux_window& win, int w, int y, notification_model& selected);
+        std::function<void()> draw(ux_window& win, int w, int y, notification_model& selected);
         void set_color_scheme(float t) const;
         void unset_color_scheme() const;
         const int get_max_lifetime_ms() const;
+
+        std::function<void()> custom_action;
 
         int count = 1;
         int height = 40;
@@ -44,7 +51,7 @@ namespace rs2
         std::string message;
         double timestamp = 0.0;
         rs2_log_severity severity = RS2_LOG_SEVERITY_NONE;
-        std::chrono::high_resolution_clock::time_point created_time;
+        std::chrono::system_clock::time_point created_time;
         rs2_notification_category category;
         bool to_close = false; // true when user clicks on close notification
 
@@ -52,20 +59,25 @@ namespace rs2
         int stack_offset = 4;
         int max_stack = 3;
 
+        // Behaviour variables
         bool dismissed = false;
         bool pinned = false;
         bool enable_dismiss = true;
         bool enable_expand = true;
+        bool enable_click = false;
 
         float last_x, last_y;
         bool animating = false;
-        std::chrono::high_resolution_clock::time_point last_moved;
-        std::chrono::high_resolution_clock::time_point last_interacted;
+        std::chrono::system_clock::time_point last_moved;
+        std::chrono::system_clock::time_point last_interacted;
     };
 
     struct notifications_model
     {
-        void add_notification(const notification_data& n);
+        int add_notification(const notification_data& n);
+        int add_notification(const notification_data& n, 
+                             std::function<void()> custom_action, 
+                             bool use_custom_action = true);
         void draw(ux_window& win, int w, int h);
 
         void foreach_log(std::function<void(const std::string& line)> action)

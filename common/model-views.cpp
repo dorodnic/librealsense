@@ -2719,9 +2719,26 @@ namespace rs2
         : dev(dev),
           syncer(viewer.syncer),
            _update_readonly_options_timer(std::chrono::seconds(6))
-    {
+    {           
         for (auto&& sub : dev.query_sensors())
         {
+            if (sub.supports(RS2_CAMERA_INFO_FIRMWARE_VERSION) && sub.supports(RS2_CAMERA_INFO_RECOMMENDED_FIRMWARE_VERSION))
+            {
+                std::string fw = sub.get_info(RS2_CAMERA_INFO_FIRMWARE_VERSION);
+                std::string recommended = sub.get_info(RS2_CAMERA_INFO_RECOMMENDED_FIRMWARE_VERSION);
+
+                std::string msg = "Current firmware version: " + fw + "\nMinimal firmware version: " + recommended +"\n";
+
+                if (fw_update_notification == -1) 
+                {
+                    auto id = viewer.not_model.add_notification({ msg,
+                        RS2_LOG_SEVERITY_INFO,
+                        RS2_NOTIFICATION_CATEGORY_FIRMWARE_UPDATE_RECOMMENDED });
+                    
+                    fw_update_notification = id;
+                }
+            }
+
             auto model = std::make_shared<subdevice_model>(dev, std::make_shared<sensor>(sub), error_message);
             subdevices.push_back(model);
         }

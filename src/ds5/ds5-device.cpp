@@ -408,7 +408,7 @@ namespace librealsense
         auto pid = group.uvc_devices.front().pid;
         std::string device_name = (rs400_sku_names.end() != rs400_sku_names.find(pid)) ? rs400_sku_names.at(pid) : "RS4xx";
         _fw_version = firmware_version(_hw_monitor->get_firmware_version_string(GVD, camera_fw_version_offset));
-        _recommended_fw_version = firmware_version("5.10.3.0");
+        _recommended_fw_version = firmware_version("5.15.3.0");
         if (_fw_version >= firmware_version("5.10.4.0"))
             _device_capabilities = parse_device_capabilities();
         auto serial = _hw_monitor->get_module_serial_string(GVD, module_serial_offset);
@@ -606,30 +606,6 @@ namespace librealsense
         std::string curr_version= _fw_version;
         std::string minimal_version = _recommended_fw_version;
 
-        if (_fw_version < _recommended_fw_version)
-        {
-            std::weak_ptr<notifications_processor> weak = depth_ep.get_notifications_processor();
-            std::thread notification_thread = std::thread([weak, curr_version, minimal_version]()
-            {
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
-                while (true)
-                {
-                    auto ptr = weak.lock();
-                    if (ptr)
-                    {
-                        std::string msg = "Current firmware version: " + curr_version + "\nMinimal firmware version: " + minimal_version +"\n";
-                        notification n(RS2_NOTIFICATION_CATEGORY_FIRMWARE_UPDATE_RECOMMENDED, 0, RS2_LOG_SEVERITY_INFO, msg);
-                        ptr->raise_notification(n);
-                    }
-                    else
-                    {
-                        break;
-                    }
-                    std::this_thread::sleep_for(std::chrono::hours(8));
-                }
-            });
-            notification_thread.detach();
-        }
         if (dynamic_cast<const platform::playback_backend*>(&(ctx->get_backend())) == nullptr)
             _tf_keeper->start();
         else

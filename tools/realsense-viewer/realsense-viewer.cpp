@@ -175,9 +175,29 @@ bool refresh_devices(std::mutex& m,
         {
             auto dev_descriptor = get_device_name(dev);
             device_names.push_back(dev_descriptor);
+
+            bool added = false;
+            if (device_models->size() == 0 &&
+                dev.supports(RS2_CAMERA_INFO_NAME) && std::string(dev.get_info(RS2_CAMERA_INFO_NAME)) != "Platform Camera")
+            {
+                device_models->emplace_back(dev, error_message, viewer_model);
+                viewer_model.not_model.add_log(to_string() << device_models->rbegin()->dev.get_info(RS2_CAMERA_INFO_NAME) << " was selected as a default device");
+                added = true;
+            }
+
             if (!initial_refresh)
-                viewer_model.not_model.add_notification({ dev_descriptor.first + " Connected\n",
-                    RS2_LOG_SEVERITY_INFO, RS2_NOTIFICATION_CATEGORY_UNKNOWN_ERROR });
+            {
+                if (added || dev.is<playback>())
+                    viewer_model.not_model.add_notification({ dev_descriptor.first + " Connected\n",
+                        RS2_LOG_SEVERITY_INFO, RS2_NOTIFICATION_CATEGORY_UNKNOWN_ERROR });
+                else
+                    viewer_model.not_model.add_notification({ dev_descriptor.first + " Connected\n",
+                        RS2_LOG_SEVERITY_INFO, RS2_NOTIFICATION_CATEGORY_UNKNOWN_ERROR }, 
+                        [device_models, &viewer_model, &error_message, dev]{
+                            auto device = dev;
+                            device_models->emplace_back(device, error_message, viewer_model);
+                        });
+            }
 
             current_connected_devices.push_back(dev);
             for (auto&& s : dev.query_sensors())
@@ -202,12 +222,7 @@ bool refresh_devices(std::mutex& m,
                 });
             }
 
-            if (device_models->size() == 0 &&
-                dev.supports(RS2_CAMERA_INFO_NAME) && std::string(dev.get_info(RS2_CAMERA_INFO_NAME)) != "Platform Camera")
-            {
-                device_models->emplace_back(dev, error_message, viewer_model);
-                viewer_model.not_model.add_log(to_string() << device_models->rbegin()->dev.get_info(RS2_CAMERA_INFO_NAME) << " was selected as a default device");
-            }
+            
         }
         initial_refresh = false;
     }
@@ -226,7 +241,7 @@ bool refresh_devices(std::mutex& m,
     return true;
 }
 
-int main(int argv, const char** argc) try
+int main(int argc, const char** argv) try
 {
     rs2::log_to_console(RS2_LOG_SEVERITY_WARN);
 
@@ -259,11 +274,11 @@ int main(int argv, const char** argc) try
         }
     };
 
-    for (int i = 1; i < argv; i++)
+    for (int i = 1; i < argc; i++)
     {
         try
         {
-            const char* arg = argc[i];
+            const char* arg = argv[i];
             std::ifstream file(arg);
             if (!file.good())
                 continue;
