@@ -1714,7 +1714,7 @@ namespace rs2
         }
     }
 
-    void viewer_model::show_top_bar(ux_window& window, const rect& viewer_rect, const std::vector<device_model>& devices)
+    void viewer_model::show_top_bar(ux_window& window, const rect& viewer_rect, const device_models_list& devices)
     {
         auto flags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
             ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar |

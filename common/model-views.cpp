@@ -240,7 +240,7 @@ namespace rs2
         open_url(link.c_str());
     }
 
-    void open_issue(const std::vector<device_model>& devices)
+    void open_issue(const device_models_list& devices)
     {
         std::stringstream ss;
 
@@ -253,7 +253,7 @@ namespace rs2
 
         for (auto& dm : devices)
         {
-            for (auto& kvp : dm.infos)
+            for (auto& kvp : dm->infos)
             {
                 if (kvp.first != "Recommended Firmware Version" &&
                     kvp.first != "Debug Op Code" &&
@@ -2715,11 +2715,17 @@ namespace rs2
         return std::make_pair(s.str(), serial);        // push name and sn to list
     }
 
+    device_model::~device_model()
+    {
+        cleanup();
+    }
+
     device_model::device_model(device& dev, std::string& error_message, viewer_model& viewer)
         : dev(dev),
           syncer(viewer.syncer),
            _update_readonly_options_timer(std::chrono::seconds(6))
-    {           
+    {        
+        bool fw_update_required = false;   
         for (auto&& sub : dev.query_sensors())
         {
             if (sub.supports(RS2_CAMERA_INFO_FIRMWARE_VERSION) && sub.supports(RS2_CAMERA_INFO_RECOMMENDED_FIRMWARE_VERSION))
@@ -2729,13 +2735,17 @@ namespace rs2
 
                 std::string msg = "Current firmware version: " + fw + "\nMinimal firmware version: " + recommended +"\n";
 
-                if (fw_update_notification == -1) 
+                if (!fw_update_required) 
                 {
                     auto id = viewer.not_model.add_notification({ msg,
                         RS2_LOG_SEVERITY_INFO,
                         RS2_NOTIFICATION_CATEGORY_FIRMWARE_UPDATE_RECOMMENDED });
                     
-                    fw_update_notification = id;
+                    fw_update_required = true;
+
+                    cleanup = [id, &viewer]{
+                        viewer.not_model.dismiss(id); 
+                    };
                 }
             }
 

@@ -31,8 +31,7 @@
 using namespace rs2;
 using namespace rs400;
 
-
-void add_playback_device(context& ctx, std::shared_ptr<std::vector<device_model>> device_models, 
+void add_playback_device(context& ctx, device_models_list& device_models, 
     std::string& error_message, viewer_model& viewer_model, const std::string& file)
 {
     bool was_loaded = false;
@@ -41,30 +40,30 @@ void add_playback_device(context& ctx, std::shared_ptr<std::vector<device_model>
     {
         auto dev = ctx.load_device(file);
         was_loaded = true;
-        device_models->emplace_back(dev, error_message, viewer_model); //Will cause the new device to appear in the left panel
+        device_models.emplace_back(new device_model(dev, error_message, viewer_model)); //Will cause the new device to appear in the left panel
         if (auto p = dev.as<playback>())
         {
             auto filename = p.file_name();
-            p.set_status_changed_callback([&viewer_model, device_models, filename](rs2_playback_status status)
+            p.set_status_changed_callback([&viewer_model, &device_models, filename](rs2_playback_status status)
             {
                 if (status == RS2_PLAYBACK_STATUS_STOPPED)
                 {
-                    auto it = std::find_if(device_models->begin(), device_models->end(),
-                        [&](const device_model& dm) {
-                        if (auto p = dm.dev.as<playback>())
+                    auto it = std::find_if(device_models.begin(), device_models.end(),
+                        [&](const std::unique_ptr<device_model>& dm) {
+                        if (auto p = dm->dev.as<playback>())
                             return p.file_name() == filename;
                         return false;
                     });
-                    if (it != device_models->end())
+                    if (it != device_models.end())
                     {
-                        auto subs = it->subdevices;
-                        if (it->_playback_repeat)
+                        auto subs = (*it)->subdevices;
+                        if ((*it)->_playback_repeat)
                         {
                             //Calling from different since playback callback is from reading thread
                             std::thread{ [subs, &viewer_model, it]()
                             {
-                                if(!it->dev_syncer)
-                                    it->dev_syncer = viewer_model.syncer->create_syncer();
+                                if(!(*it)->dev_syncer)
+                                    (*it)->dev_syncer = viewer_model.syncer->create_syncer();
 
                                 for (auto&& sub : subs)
                                 {
@@ -72,7 +71,7 @@ void add_playback_device(context& ctx, std::shared_ptr<std::vector<device_model>
                                     {
                                         auto profiles = sub->get_selected_profiles();
 
-                                        sub->play(profiles, viewer_model, it->dev_syncer);
+                                        sub->play(profiles, viewer_model, (*it)->dev_syncer);
                                     }
                                 }
                             } }.detach();
@@ -117,7 +116,7 @@ bool refresh_devices(std::mutex& m,
     device_changes& devices_connection_changes,
     std::vector<device>& current_connected_devices,
     std::vector<std::pair<std::string, std::string>>& device_names,
-    std::shared_ptr<std::vector<device_model>> device_models,
+    device_models_list& device_models,
     viewer_model& viewer_model,
     std::string& error_message)
 {
@@ -140,18 +139,18 @@ bool refresh_devices(std::mutex& m,
                     RS2_LOG_SEVERITY_INFO, RS2_NOTIFICATION_CATEGORY_UNKNOWN_ERROR });
 
                 //Remove from devices
-                auto dev_model_itr = std::find_if(begin(*device_models), end(*device_models),
-                    [&](const device_model& other) { return get_device_name(other.dev) == get_device_name(dev); });
+                auto dev_model_itr = std::find_if(begin(device_models), end(device_models),
+                    [&](const std::unique_ptr<device_model>& other) { return get_device_name(other->dev) == get_device_name(dev); });
 
-                if (dev_model_itr != end(*device_models))
+                if (dev_model_itr != end(device_models))
                 {
-                    for (auto&& s : dev_model_itr->subdevices)
+                    for (auto&& s : (*dev_model_itr)->subdevices)
                         s->streaming = false;
 
                     dev_model_itr->reset();
-                    device_models->erase(dev_model_itr);
+                    device_models.erase(dev_model_itr);
 
-                    if (device_models->size() == 0)
+                    if (device_models.size() == 0)
                     {
                         viewer_model.ppf.depth_stream_active = false;
 
@@ -177,11 +176,11 @@ bool refresh_devices(std::mutex& m,
             device_names.push_back(dev_descriptor);
 
             bool added = false;
-            if (device_models->size() == 0 &&
+            if (device_models.size() == 0 &&
                 dev.supports(RS2_CAMERA_INFO_NAME) && std::string(dev.get_info(RS2_CAMERA_INFO_NAME)) != "Platform Camera")
             {
-                device_models->emplace_back(dev, error_message, viewer_model);
-                viewer_model.not_model.add_log(to_string() << device_models->rbegin()->dev.get_info(RS2_CAMERA_INFO_NAME) << " was selected as a default device");
+                device_models.emplace_back(new device_model(dev, error_message, viewer_model));
+                viewer_model.not_model.add_log(to_string() << (*device_models.rbegin())->dev.get_info(RS2_CAMERA_INFO_NAME) << " was selected as a default device");
                 added = true;
             }
 
@@ -193,9 +192,10 @@ bool refresh_devices(std::mutex& m,
                 else
                     viewer_model.not_model.add_notification({ dev_descriptor.first + " Connected\n",
                         RS2_LOG_SEVERITY_INFO, RS2_NOTIFICATION_CATEGORY_UNKNOWN_ERROR }, 
-                        [device_models, &viewer_model, &error_message, dev]{
+                        [&device_models, &viewer_model, &error_message, dev]{
                             auto device = dev;
-                            device_models->emplace_back(device, error_message, viewer_model);
+                            device_models.emplace_back(
+                                new device_model(device, error_message, viewer_model));
                         });
             }
 
@@ -209,13 +209,14 @@ bool refresh_devices(std::mutex& m,
                         auto data = n.get_serialized_data();
                         if (!data.empty())
                         {
-                            auto dev_model_itr = std::find_if(begin(*device_models), end(*device_models),
-                                [&](const device_model& other) { return get_device_name(other.dev) == dev_descriptor; });
+                            auto dev_model_itr = std::find_if(begin(device_models), end(device_models),
+                                [&](const std::unique_ptr<device_model>& other) 
+                                { return get_device_name(other->dev) == dev_descriptor; });
 
-                            if (dev_model_itr == end(*device_models))
+                            if (dev_model_itr == end(device_models))
                                 return;
 
-                            dev_model_itr->handle_hardware_events(data);
+                            (*dev_model_itr)->handle_hardware_events(data);
                         }
                     }
                     viewer_model.not_model.add_notification({ n.get_description(), n.get_severity(), n.get_category() });
@@ -255,7 +256,7 @@ int main(int argc, const char** argv) try
     std::string error_message{ "" };
     std::string label{ "" };
 
-    std::shared_ptr<std::vector<device_model>> device_models = std::make_shared<std::vector<device_model>>();
+    std::shared_ptr<device_models_list> device_models = std::make_shared<device_models_list>();
     device_model* device_to_remove = nullptr;
 
     viewer_model viewer_model;
@@ -266,7 +267,7 @@ int main(int argc, const char** argv) try
     window.on_file_drop = [&](std::string filename)
     {
         std::string error_message{};
-        add_playback_device(ctx, device_models, error_message, viewer_model, filename);
+        add_playback_device(ctx, *device_models, error_message, viewer_model, filename);
         if (!error_message.empty())
         {
             viewer_model.not_model.add_notification({ error_message,
@@ -283,7 +284,7 @@ int main(int argc, const char** argv) try
             if (!file.good())
                 continue;
 
-            add_playback_device(ctx, device_models, error_message, viewer_model, arg);
+            add_playback_device(ctx, *device_models, error_message, viewer_model, arg);
         }
         catch (const rs2::error& e)
         {
@@ -300,7 +301,7 @@ int main(int argc, const char** argv) try
     window.on_load = [&]()
     {
         refresh_devices(m, ctx, devices_connection_changes, connected_devs,
-            device_names, device_models, viewer_model, error_message);
+            device_names, *device_models, viewer_model, error_message);
 
         fw_update.refresh();
         return true;
@@ -322,7 +323,7 @@ int main(int argc, const char** argv) try
     while (window)
     {
         auto device_changed = refresh_devices(m, ctx, devices_connection_changes, connected_devs, 
-            device_names, device_models, viewer_model, error_message);
+            device_names, *device_models, viewer_model, error_message);
 
         if (device_changed || fw_update.has_update_request())
         {
@@ -374,9 +375,9 @@ int main(int argc, const char** argv) try
         for (auto&& dev_model : *device_models)
         {
             auto connected_devs_itr = std::find_if(begin(connected_devs), end(connected_devs),
-                [&](const device& d) { return get_device_name(d) == get_device_name(dev_model.dev); });
+                [&](const device& d) { return get_device_name(d) == get_device_name(dev_model->dev); });
 
-            if (connected_devs_itr != end(connected_devs) || dev_model.dev.is<playback>())
+            if (connected_devs_itr != end(connected_devs) || dev_model->dev.is<playback>())
                 new_devices_count--;
         }
 
@@ -391,7 +392,7 @@ int main(int argc, const char** argv) try
             {
                 bool skip = false;
                 for (auto&& dev_model : *device_models)
-                    if (get_device_name(dev_model.dev) == device_names[i]) skip = true;
+                    if (get_device_name(dev_model->dev) == device_names[i]) skip = true;
                 if (skip) continue;
 
                 if (ImGui::Selectable(device_names[i].first.c_str(), false, ImGuiSelectableFlags_SpanAllColumns)/* || switch_to_newly_loaded_device*/)
@@ -399,7 +400,7 @@ int main(int argc, const char** argv) try
                     try
                     {
                         auto dev = connected_devs[i];
-                        device_models->emplace_back(dev, error_message, viewer_model);
+                        device_models->emplace_back(new device_model(dev, error_message, viewer_model));
                     }
                     catch (const error& e)
                     {
@@ -434,7 +435,7 @@ int main(int argc, const char** argv) try
             {
                 if (auto ret = file_dialog_open(open_file, "ROS-bag\0*.bag\0", NULL, NULL))
                 {
-                    add_playback_device(ctx, device_models, error_message, viewer_model, ret);
+                    add_playback_device(ctx, *device_models, error_message, viewer_model, ret);
                 }
             }
             ImGui::NextColumn();
@@ -479,15 +480,15 @@ int main(int argc, const char** argv) try
 
             for (auto&& dev_model : *device_models)
             {
-                dev_model.draw_controls(viewer_model.panel_width, viewer_model.panel_y,
+                dev_model->draw_controls(viewer_model.panel_width, viewer_model.panel_y,
                     window, error_message, device_to_remove, viewer_model, windows_width, draw_later);
             }
             if (viewer_model.ppf.is_rendering())
             {
                 if (!std::any_of(device_models->begin(), device_models->end(),
-                    [](device_model& dm)
+                    [](const std::unique_ptr<device_model>& dm)
                 {
-                    return dm.is_streaming();
+                    return dm->is_streaming();
                 }))
                 {
                     // Stopping post processing filter rendering thread
@@ -502,8 +503,16 @@ int main(int argc, const char** argv) try
                     ctx.unload_device(p.file_name());
                 }
                 viewer_model.syncer->remove_syncer(device_to_remove->dev_syncer);
-                device_models->erase(std::find_if(begin(*device_models), end(*device_models),
-                    [&](const device_model& other) { return get_device_name(other.dev) == get_device_name(device_to_remove->dev); }));
+                auto it = std::find_if(begin(*device_models), end(*device_models),
+                    [&](const std::unique_ptr<device_model>& other) 
+                    { return get_device_name(other->dev) == get_device_name(device_to_remove->dev); });
+
+                if (it != device_models->end())
+                {
+                    it->reset();
+                    device_models->erase(it);
+                }
+                
                 device_to_remove = nullptr;
             }
 
@@ -550,7 +559,7 @@ int main(int argc, const char** argv) try
         if (!fw_update.is_update_in_progress())
         {
             for (auto&& dev_model : *device_models)
-                fw_update.validate_fw_update_requests(dev_model);
+                fw_update.validate_fw_update_requests(*dev_model);
         }
 
         // Fetch and process frames from queue
@@ -562,7 +571,7 @@ int main(int argc, const char** argv) try
 
     // Stop all subdevices
     for (auto&& device_model : *device_models)
-        for (auto&& sub : device_model.subdevices)
+        for (auto&& sub : device_model->subdevices)
         {
             if (sub->streaming)
                 sub->stop(viewer_model);

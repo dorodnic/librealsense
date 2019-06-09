@@ -81,7 +81,10 @@ namespace rs2
     void open_issue(std::string body);
 
     class device_model;
-    void open_issue(const std::vector<device_model>& devices);
+
+    typedef std::vector<std::unique_ptr<device_model>> device_models_list;
+
+    void open_issue(const device_models_list& devices);
     
     void hyperlink(ux_window& window, const char* title, const char* link);
 
@@ -715,6 +718,7 @@ namespace rs2
 
         void reset();
         explicit device_model(device& dev, std::string& error_message, viewer_model& viewer);
+        ~device_model();
         void start_recording(const std::string& path, std::string& error_message);
         void stop_recording(viewer_model& viewer);
         void pause_record();
@@ -756,7 +760,8 @@ namespace rs2
         std::set<std::string> advanced_mode_settings_file_names;
         std::string selected_file_preset;
         bool fw_update_requested = false;
-        int fw_update_notification = -1; // id of the firmware update dialog to close it when not relevant
+
+        std::function<void()> cleanup = []{};
     private:
         void draw_info_icon(ux_window& window, ImFont* font, const ImVec2& size);
         int draw_seek_bar();

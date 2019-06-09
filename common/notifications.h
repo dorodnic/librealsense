@@ -79,6 +79,7 @@ namespace rs2
                              std::function<void()> custom_action, 
                              bool use_custom_action = true);
         void draw(ux_window& win, int w, int h);
+        void dismiss(int idx);
 
         void foreach_log(std::function<void(const std::string& line)> action)
         {

@@ -285,8 +285,19 @@ namespace rs2
         }
         else
         {
+            std::string text_name = to_string() << "##notification_text_" << index;
             ImGui::PushTextWrapPos(x + width - 100);
-            ImGui::Text("%s", message.c_str());
+            ImGui::PushStyleColor(ImGuiCol_FrameBg, transparent);
+            ImGui::PushStyleColor(ImGuiCol_ScrollbarBg, transparent);
+            ImGui::PushStyleColor(ImGuiCol_ScrollbarGrab, transparent);
+            ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabActive, transparent);
+            ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabHovered, transparent);
+            ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, regular_blue);
+            if (enable_click) ImGui::Text("%s", message.c_str());
+            else ImGui::InputTextMultiline(text_name.c_str(), const_cast<char*>(message.c_str()),
+                message.size() + 1, { width - (count > 1 ? 40 : 10), height - 30 }, 
+                ImGuiInputTextFlags_ReadOnly);
+            ImGui::PopStyleColor(6);
             ImGui::PopTextWrapPos();
 
             if (ImGui::IsItemHovered())
@@ -480,5 +491,14 @@ namespace rs2
             catch(...) {}
         
         ImGui::PopFont();
+    }
+
+    void notifications_model::dismiss(int idx)
+    {
+        std::lock_guard<std::mutex> lock(m);
+        for (auto& noti : pending_notifications)
+        {
+            if (noti.index == idx) noti.dismissed = true;
+        }
     }
 }

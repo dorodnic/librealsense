@@ -72,7 +72,7 @@ namespace rs2
 
         void update_3d_camera(ux_window& win, const rect& viewer_rect, bool force = false);
 
-        void show_top_bar(ux_window& window, const rect& viewer_rect, const std::vector<device_model>& devices);
+        void show_top_bar(ux_window& window, const rect& viewer_rect, const device_models_list& devices);
 
         void render_3d_view(const rect& view_rect, 
             std::shared_ptr<texture_buffer> texture, rs2::points points, ImFont *font1);
