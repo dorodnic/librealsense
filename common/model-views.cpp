@@ -19,6 +19,7 @@
 
 #include "model-views.h"
 #include "notifications.h"
+#include "fw-update-helper.h"
 #include "viewer.h"
 #include <imgui_internal.h>
 
@@ -2725,16 +2726,38 @@ namespace rs2
           syncer(viewer.syncer),
            _update_readonly_options_timer(std::chrono::seconds(6))
     {        
+        auto name = get_device_name(dev);
+        id = to_string() << name.first << ", " << name.second;
+
         bool fw_update_required = false;   
         for (auto&& sub : dev.query_sensors())
         {
-            if (sub.supports(RS2_CAMERA_INFO_FIRMWARE_VERSION) && sub.supports(RS2_CAMERA_INFO_RECOMMENDED_FIRMWARE_VERSION))
+            if (sub.supports(RS2_CAMERA_INFO_FIRMWARE_VERSION) && 
+                sub.supports(RS2_CAMERA_INFO_RECOMMENDED_FIRMWARE_VERSION))
             {
                 std::string fw = sub.get_info(RS2_CAMERA_INFO_FIRMWARE_VERSION);
                 std::string recommended = sub.get_info(RS2_CAMERA_INFO_RECOMMENDED_FIRMWARE_VERSION);
 
-                std::string msg = "Current firmware version: " + fw + "\nMinimal firmware version: " + recommended +"\n";
+                int product_line = RS2_PRODUCT_LINE_D400; // TODO: Make generic
 
+                std::string available = get_available_firmware_version(product_line);
+
+                std::shared_ptr<firmware_update_manager> manager = nullptr;
+
+                if (is_upgradeable(fw, available))
+                {
+                    recommended = available;
+
+                    static auto table = create_default_fw_table();
+
+                    manager = std::make_shared<firmware_update_manager>(dev, table[product_line]);
+                }
+
+                if (!is_upgradeable(fw, recommended)) continue;
+
+                std::string msg = to_string() 
+                    << name.first << " (S/N " << name.second << ")\n"
+                    << "Current Version: " + fw + "\nRecommended Version: " + recommended;
                 if (!fw_update_required) 
                 {
                     auto id = viewer.not_model.add_notification({ msg,
@@ -2742,6 +2765,8 @@ namespace rs2
                         RS2_NOTIFICATION_CATEGORY_FIRMWARE_UPDATE_RECOMMENDED });
                     
                     fw_update_required = true;
+
+                    if (manager) viewer.not_model.attach_update_manager(id, manager);
 
                     cleanup = [id, &viewer]{
                         viewer.not_model.dismiss(id); 
@@ -2752,9 +2777,6 @@ namespace rs2
             auto model = std::make_shared<subdevice_model>(dev, std::make_shared<sensor>(sub), error_message);
             subdevices.push_back(model);
         }
-
-        auto name = get_device_name(dev);
-        id = to_string() << name.first << ", " << name.second;
 
         // Initialize static camera info:
         for (auto i = 0; i < RS2_CAMERA_INFO_COUNT; i++)

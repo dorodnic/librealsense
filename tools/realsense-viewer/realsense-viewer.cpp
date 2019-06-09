@@ -296,45 +296,18 @@ int main(int argc, const char** argv) try
         }
     }
 
-    fw_update_helper fw_update(ctx, window, viewer_model);
-
     window.on_load = [&]()
     {
         refresh_devices(m, ctx, devices_connection_changes, connected_devs,
             device_names, *device_models, viewer_model, error_message);
-
-        fw_update.refresh();
         return true;
     };
-
-
-    std::thread t([&](){
-        while (true)
-        {
-            viewer_model.not_model.add_notification({ "Testing testing...\n",
-                            RS2_LOG_SEVERITY_INFO, RS2_NOTIFICATION_CATEGORY_UNKNOWN_ERROR });
-            using namespace std::chrono;
-            std::this_thread::sleep_for(milliseconds(3000));
-        }
-    });
-    t.detach();
 
     // Closing the window
     while (window)
     {
         auto device_changed = refresh_devices(m, ctx, devices_connection_changes, connected_devs, 
             device_names, *device_models, viewer_model, error_message);
-
-        if (device_changed || fw_update.has_update_request())
-        {
-            fw_update.refresh();
-        }
-
-        if (fw_update.is_update_in_progress())
-        {
-            auto progress = fw_update.get_progress();
-            viewer_model.popup_firmware_update_progress(window, progress);
-        }
 
         if (!window.is_ui_aligned())
         {
@@ -555,12 +528,6 @@ int main(int argc, const char** argv) try
         ImGui::End();
         ImGui::PopStyleVar();
         ImGui::PopStyleColor();
-
-        if (!fw_update.is_update_in_progress())
-        {
-            for (auto&& dev_model : *device_models)
-                fw_update.validate_fw_update_requests(*dev_model);
-        }
 
         // Fetch and process frames from queue
         viewer_model.handle_ready_frames(viewer_rect, window, static_cast<int>(device_models->size()), error_message);

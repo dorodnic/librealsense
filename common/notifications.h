@@ -3,6 +3,7 @@
 
 #pragma once
 #include "model-views.h"
+#include "fw-update-helper.h"
 
 #include <string>
 #include <functional>
@@ -39,11 +40,20 @@ namespace rs2
         double get_age_in_ms(bool total = false) const;
         bool interacted() const;
         std::function<void()> draw(ux_window& win, int w, int y, notification_model& selected);
+        void draw_text(int x, int y, int h);
         void set_color_scheme(float t) const;
         void unset_color_scheme() const;
         const int get_max_lifetime_ms() const;
 
         std::function<void()> custom_action;
+
+        std::shared_ptr<firmware_update_manager> update_manager = nullptr;
+        int update_state = 0;
+        float progress_speed = 5.f;
+        std::chrono::system_clock::time_point last_progress_time;
+        int last_progress = 0;
+        float curr_progress_value = 0.f;
+        float threshold_progress = 5.f;
 
         int count = 1;
         int height = 40;
@@ -79,7 +89,9 @@ namespace rs2
                              std::function<void()> custom_action, 
                              bool use_custom_action = true);
         void draw(ux_window& win, int w, int h);
+
         void dismiss(int idx);
+        void attach_update_manager(int idx, std::shared_ptr<firmware_update_manager> manager);
 
         void foreach_log(std::function<void(const std::string& line)> action)
         {

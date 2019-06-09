@@ -51,9 +51,11 @@ static const ImVec4 header_color = from_rgba(62, 77, 89, 255);
 static const ImVec4 title_color = from_rgba(27, 33, 38, 255);
 static const ImVec4 device_info_color = from_rgba(33, 40, 46, 255);
 static const ImVec4 yellow = from_rgba(229, 195, 101, 255, true);
+static const ImVec4 yellowish = from_rgba(255, 253, 191, 255, true);
 static const ImVec4 green = from_rgba(0x20, 0xe0, 0x20, 0xff, true);
 static const ImVec4 dark_sensor_bg = from_rgba(0x1b, 0x21, 0x25, 170);
 static const ImVec4 red = from_rgba(233, 0, 0, 255, true);
+static const ImVec4 greenish = from_rgba(33, 104, 0, 255, 0xff);
 
 inline ImVec4 blend(const ImVec4& c, float a)
 {
@@ -202,6 +204,8 @@ namespace rs2
         static const textual_icon exit                     { u8"\uf011" };
         static const textual_icon see_less                 { u8"\uf070" };
         static const textual_icon dotdotdot                { u8"\uf141" };
+        static const textual_icon link                     { u8"\uf08e" };
+        static const textual_icon throphy                  { u8"\uF091" };
     }
 
     class subdevice_model;

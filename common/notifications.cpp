@@ -19,6 +19,9 @@
 
 #include "os.h"
 
+using namespace std;
+using namespace chrono;
+
 namespace rs2
 {
     notification_data::notification_data(std::string description,
@@ -75,16 +78,12 @@ namespace rs2
 
     double notification_model::get_age_in_ms(bool total) const
     {
-        using namespace std;
-        using namespace chrono;
         auto interacted = duration<double, milli>(last_interacted - created_time).count();
         return duration<double, milli>(system_clock::now() - created_time).count() - (total ? 0.0 : interacted);
     }
 
     bool notification_model::interacted() const
     {
-        using namespace std;
-        using namespace chrono;
         return duration<double, milli>(system_clock::now() - last_interacted).count() < 100;
     }
 
@@ -112,8 +111,16 @@ namespace rs2
 
         if (category == RS2_NOTIFICATION_CATEGORY_FIRMWARE_UPDATE_RECOMMENDED)
         {
-            c = alpha(sensor_bg, 1 - t);
-            ImGui::PushStyleColor(ImGuiCol_WindowBg, c);
+            if (update_state == 2)
+            {
+                c = alpha(saturate(light_blue, 0.7f), 1 - t);
+                ImGui::PushStyleColor(ImGuiCol_WindowBg, c);
+            }
+            else
+            {
+                c = alpha(sensor_bg, 1 - t);
+                ImGui::PushStyleColor(ImGuiCol_WindowBg, c);
+            }
         }
         else
         {
@@ -143,6 +150,29 @@ namespace rs2
         return 10000;
     }
 
+    void notification_model::draw_text(int x, int y, int h)
+    {
+        std::string text_name = to_string() << "##notification_text_" << index;
+        ImGui::PushTextWrapPos(x + width - 100);
+        ImGui::PushStyleColor(ImGuiCol_FrameBg, transparent);
+        ImGui::PushStyleColor(ImGuiCol_ScrollbarBg, transparent);
+        ImGui::PushStyleColor(ImGuiCol_ScrollbarGrab, transparent);
+        ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabActive, transparent);
+        ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabHovered, transparent);
+        ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, regular_blue);
+        if (enable_click) ImGui::Text("%s", message.c_str());
+        else ImGui::InputTextMultiline(text_name.c_str(), const_cast<char*>(message.c_str()),
+            message.size() + 1, { width - (count > 1 ? 40 : 10), h }, 
+            ImGuiInputTextFlags_ReadOnly);
+        ImGui::PopStyleColor(6);
+        ImGui::PopTextWrapPos();
+
+        if (ImGui::IsItemHovered())
+        {
+            last_interacted = system_clock::now();
+        }
+    }
+
     std::function<void()> notification_model::draw(ux_window& win, int w, int y, notification_model& selected)
     {
         std::function<void()> follow_up = []{};
@@ -154,9 +184,6 @@ namespace rs2
         {
             x = w + width;
         }
-
-        using namespace std;
-        using namespace chrono;
 
         if (!animating && (fabs(x - last_x) > 1.f || fabs(y - last_y) > 1.f))
         {
@@ -193,9 +220,29 @@ namespace rs2
         auto lines = static_cast<int>(std::count(message.begin(), message.end(), '\n') + 1);
         height = lines * 30 + 5;
 
+        if (category == RS2_NOTIFICATION_CATEGORY_FIRMWARE_UPDATE_RECOMMENDED)
+        {
+            if (update_state != 2) height = 150;
+            else height = 65;
+        }
+
         auto c = ImGui::GetStyle().Colors[ImGuiCol_WindowBg];
         c.w = smoothstep(static_cast<float>(get_age_in_ms(true) / 200.f), 0.0f, 1.0f);
         c.w = std::min(c.w, 1.f - t);
+
+        if (update_state == 2)
+        {
+            auto k = duration_cast<milliseconds>(system_clock::now() - last_progress_time).count() / 500.f;
+            if (k <= 1.f)
+            {
+                auto size = 100;
+                k = pow(1.f - smoothstep(static_cast<float>(k), 0.f, 1.f), 2.f);
+                ImGui::GetWindowDrawList()->AddRectFilled({ float(x - size * k), float(y - size * k) },
+                    { float(x + width + size * k), float(y + height + size * k) }, 
+                    ImColor(alpha(white, (1.f - k) / 2)), (size * k) / 2);
+            }
+            //if (k >= 6.f) dismissed = true;
+        }
 
         for (int i = stack - 1; i >= 0; i--)
         {
@@ -235,7 +282,7 @@ namespace rs2
         if (count > 1)
         {
             std::string count_str = to_string() << "x " << count;
-            ImGui::SetCursorScreenPos({ float(x + width - 22 - count_str.size() * 5), float(y + 5) });
+            ImGui::SetCursorScreenPos({ float(x + width - 22 - count_str.size() * 5), float(y + 7) });
             ImGui::Text("%s", count_str.c_str());
         }
 
@@ -243,67 +290,167 @@ namespace rs2
 
         if (category == RS2_NOTIFICATION_CATEGORY_FIRMWARE_UPDATE_RECOMMENDED)
         {
+            ImGui::SetCursorScreenPos({ float(x + 9), float(y + 4) });
+
             ImVec4 shadow { 1.f, 1.f, 1.f, 0.1f };
             ImGui::GetWindowDrawList()->AddRectFilled({ float(x), float(y) },
                 { float(x + width), float(y + 25) }, ImColor(shadow));
 
-            ImGui::Text("Firmware Update Recommended!");
+            if (update_state != 2) 
+            {
+                ImGui::Text("Firmware Update Recommended!");
 
-            ImGui::PushStyleColor(ImGuiCol_Text, light_grey);
+                ImGui::SetCursorScreenPos({ float(x + 5), float(y + 27) });
 
-            ImGui::SetCursorScreenPos({ float(x + 5), float(y + 27) });
+                draw_text(x, y, height - 50);
 
-            std::regex version_regex("([0-9]+.[0-9]+.[0-9]+.[0-9]+\n)");
-            std::smatch sm;
-            std::regex_search(message, sm, version_regex);
-            std::string message_prefix = sm.prefix();
-            std::string curr_version = sm.str();
-            std::string message_suffix = sm.suffix();
-            ImGui::Text("%s", message_prefix.c_str());
-            ImGui::SameLine(0, 0);
-            ImGui::PushStyleColor(ImGuiCol_Text, alpha(light_red, 1 - t));
-            ImGui::Text("%s", curr_version.c_str());
-            ImGui::PopStyleColor();
-            
-            ImGui::SetCursorScreenPos({ float(x + 5), float(y + 47) });
-            ImGui::Text("%s", message_suffix.c_str());
+                ImGui::SetCursorScreenPos({ float(x + 9), float(y + height - 67) });
 
-            ImGui::PopStyleColor();
+                ImGui::PushStyleColor(ImGuiCol_Text, alpha(light_grey, 1. - t));
 
-            std::string button_name = to_string() << "Learn More..." << "##" << index;
+                if (update_state == 0)
+                    ImGui::Text("Firmware updates offer critical bug fixes and\nunlock new camera capabilities.");
+                else
+                    ImGui::Text("Firmware updates is underway...\nPlease do not disconnect the device");
+
+                ImGui::PopStyleColor();
+            }
+            else 
+            {
+                //ImGui::PushStyleColor(ImGuiCol_Text, alpha(light_blue, 1.f - t));
+                ImGui::Text("Update Completed");
+                //ImGui::PopStyleColor();
+
+                ImGui::SetCursorScreenPos({ float(x + 10), float(y + 35) });
+                ImGui::PushFont(win.get_large_font());
+                std::string txt = to_string() << textual_icons::throphy;
+                ImGui::Text("%s", txt.c_str());
+                ImGui::PopFont();
+
+                ImGui::SetCursorScreenPos({ float(x + 40), float(y + 35) });
+                ImGui::Text("Camera Firmware Updated Successfully");
+            }
 
             ImGui::SetCursorScreenPos({ float(x + 5), float(y + height - 25) });
-            if (ImGui::Button(button_name.c_str(), { 130, 20 }))
+
+            const auto bar_width = width - 115;
+
+            if (update_manager)
             {
-                open_url(recommended_fw_url);
+                if (update_state == 0)
+                {
+                    auto sat = 1.f + sin(duration_cast<milliseconds>(system_clock::now() - created_time).count() / 700.f) * 0.1f;
+                    ImGui::PushStyleColor(ImGuiCol_Button, saturate(sensor_header_light_blue, sat));
+                    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, saturate(sensor_header_light_blue, 1.5f));
+                    std::string button_name = to_string() << "Install" << "##fwupdate" << index;
+
+                    if (ImGui::Button(button_name.c_str(), { bar_width, 20 }))
+                    {
+                        update_manager->start();
+                        update_state = 1;
+                        enable_dismiss = false;
+                        last_progress_time = system_clock::now();
+                    }
+                    ImGui::PopStyleColor(2);
+
+                    if (ImGui::IsItemHovered())
+                    {
+                        ImGui::SetTooltip("%s", "New firmware will be flashed to the device");
+                    }
+                }
+                else if (update_state == 1)
+                {
+                    if (update_manager->is_done()) 
+                    {
+                        update_state = 2;
+                        pinned = false;
+                        last_progress_time = last_interacted = system_clock::now();
+                    }
+                    
+                    auto progress = update_manager->get_progress();
+
+                    auto now = system_clock::now();
+                    auto ellapsed = duration_cast<milliseconds>(now - last_progress_time).count() / 1000.f;
+
+                    if (last_progress != progress)
+                    {
+                        last_progress_time = system_clock::now();
+
+                        int delta = progress - last_progress;
+
+                        progress_speed = delta / ellapsed;
+
+                        threshold_progress = std::min(100, progress + delta);
+
+                        last_progress = progress;
+                    }
+
+                    auto new_progress = last_progress + ellapsed * progress_speed;
+                    curr_progress_value = std::min(threshold_progress, new_progress);
+
+                    auto filled_w = (curr_progress_value * (bar_width - 4)) / 100.f;
+                    
+                    auto pos = ImGui::GetCursorScreenPos();
+                    ImGui::GetWindowDrawList()->AddRectFilled({ float(pos.x), float(pos.y) },
+                        { float(pos.x + bar_width), float(pos.y + 20) }, ImColor(black));
+
+                    if (curr_progress_value > 0.f)
+                    {
+                        for (int i = 20; i >= 0; i-=2)
+                        {
+                            auto a = curr_progress_value / 100.f;
+                            ImGui::GetWindowDrawList()->AddRectFilled({ float(pos.x + 3 - i), float(pos.y + 3 - i) },
+                                { float(pos.x + filled_w + i), float(pos.y + 17 + i) }, 
+                                ImColor(alpha(light_blue, sqrt(a) * 0.02f)), i);
+                        }
+
+                        ImGui::GetWindowDrawList()->AddRectFilled({ float(pos.x + 3), float(pos.y + 3) },
+                            { float(pos.x + filled_w), float(pos.y + 17) }, ImColor(light_blue));
+
+                        ImGui::GetWindowDrawList()->AddRectFilledMultiColor({ float(pos.x + 5), float(pos.y + 5) },
+                            { float(pos.x + filled_w), float(pos.y + 15) }, 
+                            ImColor(saturate(light_blue, 1.f)), ImColor(saturate(light_blue, 0.9f)),
+                            ImColor(saturate(light_blue, 0.8f)), ImColor(saturate(light_blue, 1.f)));
+
+                        rs2::rect pbar{ float(pos.x + 3), float(pos.y + 3), bar_width, 17.f };
+                        auto mouse = win.get_mouse();
+                        if (pbar.contains(mouse.cursor))
+                        {
+                            std::string progress_str = to_string() << progress << "%";
+                            ImGui::SetTooltip("%s", progress_str.c_str());
+                        } 
+                    }
+
+                    ImGui::SetCursorScreenPos({ float(x + width - 105), float(y + height - 25) });
+
+                    string id = to_string() << "Expand" << "##" << index;
+                    ImGui::PushStyleColor(ImGuiCol_Text, light_grey);
+                    if (ImGui::Button(id.c_str(), { 100, 20 }))
+                    {
+                        
+                    }
+                    ImGui::PopStyleColor();
+                }
             }
-            if (ImGui::IsItemHovered())
+            else
             {
-                win.link_hovered();
-                ImGui::SetTooltip("%s", "Internet connection required");
+                std::string button_name = to_string() << "Learn More..." << "##" << index;
+
+                if (ImGui::Button(button_name.c_str(), { bar_width, 20 }))
+                {
+                    open_url(recommended_fw_url);
+                }
+                if (ImGui::IsItemHovered())
+                {
+                    win.link_hovered();
+                    ImGui::SetTooltip("%s", "Internet connection required");
+                }
             }
+
         }
         else
         {
-            std::string text_name = to_string() << "##notification_text_" << index;
-            ImGui::PushTextWrapPos(x + width - 100);
-            ImGui::PushStyleColor(ImGuiCol_FrameBg, transparent);
-            ImGui::PushStyleColor(ImGuiCol_ScrollbarBg, transparent);
-            ImGui::PushStyleColor(ImGuiCol_ScrollbarGrab, transparent);
-            ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabActive, transparent);
-            ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabHovered, transparent);
-            ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, regular_blue);
-            if (enable_click) ImGui::Text("%s", message.c_str());
-            else ImGui::InputTextMultiline(text_name.c_str(), const_cast<char*>(message.c_str()),
-                message.size() + 1, { width - (count > 1 ? 40 : 10), height - 30 }, 
-                ImGuiInputTextFlags_ReadOnly);
-            ImGui::PopStyleColor(6);
-            ImGui::PopTextWrapPos();
-
-            if (ImGui::IsItemHovered())
-            {
-                last_interacted = system_clock::now();
-            }
+            draw_text(x, y, height - 35);
         }
 
         if (enable_expand)
@@ -499,6 +646,15 @@ namespace rs2
         for (auto& noti : pending_notifications)
         {
             if (noti.index == idx) noti.dismissed = true;
+        }
+    }
+
+    void notifications_model::attach_update_manager(int idx, std::shared_ptr<firmware_update_manager> manager)
+    {
+        std::lock_guard<std::mutex> lock(m);
+        for (auto& noti : pending_notifications)
+        {
+            if (noti.index == idx) noti.update_manager = manager;
         }
     }
 }
