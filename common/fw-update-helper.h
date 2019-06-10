@@ -8,9 +8,12 @@
 #include <map>
 #include <vector>
 #include <string>
+#include <mutex>
 
 namespace rs2
 {
+    class device_model;
+
     std::string get_available_firmware_version(int product_line);
     std::map<int, std::vector<uint8_t>> create_default_fw_table();
     std::vector<int> parse_fw_version(const std::string& fw);
@@ -19,20 +22,29 @@ namespace rs2
     class firmware_update_manager
     {
     public:
-        firmware_update_manager(device dev, std::vector<uint8_t> fw) 
-            : _dev(dev), _fw(fw) {}
+        firmware_update_manager(device_model& model, device dev, std::vector<uint8_t> fw) 
+            : _dev(dev), _fw(fw), _model(model) {}
 
         void start();
         int get_progress() const { return _progress; }
-        bool is_done() const { return _done; }
+        bool done() const { return _done; }
+        bool failed() const { return _failed; }
         const std::string& get_log() const { return _log; }
+
+        void check_error(std::string& error) { if (_failed) error = _last_error; }
+
+        void log(std::string line);
 
     private:
         std::string _log;
         bool _started = false;
         bool _done = false;
+        bool _failed = false;
         int _progress = 0;
         device _dev;
         std::vector<uint8_t> _fw;
+        device_model& _model;
+        std::mutex _log_lock;
+        std::string _last_error;
     };
 }

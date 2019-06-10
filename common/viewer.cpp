@@ -1056,7 +1056,9 @@ namespace rs2
 
         draw_viewport(viewer_rect, window, devices, error_message, texture_frame, p);
 
-        not_model.draw(window, static_cast<int>(window.width()), static_cast<int>(window.height()));
+        not_model.draw(window, 
+            static_cast<int>(window.width()), static_cast<int>(window.height()),
+            error_message);
 
         popup_if_error(window, error_message);
 

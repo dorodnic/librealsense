@@ -48,7 +48,7 @@ if(BUILD_GRAPHICAL_EXAMPLES)
                 ${CMAKE_CURRENT_SOURCE_DIR}/res/realsense-viewer.rc)
 
         include_directories(realsense-viewer ../../third-party/imgui 
-        ../../third-party/glad ../../common
+        ../../third-party/glad ../../common ../../third-party/tinyfiledialogs
         ../../third-party ${CMAKE_CURRENT_SOURCE_DIR}/res/)
     else()
         add_executable(realsense-viewer ${RS_VIEWER_CPP})

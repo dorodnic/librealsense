@@ -87,20 +87,80 @@ namespace rs2
         return duration<double, milli>(system_clock::now() - last_interacted).count() < 100;
     }
 
+
+    ImVec4 saturate(const ImVec4& a, float f)
+    {
+        return{ f * a.x, f * a.y, f * a.z, a.w };
+    }
+
+    ImVec4 alpha(const ImVec4& v, float a)
+    {
+        return{ v.x, v.y, v.z, a };
+    }
+
     // Pops the N colors that were pushed in set_color_scheme
     void notification_model::unset_color_scheme() const
     {
         ImGui::PopStyleColor(6);
     }
 
-    ImVec4 saturate(const ImVec4& a, float f)
+    void notification_model::draw_progress_bar(ux_window & win, int bar_width)
     {
-        return { f * a.x, f * a.y, f * a.z, a.w };
-    }
+        auto progress = update_manager->get_progress();
 
-    ImVec4 alpha(const ImVec4& v, float a)
-    {
-        return { v.x, v.y, v.z, a };
+        auto now = system_clock::now();
+        auto ellapsed = duration_cast<milliseconds>(now - last_progress_time).count() / 1000.f;
+
+        auto new_progress = last_progress + ellapsed * progress_speed;
+        curr_progress_value = std::min(threshold_progress, new_progress);
+
+        if (last_progress != progress)
+        {
+            last_progress_time = system_clock::now();
+
+            int delta = progress - last_progress;
+
+            if (ellapsed > 0.f) progress_speed = delta / ellapsed;
+
+            threshold_progress = std::min(100, progress + delta);
+
+            last_progress = progress;
+        }
+
+        auto filled_w = (curr_progress_value * (bar_width - 4)) / 100.f;
+
+        auto pos = ImGui::GetCursorScreenPos();
+        ImGui::GetWindowDrawList()->AddRectFilled({ float(pos.x), float(pos.y) },
+        { float(pos.x + bar_width), float(pos.y + 20) }, ImColor(black));
+
+        if (curr_progress_value > 0.f)
+        {
+            for (int i = 20; i >= 0; i -= 2)
+            {
+                auto a = curr_progress_value / 100.f;
+                ImGui::GetWindowDrawList()->AddRectFilled({ float(pos.x + 3 - i), float(pos.y + 3 - i) },
+                { float(pos.x + filled_w + i), float(pos.y + 17 + i) },
+                    ImColor(alpha(light_blue, sqrt(a) * 0.02f)), i);
+            }
+
+            ImGui::GetWindowDrawList()->AddRectFilled({ float(pos.x + 3), float(pos.y + 3) },
+                { float(pos.x + filled_w), float(pos.y + 17) }, ImColor(light_blue));
+
+            ImGui::GetWindowDrawList()->AddRectFilledMultiColor({ float(pos.x + 5), float(pos.y + 5) },
+                { float(pos.x + filled_w), float(pos.y + 15) },
+                ImColor(saturate(light_blue, 1.f)), ImColor(saturate(light_blue, 0.9f)),
+                ImColor(saturate(light_blue, 0.8f)), ImColor(saturate(light_blue, 1.f)));
+
+            rs2::rect pbar{ float(pos.x + 3), float(pos.y + 3), bar_width, 17.f };
+            auto mouse = win.get_mouse();
+            if (pbar.contains(mouse.cursor))
+            {
+                std::string progress_str = to_string() << progress << "%";
+                ImGui::SetTooltip("%s", progress_str.c_str());
+            }
+        }
+
+        ImGui::SetCursorScreenPos({ float(pos.x), float(pos.y + 25) });
     }
 
     /* Sets color scheme for notifications, must be used with unset_color_scheme to pop all colors in the end
@@ -162,7 +222,7 @@ namespace rs2
         ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, regular_blue);
         if (enable_click) ImGui::Text("%s", message.c_str());
         else ImGui::InputTextMultiline(text_name.c_str(), const_cast<char*>(message.c_str()),
-            message.size() + 1, { width - (count > 1 ? 40 : 10), h }, 
+            message.size() + 1, { float(width - (count > 1 ? 40 : 10)), float(h) },
             ImGuiInputTextFlags_ReadOnly);
         ImGui::PopStyleColor(6);
         ImGui::PopTextWrapPos();
@@ -173,7 +233,8 @@ namespace rs2
         }
     }
 
-    std::function<void()> notification_model::draw(ux_window& win, int w, int y, notification_model& selected)
+    std::function<void()> notification_model::draw(ux_window& win, int w, int y, 
+        notification_model& selected, std::string& error_message)
     {
         std::function<void()> follow_up = []{};
 
@@ -344,7 +405,7 @@ namespace rs2
                     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, saturate(sensor_header_light_blue, 1.5f));
                     std::string button_name = to_string() << "Install" << "##fwupdate" << index;
 
-                    if (ImGui::Button(button_name.c_str(), { bar_width, 20 }))
+                    if (ImGui::Button(button_name.c_str(), { float(bar_width), 20.f }))
                     {
                         update_manager->start();
                         update_state = 1;
@@ -360,83 +421,37 @@ namespace rs2
                 }
                 else if (update_state == 1)
                 {
-                    if (update_manager->is_done()) 
+                    if (update_manager->done()) 
                     {
                         update_state = 2;
                         pinned = false;
                         last_progress_time = last_interacted = system_clock::now();
                     }
+
+                    update_manager->check_error(error_message);
                     
-                    auto progress = update_manager->get_progress();
-
-                    auto now = system_clock::now();
-                    auto ellapsed = duration_cast<milliseconds>(now - last_progress_time).count() / 1000.f;
-
-                    if (last_progress != progress)
+                    if (!expanded)
                     {
-                        last_progress_time = system_clock::now();
+                        draw_progress_bar(win, bar_width);
 
-                        int delta = progress - last_progress;
+                        ImGui::SetCursorScreenPos({ float(x + width - 105), float(y + height - 25) });
 
-                        progress_speed = delta / ellapsed;
-
-                        threshold_progress = std::min(100, progress + delta);
-
-                        last_progress = progress;
-                    }
-
-                    auto new_progress = last_progress + ellapsed * progress_speed;
-                    curr_progress_value = std::min(threshold_progress, new_progress);
-
-                    auto filled_w = (curr_progress_value * (bar_width - 4)) / 100.f;
-                    
-                    auto pos = ImGui::GetCursorScreenPos();
-                    ImGui::GetWindowDrawList()->AddRectFilled({ float(pos.x), float(pos.y) },
-                        { float(pos.x + bar_width), float(pos.y + 20) }, ImColor(black));
-
-                    if (curr_progress_value > 0.f)
-                    {
-                        for (int i = 20; i >= 0; i-=2)
+                        string id = to_string() << "Expand" << "##" << index;
+                        ImGui::PushStyleColor(ImGuiCol_Text, light_grey);
+                        if (ImGui::Button(id.c_str(), { 100, 20 }))
                         {
-                            auto a = curr_progress_value / 100.f;
-                            ImGui::GetWindowDrawList()->AddRectFilled({ float(pos.x + 3 - i), float(pos.y + 3 - i) },
-                                { float(pos.x + filled_w + i), float(pos.y + 17 + i) }, 
-                                ImColor(alpha(light_blue, sqrt(a) * 0.02f)), i);
+                            expanded = true;
                         }
 
-                        ImGui::GetWindowDrawList()->AddRectFilled({ float(pos.x + 3), float(pos.y + 3) },
-                            { float(pos.x + filled_w), float(pos.y + 17) }, ImColor(light_blue));
-
-                        ImGui::GetWindowDrawList()->AddRectFilledMultiColor({ float(pos.x + 5), float(pos.y + 5) },
-                            { float(pos.x + filled_w), float(pos.y + 15) }, 
-                            ImColor(saturate(light_blue, 1.f)), ImColor(saturate(light_blue, 0.9f)),
-                            ImColor(saturate(light_blue, 0.8f)), ImColor(saturate(light_blue, 1.f)));
-
-                        rs2::rect pbar{ float(pos.x + 3), float(pos.y + 3), bar_width, 17.f };
-                        auto mouse = win.get_mouse();
-                        if (pbar.contains(mouse.cursor))
-                        {
-                            std::string progress_str = to_string() << progress << "%";
-                            ImGui::SetTooltip("%s", progress_str.c_str());
-                        } 
+                        ImGui::PopStyleColor();
                     }
-
-                    ImGui::SetCursorScreenPos({ float(x + width - 105), float(y + height - 25) });
-
-                    string id = to_string() << "Expand" << "##" << index;
-                    ImGui::PushStyleColor(ImGuiCol_Text, light_grey);
-                    if (ImGui::Button(id.c_str(), { 100, 20 }))
-                    {
-                        
-                    }
-                    ImGui::PopStyleColor();
                 }
             }
             else
             {
                 std::string button_name = to_string() << "Learn More..." << "##" << index;
 
-                if (ImGui::Button(button_name.c_str(), { bar_width, 20 }))
+                if (ImGui::Button(button_name.c_str(), { float(bar_width), 20 }))
                 {
                     open_url(recommended_fw_url);
                 }
@@ -487,6 +502,53 @@ namespace rs2
         }
 
         unset_color_scheme();
+
+        if (expanded)
+        {
+            auto flags = ImGuiWindowFlags_NoResize |
+                ImGuiWindowFlags_NoMove |
+                ImGuiWindowFlags_NoCollapse;
+
+            ImGui::PushStyleColor(ImGuiCol_WindowBg, { 0, 0, 0, 0 });
+            ImGui::PushStyleColor(ImGuiCol_Text, light_grey);
+            ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, white);
+            ImGui::PushStyleColor(ImGuiCol_PopupBg, sensor_bg);
+
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2(500, 100));
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(5, 5));
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0);
+
+            ImGui::OpenPopup("Firmware Update");
+            if (ImGui::BeginPopupModal("Firmware Update", nullptr, flags))
+            {
+                ImGui::SetCursorPosX(190);
+                std::string progress_str = to_string() << "Progress: " << update_manager->get_progress() << "%";
+                ImGui::Text("%s", progress_str.c_str());
+
+                ImGui::SetCursorPosX(5);
+
+                draw_progress_bar(win, 490);
+
+                ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, regular_blue);
+                auto s = update_manager->get_log();
+                ImGui::InputTextMultiline("##fw_update_log", const_cast<char*>(s.c_str()),
+                    s.size() + 1, { 490,100 }, ImGuiInputTextFlags_AutoSelectAll | ImGuiInputTextFlags_ReadOnly);
+                ImGui::PopStyleColor();
+
+                ImGui::SetCursorPosX(190);
+                if (ImGui::Button("OK", ImVec2(120, 0)))
+                {
+                    expanded = false;
+                    ImGui::CloseCurrentPopup();
+                }
+
+                ImGui::EndPopup();
+            }
+
+            ImGui::PopStyleVar(3);
+            ImGui::PopStyleColor(4);
+        }
+        
 
         return follow_up;
     }
@@ -552,7 +614,7 @@ namespace rs2
         return result;
     }
 
-    void notifications_model::draw(ux_window& win, int w, int h)
+    void notifications_model::draw(ux_window& win, int w, int h, std::string& error_message)
     {
         ImGui::PushFont(win.get_font());
 
@@ -567,15 +629,15 @@ namespace rs2
                     std::end(pending_notifications),
                     [&](notification_model& n)
                 {
-                    return ((n.get_age_in_ms() > n.get_max_lifetime_ms() && !n.pinned) || n.to_close);
+                    return ((n.get_age_in_ms() > n.get_max_lifetime_ms() && !n.pinned && !n.expanded) || n.to_close);
                 }), end(pending_notifications));
 
                 int idx = 0;
                 auto height = 60;
                 for (auto& noti : pending_notifications)
                 {
-                    follow_up.push_back(noti.draw(win, w, height, selected));
-                    height += noti.height + 4 + 
+                    follow_up.push_back(noti.draw(win, w, height, selected, error_message));
+                    height += noti.height + 4 +
                         std::min(noti.count, noti.max_stack) * noti.stack_offset;
                     idx++;
                 }
@@ -631,11 +693,13 @@ namespace rs2
         }
 
         for (auto& action : follow_up)
+        {
             try
             {
                 action();
             }
-            catch(...) {}
+            catch (...) {}
+        }
         
         ImGui::PopFont();
     }

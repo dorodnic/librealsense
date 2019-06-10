@@ -2750,7 +2750,7 @@ namespace rs2
 
                     static auto table = create_default_fw_table();
 
-                    manager = std::make_shared<firmware_update_manager>(dev, table[product_line]);
+                    manager = std::make_shared<firmware_update_manager>(*this, dev, table[product_line]);
                 }
 
                 if (!is_upgradeable(fw, recommended)) continue;

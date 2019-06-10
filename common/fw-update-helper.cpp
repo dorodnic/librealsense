@@ -6,6 +6,8 @@
 #include <vector>
 #include <string>
 #include <thread>
+#include <condition_variable>
+#include <model-views.h>
 
 #ifdef INTERNAL_FW
 #include "common/fw/D4XX_FW_Image.h"
@@ -92,17 +94,89 @@ namespace rs2
         return false; //equle
     }
 
+    void firmware_update_manager::log(std::string line)
+    {
+        std::lock_guard<std::mutex> lock(_log_lock);
+        _log += line + "\n";
+    }
+
     void firmware_update_manager::start()
     {
-        std::thread t([this]{
-            std::this_thread::sleep_for(std::chrono::seconds(1));
-            for (int i = 0; i < 10; i++)
+        auto cleanup = _model.cleanup;
+        _model.cleanup = [] {};
+
+        log("Started update process");
+
+        std::thread t([this, cleanup]{
+            try
             {
-                _progress = i * 10;
-                std::this_thread::sleep_for(std::chrono::seconds(1));
+                context ctx;
+
+                std::mutex m;
+                std::condition_variable cv;
+                bool dfu_connected = false;
+                fw_update_device dfu{ };
+
+                std::string serial = _dev.query_sensors().front().get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
+
+                _progress = 10;
+
+                ctx.set_devices_changed_callback(
+                    [this, &cv, &dfu_connected, serial, &dfu](event_information& info)
+                {
+                    auto devs = info.get_new_devices();
+                    for (auto d : devs)
+                    {
+                        if (d.is<fw_update_device>())
+                        {
+                            if (d.supports(RS2_CAMERA_INFO_SERIAL_NUMBER))
+                            {
+                                //if (serial == d.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER))
+                                // TODO: Use serial number
+                                {
+                                    dfu = d;
+                                    dfu_connected = true;
+                                    cv.notify_all();
+                                }
+                            }
+                        }
+                    }
+                    if (info.was_removed(_dev))
+                    {
+                        log("Device successfully disconnected");
+                    }
+                });
+
+                log("Requesting to switch to recovery mode");
+                _dev.enter_to_fw_update_mode();
+
+                {
+                    std::unique_lock<std::mutex> lk(m);
+                    cv.wait(lk, [&] { return dfu_connected; });
+                }
+
+                log("Recovery device connected");
+
+                dfu.hardware_reset();
+
+                std::this_thread::sleep_for(std::chrono::seconds(5));
+
+                _progress = 100;
+
+                _done = true;
             }
-            std::this_thread::sleep_for(std::chrono::seconds(1));
-            _done = true;
+            catch (std::exception ex)
+            {
+                _last_error = ex.what();
+                _failed = true;
+                cleanup();
+            }
+            catch (...)
+            {
+                _last_error = "Unknown error during update.\nPlease reconnect the camera to exit recovery mode";
+                _failed = true;
+                cleanup();
+            }
         });
         t.detach();
     }

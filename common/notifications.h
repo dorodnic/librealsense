@@ -39,10 +39,12 @@ namespace rs2
         notification_model(const notification_data& n);
         double get_age_in_ms(bool total = false) const;
         bool interacted() const;
-        std::function<void()> draw(ux_window& win, int w, int y, notification_model& selected);
+        std::function<void()> draw(ux_window& win, int w, int y, 
+            notification_model& selected, std::string& error_message);
         void draw_text(int x, int y, int h);
         void set_color_scheme(float t) const;
         void unset_color_scheme() const;
+        void draw_progress_bar(ux_window& win, int w);
         const int get_max_lifetime_ms() const;
 
         std::function<void()> custom_action;
@@ -71,6 +73,7 @@ namespace rs2
 
         // Behaviour variables
         bool dismissed = false;
+        bool expanded = false;
         bool pinned = false;
         bool enable_dismiss = true;
         bool enable_expand = true;
@@ -88,7 +91,7 @@ namespace rs2
         int add_notification(const notification_data& n, 
                              std::function<void()> custom_action, 
                              bool use_custom_action = true);
-        void draw(ux_window& win, int w, int h);
+        void draw(ux_window& win, int w, int h, std::string& error_message);
 
         void dismiss(int idx);
         void attach_update_manager(int idx, std::shared_ptr<firmware_update_manager> manager);

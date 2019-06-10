@@ -408,7 +408,7 @@ namespace librealsense
         auto pid = group.uvc_devices.front().pid;
         std::string device_name = (rs400_sku_names.end() != rs400_sku_names.find(pid)) ? rs400_sku_names.at(pid) : "RS4xx";
         _fw_version = firmware_version(_hw_monitor->get_firmware_version_string(GVD, camera_fw_version_offset));
-        _recommended_fw_version = firmware_version("5.15.3.0");
+        _recommended_fw_version = firmware_version("5.11.1.0");
         if (_fw_version >= firmware_version("5.10.4.0"))
             _device_capabilities = parse_device_capabilities();
         auto serial = _hw_monitor->get_module_serial_string(GVD, module_serial_offset);

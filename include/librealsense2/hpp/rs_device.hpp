@@ -174,6 +174,8 @@ namespace rs2
     class fw_update_device : public device
     {
     public:
+        fw_update_device() : device() {}
+
         fw_update_device(device d)
             : device(d.get())
         {
