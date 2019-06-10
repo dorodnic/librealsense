@@ -19,7 +19,7 @@ namespace rs2
     std::vector<int> parse_fw_version(const std::string& fw);
     bool is_upgradeable(const std::string& curr, const std::string& available);
 
-    class firmware_update_manager
+    class firmware_update_manager : public std::enable_shared_from_this<firmware_update_manager>
     {
     public:
         firmware_update_manager(device_model& model, device dev, std::vector<uint8_t> fw) 
@@ -34,6 +34,7 @@ namespace rs2
         void check_error(std::string& error) { if (_failed) error = _last_error; }
 
         void log(std::string line);
+        void fail(std::string error);
 
     private:
         std::string _log;

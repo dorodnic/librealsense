@@ -17,7 +17,13 @@ namespace librealsense
     {
         uint8_t state = RS2_DFU_STATE_DFU_ERROR;
         uint32_t transferred = 0;
-        messenger->control_transfer(0xa1 /*DFU_GETSTATUS_PACKET*/, RS2_DFU_GET_STATE, 0, 0, &state, 1, transferred, 10);
+        auto res = messenger->control_transfer(0xa1 /*DFU_GETSTATUS_PACKET*/, RS2_DFU_GET_STATE, 0, 0, &state, 1, transferred, 10);
+        if (res == librealsense::platform::RS2_USB_STATUS_ACCESS)
+            throw backend_exception("Permission Denied!\n"
+                "This is often an indication of outdated or missing udev-rules.\n"
+                "If using Debian package, run sudo apt-get install librealsense2-dkms\n"
+                "If building from source, run ./scripts/setup_udev_rules.sh", 
+                RS2_EXCEPTION_TYPE_BACKEND);
         return (rs2_dfu_state)state;
     }
 
@@ -66,13 +72,13 @@ namespace librealsense
         state = get_dfu_state(messenger);
 
         if (state != RS2_DFU_STATE_DFU_IDLE)
-            throw std::runtime_error("failed to enter into dfu state");
+            throw std::runtime_error("Cannot open recovery device!");
 
         dfu_fw_status_payload paylaod;
         uint32_t transferred = 0;
         auto sts = messenger->control_transfer(0xa1, RS2_DFU_UPLOAD, 0, 0, reinterpret_cast<uint8_t*>(&paylaod), sizeof(paylaod), transferred, 10);
         if (sts != platform::RS2_USB_STATUS_SUCCESS)
-            throw std::runtime_error("fw_update_device - failed to read serial number");
+            throw std::runtime_error("Failed to read serial number from recovery device!");
 
         std::stringstream formattedBuffer;
         for (auto i = 0; i < sizeof(paylaod.serial_number.serial); i++)

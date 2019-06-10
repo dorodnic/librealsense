@@ -269,7 +269,7 @@ namespace rs2
         {
             last_x = x; last_y = y;
             animating = false;
-            if (dismissed) to_close = true;
+            if (dismissed && !expanded) to_close = true;
         }
 
         auto ms = get_age_in_ms() / get_max_lifetime_ms();
@@ -314,11 +314,13 @@ namespace rs2
             ImGui::GetWindowDrawList()->AddRectFilled({ float(x+2 + i * stack_offset), float(y+2 + i * stack_offset) },
                 { float(x+2 + width + i * stack_offset), float(y+2 + height + i * stack_offset) }, ImColor(shadow));
 
-            ImGui::GetWindowDrawList()->AddRectFilled({ float(x + i  * stack_offset), float(y + i * stack_offset) },
-                { float(x + width + i * stack_offset), float(y + height + i * stack_offset) }, ImColor(ccopy));
+            ImGui::GetWindowDrawList()->AddRectFilledMultiColor({ float(x + i  * stack_offset), float(y + i * stack_offset) },
+                { float(x + width + i * stack_offset), float(y + height + i * stack_offset) }, 
+                ImColor(saturate(ccopy, 0.9f)), ImColor(saturate(ccopy, 0.95f)),
+                ImColor(saturate(ccopy, 1.2f)), ImColor(saturate(ccopy, 1.1f)));
 
             ImGui::GetWindowDrawList()->AddRect({ float(x + i * stack_offset), float(y + i * stack_offset) },
-                { float(x + width + i * stack_offset), float(y + height + i * stack_offset) }, ImColor(saturate(ccopy, 0.6f)));
+                { float(x + width + i * stack_offset), float(y + height + i * stack_offset) }, ImColor(saturate(ccopy, 0.5f)));
         }
         
         ImGui::SetCursorScreenPos({ float(x), float(y) });
@@ -428,10 +430,10 @@ namespace rs2
                         last_progress_time = last_interacted = system_clock::now();
                     }
 
-                    update_manager->check_error(error_message);
-                    
                     if (!expanded)
                     {
+                        update_manager->check_error(error_message);
+
                         draw_progress_bar(win, bar_width);
 
                         ImGui::SetCursorScreenPos({ float(x + width - 105), float(y + height - 25) });
@@ -518,8 +520,11 @@ namespace rs2
             ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(5, 5));
             ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0);
 
-            ImGui::OpenPopup("Firmware Update");
-            if (ImGui::BeginPopupModal("Firmware Update", nullptr, flags))
+            std::string title = "Firmware Update";
+            if (update_manager->failed()) title += " Failed";
+
+            ImGui::OpenPopup(title.c_str());
+            if (ImGui::BeginPopupModal(title.c_str(), nullptr, flags))
             {
                 ImGui::SetCursorPosX(190);
                 std::string progress_str = to_string() << "Progress: " << update_manager->get_progress() << "%";
@@ -547,6 +552,8 @@ namespace rs2
 
             ImGui::PopStyleVar(3);
             ImGui::PopStyleColor(4);
+
+            error_message = "";
         }
         
 

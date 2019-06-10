@@ -100,6 +100,15 @@ namespace rs2
         _log += line + "\n";
     }
 
+    void firmware_update_manager::fail(std::string error)
+    {
+        _last_error = error;
+        _progress = 0;
+        log("\nERROR: " + error);
+        log("\nFirmware Update process is safe.\nSimply reconnect the device to get it working again");
+        _failed = true;
+    }
+
     void firmware_update_manager::start()
     {
         auto cleanup = _model.cleanup;
@@ -107,7 +116,13 @@ namespace rs2
 
         log("Started update process");
 
-        std::thread t([this, cleanup]{
+        auto me = shared_from_this();
+        std::weak_ptr<firmware_update_manager> ptr(me);
+
+        std::thread t([ptr, cleanup]{
+            auto self = ptr.lock();
+            if (!self) return;
+
             try
             {
                 context ctx;
@@ -117,64 +132,91 @@ namespace rs2
                 bool dfu_connected = false;
                 fw_update_device dfu{ };
 
-                std::string serial = _dev.query_sensors().front().get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
+                std::string serial = self->_dev.query_sensors().front().get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
 
-                _progress = 10;
+                self->_progress = 10;
 
                 ctx.set_devices_changed_callback(
-                    [this, &cv, &dfu_connected, serial, &dfu](event_information& info)
+                    [ptr, &cv, &dfu_connected, serial, &dfu, cleanup](event_information& info)
                 {
-                    auto devs = info.get_new_devices();
-                    for (auto d : devs)
+                    auto self = ptr.lock();
+                    if (!self) return;
+
+                    try
                     {
-                        if (d.is<fw_update_device>())
+                        auto devs = info.get_new_devices();
+                        if (devs.size() > 0)
+                            self->log("New device connected, checking if recovery...");
+                            
+                        for (auto d : devs)
                         {
-                            if (d.supports(RS2_CAMERA_INFO_SERIAL_NUMBER))
+                            if (d.is<fw_update_device>())
                             {
-                                //if (serial == d.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER))
-                                // TODO: Use serial number
+                                if (d.supports(RS2_CAMERA_INFO_SERIAL_NUMBER))
                                 {
-                                    dfu = d;
-                                    dfu_connected = true;
-                                    cv.notify_all();
+                                    //if (serial == d.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER))
+                                    // TODO: Use serial number
+                                    {
+                                        dfu = d;
+                                        dfu_connected = true;
+                                        cv.notify_all();
+                                    }
                                 }
                             }
                         }
+                        if (info.was_removed(self->_dev))
+                        {
+                            self->log("Device successfully disconnected");
+                        }
                     }
-                    if (info.was_removed(_dev))
+                    catch (const error& e)
                     {
-                        log("Device successfully disconnected");
+                        self->fail(error_to_string(e));
+                        cleanup();
+                    }
+                    catch (const std::exception& ex)
+                    {
+                        self->fail(ex.what());
+                        cleanup();
+                    }
+                    catch (...)
+                    {
+                        self->fail("Unknown error during update.\nPlease reconnect the camera to exit recovery mode");
+                        cleanup();
                     }
                 });
 
-                log("Requesting to switch to recovery mode");
-                _dev.enter_to_fw_update_mode();
+                self->log("Requesting to switch to recovery mode");
+                self->_dev.enter_to_fw_update_mode();
 
                 {
                     std::unique_lock<std::mutex> lk(m);
                     cv.wait(lk, [&] { return dfu_connected; });
                 }
 
-                log("Recovery device connected");
+                self->log("Recovery device connected");
 
                 dfu.hardware_reset();
 
                 std::this_thread::sleep_for(std::chrono::seconds(5));
 
-                _progress = 100;
+                self->_progress = 100;
 
-                _done = true;
+                self->_done = true;
             }
-            catch (std::exception ex)
+            catch (const error& e)
             {
-                _last_error = ex.what();
-                _failed = true;
+                self->fail(error_to_string(e));
+                cleanup();
+            }
+            catch (const std::exception& ex)
+            {
+                self->fail(ex.what());
                 cleanup();
             }
             catch (...)
             {
-                _last_error = "Unknown error during update.\nPlease reconnect the camera to exit recovery mode";
-                _failed = true;
+                self->fail("Unknown error during update.\nPlease reconnect the camera to exit recovery mode");
                 cleanup();
             }
         });
