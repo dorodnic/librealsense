@@ -578,7 +578,8 @@ namespace rs2
 
             for (auto&& nm : pending_notifications)
             {
-                if (nm.category == n.get_category() && nm.message == n.get_description())
+                if (nm.category == n.get_category() && nm.message == n.get_description() &&
+                    nm.category != RS2_NOTIFICATION_CATEGORY_FIRMWARE_UPDATE_RECOMMENDED)
                 {
                     nm.last_interacted = std::chrono::system_clock::now();
                     nm.count++;

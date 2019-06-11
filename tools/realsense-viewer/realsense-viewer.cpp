@@ -469,26 +469,6 @@ int main(int argc, const char** argv) try
                 }
             }
 
-            if (device_to_remove)
-            {
-                if (auto p = device_to_remove->dev.as<playback>())
-                {
-                    ctx.unload_device(p.file_name());
-                }
-                viewer_model.syncer->remove_syncer(device_to_remove->dev_syncer);
-                auto it = std::find_if(begin(*device_models), end(*device_models),
-                    [&](const std::unique_ptr<device_model>& other) 
-                    { return get_device_name(other->dev) == get_device_name(device_to_remove->dev); });
-
-                if (it != device_models->end())
-                {
-                    it->reset();
-                    device_models->erase(it);
-                }
-                
-                device_to_remove = nullptr;
-            }
-
             ImGui::SetContentRegionWidth(windows_width);
 
             auto pos = ImGui::GetCursorScreenPos();
@@ -514,6 +494,26 @@ int main(int argc, const char** argv) try
                 {
                     error_message = e.what();
                 }
+            }
+
+            if (device_to_remove)
+            {
+                if (auto p = device_to_remove->dev.as<playback>())
+                {
+                    ctx.unload_device(p.file_name());
+                }
+                viewer_model.syncer->remove_syncer(device_to_remove->dev_syncer);
+                auto it = std::find_if(begin(*device_models), end(*device_models),
+                    [&](const std::unique_ptr<device_model>& other)
+                { return get_device_name(other->dev) == get_device_name(device_to_remove->dev); });
+
+                if (it != device_models->end())
+                {
+                    it->reset();
+                    device_models->erase(it);
+                }
+
+                device_to_remove = nullptr;
             }
         }
         else
