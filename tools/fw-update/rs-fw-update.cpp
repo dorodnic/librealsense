@@ -35,36 +35,21 @@ std::vector<uint8_t> read_fw_file(std::string file_path)
     return rv;
 }
 
-bool try_update(rs2::context ctx, std::vector<uint8_t> fw_image)
-{
-    auto fwu_devs = ctx.query_devices(RS2_PRODUCT_LINE_RECOVERY);
-    for (auto&& d : fwu_devs)
+void update(rs2::fw_update_device fwu_dev, std::vector<uint8_t> fw_image)
+{  
+    std::cout << std::endl << "FW update started" << std::endl << std::endl;
+    fwu_dev.update_fw(fw_image, [&](const float progress)
     {
-        auto fwu_dev = d.as<rs2::fw_update_device>();
-
-        if (!fwu_dev)// || !fwu_dev.supports(RS2_CAMERA_INFO_SERIAL_NUMBER))
-            continue;
-        auto sn = fwu_dev.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
-        std::cout << std::endl << "FW update started" << std::endl << std::endl;
-        fwu_dev.update_fw(fw_image, [&](const float progress)
-        {
-            printf("\rFW update progress: %d[%%]", (int)(progress * 100));
-        });
-        std::cout << std::endl << std::endl << "FW update done" << std::endl;
-        return true;
-    }
-    return false;
+        printf("\rFW update progress: %d[%%]", (int)(progress * 100));
+    });
+    std::cout << std::endl << std::endl << "FW update done" << std::endl;
 }
 
 void list_devices(rs2::context ctx)
 {
-    auto devs = ctx.query_devices(RS2_PRODUCT_LINE_DEPTH | RS2_PRODUCT_LINE_RECOVERY);
-    switch (devs.size())
-    {
-    case 0: std::cout << std::endl << "There are no connected devices" << std::endl; break;
-    case 1: std::cout << std::endl << "One connected device detected" << std::endl; break;
-    default: std::cout << std::endl << devs.size() << " connected devices detected" << std::endl; break;
-    }
+    auto devs = ctx.query_devices();
+    if (devs.size() == 0)
+        std::cout << std::endl << "There are no connected devices" << std::endl;
 
     if (devs.size() == 0)
         return;
@@ -92,11 +77,14 @@ void list_devices(rs2::context ctx)
 int main(int argc, char** argv) try
 {
     rs2::context ctx;
+
     std::condition_variable cv;
     std::mutex mutex;
     std::string selected_serial_number;
 
-    bool device_available = false;
+    rs2::device new_device;
+    rs2::fw_update_device new_fw_update_device;
+
     bool done = false;
 
     CmdLine cmd("librealsense rs-fw-update tool", ' ', RS2_API_VERSION_STR);
@@ -152,10 +140,15 @@ int main(int argc, char** argv) try
 
     ctx.set_devices_changed_callback([&](rs2::event_information& info)
     {
+        for (auto&& d : info.get_new_devices())
         {
             std::lock_guard<std::mutex> lk(mutex);
-            device_available = true;
+            if (d.is<rs2::fw_update_device>())
+                new_fw_update_device = d;
+            else
+                new_device = d;
         }
+
         cv.notify_one();
     });
 
@@ -164,6 +157,12 @@ int main(int argc, char** argv) try
 
     for (auto&& d : devs)
     {
+        if (recover_arg.isSet() && d.is<rs2::fw_update_device>())
+        {
+            update(d, fw_image);
+            done = true;
+        }
+
         auto sn = d.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
         if (sn != selected_serial_number)
             continue;
@@ -174,18 +173,14 @@ int main(int argc, char** argv) try
         d.enter_to_fw_update_mode();
 
         std::unique_lock<std::mutex> lk(mutex);
-        if (!cv.wait_for(lk, std::chrono::seconds(5), [&] { return device_available; }))
+        if (!cv.wait_for(lk, std::chrono::seconds(5), [&] { return new_fw_update_device; }))
             break;
 
-        device_available = false;
-        int retries = 50;
-        while (ctx.query_devices(RS2_PRODUCT_LINE_RECOVERY).size() == 0 && retries--)
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
-        if (retries > 0)
+        if (new_fw_update_device)
         {
             std::cout << std::endl << "device in FW update mode, start updating." << std::endl;
-            done = try_update(ctx, fw_image);
+            update(new_fw_update_device, fw_image);
+            done = true;
         }
         else
         {
@@ -195,22 +190,7 @@ int main(int argc, char** argv) try
     }
 
     std::unique_lock<std::mutex> lk(mutex);
-    cv.wait_for(lk, std::chrono::seconds(5), [&] { return !done || device_available; });
-
-    if (recover_arg.isSet())
-    {
-        std::cout << std::endl << "check for devices in recovery mode..." << std::endl;
-        if (try_update(ctx, fw_image))
-        {
-            std::cout << std::endl << "device recoverd" << std::endl;
-            return EXIT_SUCCESS;
-        }
-        else
-        {
-            std::cout << std::endl << "no devices in recovery mode found." << std::endl;
-            return EXIT_FAILURE;
-        }
-    }
+    cv.wait_for(lk, std::chrono::seconds(5), [&] { return !done || new_device; });
 
     if (!device_found && !recover_arg.isSet())
     {
@@ -219,7 +199,7 @@ int main(int argc, char** argv) try
 
     if (done)
     {
-        auto devs = ctx.query_devices(RS2_PRODUCT_LINE_DEPTH);
+        auto devs = ctx.query_devices();
         for (auto&& d : devs)
         {
             auto sn = d.supports(RS2_CAMERA_INFO_SERIAL_NUMBER) ? d.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER) : "unknown";

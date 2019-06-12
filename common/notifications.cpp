@@ -238,275 +238,288 @@ namespace rs2
     {
         std::function<void()> follow_up = []{};
 
-        auto stack = std::min(count, max_stack);
-        auto x = w - width - 10;
-
-        if (dismissed)
+        if (visible)
         {
-            x = w + width;
-        }
 
-        if (!animating && (fabs(x - last_x) > 1.f || fabs(y - last_y) > 1.f))
-        {
-            if (last_x > 100000)
+            auto stack = std::min(count, max_stack);
+            auto x = w - width - 10;
+
+            if (dismissed)
             {
-                last_x = x + 500;
-                last_y = y;
-            }
-            last_moved = system_clock::now();
-            animating = true;
-        }
-
-        auto elapsed = duration<double, milli>(system_clock::now() - last_moved).count();
-        auto s = smoothstep(static_cast<float>(elapsed / 250.f), 0.0f, 1.0f);
-
-        if (s < 1.f)
-        {
-            x = s * x + (1 - s) * last_x;
-            y = s * y + (1 - s) * last_y;
-        }
-        else
-        {
-            last_x = x; last_y = y;
-            animating = false;
-            if (dismissed && !expanded) to_close = true;
-        }
-
-        auto ms = get_age_in_ms() / get_max_lifetime_ms();
-        auto t = smoothstep(static_cast<float>(ms), 0.8f, 1.f);
-        if (pinned) t = 0.f;
-
-        set_color_scheme(t);
-
-        auto lines = static_cast<int>(std::count(message.begin(), message.end(), '\n') + 1);
-        height = lines * 30 + 5;
-
-        if (category == RS2_NOTIFICATION_CATEGORY_FIRMWARE_UPDATE_RECOMMENDED)
-        {
-            if (update_state != 2) height = 150;
-            else height = 65;
-        }
-
-        auto c = ImGui::GetStyle().Colors[ImGuiCol_WindowBg];
-        c.w = smoothstep(static_cast<float>(get_age_in_ms(true) / 200.f), 0.0f, 1.0f);
-        c.w = std::min(c.w, 1.f - t);
-
-        if (update_state == 2)
-        {
-            auto k = duration_cast<milliseconds>(system_clock::now() - last_progress_time).count() / 500.f;
-            if (k <= 1.f)
-            {
-                auto size = 100;
-                k = pow(1.f - smoothstep(static_cast<float>(k), 0.f, 1.f), 2.f);
-                ImGui::GetWindowDrawList()->AddRectFilled({ float(x - size * k), float(y - size * k) },
-                    { float(x + width + size * k), float(y + height + size * k) }, 
-                    ImColor(alpha(white, (1.f - k) / 2)), (size * k) / 2);
-            }
-            //if (k >= 6.f) dismissed = true;
-        }
-
-        for (int i = stack - 1; i >= 0; i--)
-        {
-            auto ccopy = alpha(c, (0.9f * c.w) / (i + 1));
-
-            ImVec4 shadow { 0.1f, 0.1f, 0.1f, 0.1f };
-
-            ImGui::GetWindowDrawList()->AddRectFilled({ float(x+2 + i * stack_offset), float(y+2 + i * stack_offset) },
-                { float(x+2 + width + i * stack_offset), float(y+2 + height + i * stack_offset) }, ImColor(shadow));
-
-            ImGui::GetWindowDrawList()->AddRectFilledMultiColor({ float(x + i  * stack_offset), float(y + i * stack_offset) },
-                { float(x + width + i * stack_offset), float(y + height + i * stack_offset) }, 
-                ImColor(saturate(ccopy, 0.9f)), ImColor(saturate(ccopy, 0.95f)),
-                ImColor(saturate(ccopy, 1.2f)), ImColor(saturate(ccopy, 1.1f)));
-
-            ImGui::GetWindowDrawList()->AddRect({ float(x + i * stack_offset), float(y + i * stack_offset) },
-                { float(x + width + i * stack_offset), float(y + height + i * stack_offset) }, ImColor(saturate(ccopy, 0.5f)));
-        }
-        
-        ImGui::SetCursorScreenPos({ float(x), float(y) });
-
-        if (enable_click)
-        {
-            std::string button_name = to_string() << "##" << index;
-
-            ImGui::PushStyleColor(ImGuiCol_Button, transparent);
-
-            if (ImGui::Button(button_name.c_str(), { (float)width, (float)height }))
-            {
-                follow_up = custom_action;
-                dismissed = true;
-            }
-            if (ImGui::IsItemHovered())
-                win.link_hovered();
-
-            ImGui::PopStyleColor();
-        }
-
-        if (count > 1)
-        {
-            std::string count_str = to_string() << "x " << count;
-            ImGui::SetCursorScreenPos({ float(x + width - 22 - count_str.size() * 5), float(y + 7) });
-            ImGui::Text("%s", count_str.c_str());
-        }
-
-        ImGui::SetCursorScreenPos({ float(x + 5), float(y + 5) });
-
-        if (category == RS2_NOTIFICATION_CATEGORY_FIRMWARE_UPDATE_RECOMMENDED)
-        {
-            ImGui::SetCursorScreenPos({ float(x + 9), float(y + 4) });
-
-            ImVec4 shadow { 1.f, 1.f, 1.f, 0.1f };
-            ImGui::GetWindowDrawList()->AddRectFilled({ float(x), float(y) },
-                { float(x + width), float(y + 25) }, ImColor(shadow));
-
-            if (update_state != 2) 
-            {
-                ImGui::Text("Firmware Update Recommended!");
-
-                ImGui::SetCursorScreenPos({ float(x + 5), float(y + 27) });
-
-                draw_text(x, y, height - 50);
-
-                ImGui::SetCursorScreenPos({ float(x + 9), float(y + height - 67) });
-
-                ImGui::PushStyleColor(ImGuiCol_Text, alpha(light_grey, 1. - t));
-
-                if (update_state == 0)
-                    ImGui::Text("Firmware updates offer critical bug fixes and\nunlock new camera capabilities.");
-                else
-                    ImGui::Text("Firmware updates is underway...\nPlease do not disconnect the device");
-
-                ImGui::PopStyleColor();
-            }
-            else 
-            {
-                //ImGui::PushStyleColor(ImGuiCol_Text, alpha(light_blue, 1.f - t));
-                ImGui::Text("Update Completed");
-                //ImGui::PopStyleColor();
-
-                ImGui::SetCursorScreenPos({ float(x + 10), float(y + 35) });
-                ImGui::PushFont(win.get_large_font());
-                std::string txt = to_string() << textual_icons::throphy;
-                ImGui::Text("%s", txt.c_str());
-                ImGui::PopFont();
-
-                ImGui::SetCursorScreenPos({ float(x + 40), float(y + 35) });
-                ImGui::Text("Camera Firmware Updated Successfully");
+                x = w + width;
             }
 
-            ImGui::SetCursorScreenPos({ float(x + 5), float(y + height - 25) });
-
-            const auto bar_width = width - 115;
-
-            if (update_manager)
+            if (!animating && (fabs(x - last_x) > 1.f || fabs(y - last_y) > 1.f))
             {
-                if (update_state == 0)
+                if (last_x > 100000)
                 {
-                    auto sat = 1.f + sin(duration_cast<milliseconds>(system_clock::now() - created_time).count() / 700.f) * 0.1f;
-                    ImGui::PushStyleColor(ImGuiCol_Button, saturate(sensor_header_light_blue, sat));
-                    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, saturate(sensor_header_light_blue, 1.5f));
-                    std::string button_name = to_string() << "Install" << "##fwupdate" << index;
-
-                    if (ImGui::Button(button_name.c_str(), { float(bar_width), 20.f }))
-                    {
-                        update_manager->start();
-                        update_state = 1;
-                        enable_dismiss = false;
-                        last_progress_time = system_clock::now();
-                    }
-                    ImGui::PopStyleColor(2);
-
-                    if (ImGui::IsItemHovered())
-                    {
-                        ImGui::SetTooltip("%s", "New firmware will be flashed to the device");
-                    }
+                    last_x = x + 500;
+                    last_y = y;
                 }
-                else if (update_state == 1)
-                {
-                    if (update_manager->done()) 
-                    {
-                        update_state = 2;
-                        pinned = false;
-                        last_progress_time = last_interacted = system_clock::now();
-                    }
+                last_moved = system_clock::now();
+                animating = true;
+            }
 
-                    if (!expanded)
-                    {
-                        update_manager->check_error(error_message);
+            auto elapsed = duration<double, milli>(system_clock::now() - last_moved).count();
+            auto s = smoothstep(static_cast<float>(elapsed / 250.f), 0.0f, 1.0f);
 
-                        draw_progress_bar(win, bar_width);
-
-                        ImGui::SetCursorScreenPos({ float(x + width - 105), float(y + height - 25) });
-
-                        string id = to_string() << "Expand" << "##" << index;
-                        ImGui::PushStyleColor(ImGuiCol_Text, light_grey);
-                        if (ImGui::Button(id.c_str(), { 100, 20 }))
-                        {
-                            expanded = true;
-                        }
-
-                        ImGui::PopStyleColor();
-                    }
-                }
+            if (s < 1.f)
+            {
+                x = s * x + (1 - s) * last_x;
+                y = s * y + (1 - s) * last_y;
             }
             else
             {
-                std::string button_name = to_string() << "Learn More..." << "##" << index;
+                last_x = x; last_y = y;
+                animating = false;
+                if (dismissed && !expanded) to_close = true;
+            }
 
-                if (ImGui::Button(button_name.c_str(), { float(bar_width), 20 }))
+            auto ms = get_age_in_ms() / get_max_lifetime_ms();
+            auto t = smoothstep(static_cast<float>(ms), 0.8f, 1.f);
+            if (pinned) t = 0.f;
+
+            set_color_scheme(t);
+
+            auto lines = static_cast<int>(std::count(message.begin(), message.end(), '\n') + 1);
+            height = lines * 30 + 5;
+
+            if (category == RS2_NOTIFICATION_CATEGORY_FIRMWARE_UPDATE_RECOMMENDED)
+            {
+                if (update_state != 2) height = 150;
+                else height = 65;
+            }
+
+            auto c = ImGui::GetStyle().Colors[ImGuiCol_WindowBg];
+            c.w = smoothstep(static_cast<float>(get_age_in_ms(true) / 200.f), 0.0f, 1.0f);
+            c.w = std::min(c.w, 1.f - t);
+
+            if (update_state == 2)
+            {
+                auto k = duration_cast<milliseconds>(system_clock::now() - last_progress_time).count() / 500.f;
+                if (k <= 1.f)
                 {
-                    open_url(recommended_fw_url);
+                    auto size = 100;
+                    k = pow(1.f - smoothstep(static_cast<float>(k), 0.f, 1.f), 2.f);
+                    ImGui::GetWindowDrawList()->AddRectFilled({ float(x - size * k), float(y - size * k) },
+                    { float(x + width + size * k), float(y + height + size * k) },
+                        ImColor(alpha(white, (1.f - k) / 2)), (size * k) / 2);
+                }
+                //if (k >= 6.f) dismissed = true;
+            }
+
+            for (int i = stack - 1; i >= 0; i--)
+            {
+                auto ccopy = alpha(c, (0.9f * c.w) / (i + 1));
+
+                ImVec4 shadow{ 0.1f, 0.1f, 0.1f, 0.1f };
+
+                ImGui::GetWindowDrawList()->AddRectFilled({ float(x + 2 + i * stack_offset), float(y + 2 + i * stack_offset) },
+                { float(x + 2 + width + i * stack_offset), float(y + 2 + height + i * stack_offset) }, ImColor(shadow));
+
+                ImGui::GetWindowDrawList()->AddRectFilledMultiColor({ float(x + i  * stack_offset), float(y + i * stack_offset) },
+                { float(x + width + i * stack_offset), float(y + height + i * stack_offset) },
+                    ImColor(saturate(ccopy, 0.9f)), ImColor(saturate(ccopy, 0.95f)),
+                    ImColor(saturate(ccopy, 1.2f)), ImColor(saturate(ccopy, 1.1f)));
+
+                ImGui::GetWindowDrawList()->AddRect({ float(x + i * stack_offset), float(y + i * stack_offset) },
+                { float(x + width + i * stack_offset), float(y + height + i * stack_offset) }, ImColor(saturate(ccopy, 0.5f)));
+            }
+
+            ImGui::SetCursorScreenPos({ float(x), float(y) });
+
+            if (enable_click)
+            {
+                std::string button_name = to_string() << "##" << index;
+
+                ImGui::PushStyleColor(ImGuiCol_Button, transparent);
+
+                if (ImGui::Button(button_name.c_str(), { (float)width, (float)height }))
+                {
+                    follow_up = custom_action;
+                    dismissed = true;
                 }
                 if (ImGui::IsItemHovered())
-                {
                     win.link_hovered();
-                    ImGui::SetTooltip("%s", "Internet connection required");
+
+                ImGui::PopStyleColor();
+            }
+
+            if (count > 1)
+            {
+                std::string count_str = to_string() << "x " << count;
+                ImGui::SetCursorScreenPos({ float(x + width - 22 - count_str.size() * 5), float(y + 7) });
+                ImGui::Text("%s", count_str.c_str());
+            }
+
+            ImGui::SetCursorScreenPos({ float(x + 5), float(y + 5) });
+
+            if (category == RS2_NOTIFICATION_CATEGORY_FIRMWARE_UPDATE_RECOMMENDED)
+            {
+                ImGui::SetCursorScreenPos({ float(x + 9), float(y + 4) });
+
+                ImVec4 shadow{ 1.f, 1.f, 1.f, 0.1f };
+                ImGui::GetWindowDrawList()->AddRectFilled({ float(x), float(y) },
+                { float(x + width), float(y + 25) }, ImColor(shadow));
+
+                if (update_state != 2)
+                {
+                    ImGui::Text("Firmware Update Recommended!");
+
+                    ImGui::SetCursorScreenPos({ float(x + 5), float(y + 27) });
+
+                    draw_text(x, y, height - 50);
+
+                    ImGui::SetCursorScreenPos({ float(x + 9), float(y + height - 67) });
+
+                    ImGui::PushStyleColor(ImGuiCol_Text, alpha(light_grey, 1. - t));
+
+                    if (update_state == 0)
+                        ImGui::Text("Firmware updates offer critical bug fixes and\nunlock new camera capabilities.");
+                    else
+                        ImGui::Text("Firmware updates is underway...\nPlease do not disconnect the device");
+
+                    ImGui::PopStyleColor();
+                }
+                else
+                {
+                    //ImGui::PushStyleColor(ImGuiCol_Text, alpha(light_blue, 1.f - t));
+                    ImGui::Text("Update Completed");
+                    //ImGui::PopStyleColor();
+
+                    ImGui::SetCursorScreenPos({ float(x + 10), float(y + 35) });
+                    ImGui::PushFont(win.get_large_font());
+                    std::string txt = to_string() << textual_icons::throphy;
+                    ImGui::Text("%s", txt.c_str());
+                    ImGui::PopFont();
+
+                    ImGui::SetCursorScreenPos({ float(x + 40), float(y + 35) });
+                    ImGui::Text("Camera Firmware Updated Successfully");
+                }
+
+                ImGui::SetCursorScreenPos({ float(x + 5), float(y + height - 25) });
+
+                const auto bar_width = width - 115;
+
+                if (update_manager)
+                {
+                    if (update_state == 0)
+                    {
+                        auto sat = 1.f + sin(duration_cast<milliseconds>(system_clock::now() - created_time).count() / 700.f) * 0.1f;
+                        ImGui::PushStyleColor(ImGuiCol_Button, saturate(sensor_header_light_blue, sat));
+                        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, saturate(sensor_header_light_blue, 1.5f));
+                        std::string button_name = to_string() << "Install" << "##fwupdate" << index;
+
+                        if (ImGui::Button(button_name.c_str(), { float(bar_width), 20.f }) || update_manager->started())
+                        {
+                            if (!update_manager->started()) update_manager->start();
+
+                            update_state = 1;
+                            enable_dismiss = false;
+                            last_progress_time = system_clock::now();
+                        }
+                        ImGui::PopStyleColor(2);
+
+                        if (ImGui::IsItemHovered())
+                        {
+                            ImGui::SetTooltip("%s", "New firmware will be flashed to the device");
+                        }
+                    }
+                    else if (update_state == 1)
+                    {
+                        if (update_manager->done())
+                        {
+                            update_state = 2;
+                            pinned = false;
+                            last_progress_time = last_interacted = system_clock::now();
+                        }
+
+                        if (!expanded)
+                        {
+                            if (update_manager->failed())
+                            {
+                                update_manager->check_error(error_message);
+                                update_state = 3;
+                                pinned = false;
+                                dismissed = true;
+                            }
+
+                            draw_progress_bar(win, bar_width);
+
+                            ImGui::SetCursorScreenPos({ float(x + width - 105), float(y + height - 25) });
+
+                            string id = to_string() << "Expand" << "##" << index;
+                            ImGui::PushStyleColor(ImGuiCol_Text, light_grey);
+                            if (ImGui::Button(id.c_str(), { 100, 20 }))
+                            {
+                                expanded = true;
+                            }
+
+                            ImGui::PopStyleColor();
+                        }
+                    }
+                }
+                else
+                {
+                    std::string button_name = to_string() << "Learn More..." << "##" << index;
+
+                    if (ImGui::Button(button_name.c_str(), { float(bar_width), 20 }))
+                    {
+                        open_url(recommended_fw_url);
+                    }
+                    if (ImGui::IsItemHovered())
+                    {
+                        win.link_hovered();
+                        ImGui::SetTooltip("%s", "Internet connection required");
+                    }
+                }
+
+            }
+            else
+            {
+                draw_text(x, y, height - 35);
+            }
+
+            if (enable_expand)
+            {
+                ImGui::SetCursorScreenPos({ float(x + 5), float(y + height - 25) });
+
+                ImGui::PushFont(win.get_large_font());
+
+                ImGui::PushStyleColor(ImGuiCol_Button, transparent);
+                ImGui::PushStyleColor(ImGuiCol_ButtonActive, transparent);
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, transparent);
+                string id = to_string() << textual_icons::dotdotdot << "##" << index;
+                if (ImGui::Button(id.c_str()))
+                {
+                    selected = *this;
+                }
+
+                if (ImGui::IsItemHovered())
+                    win.link_hovered();
+
+                ImGui::PopStyleColor(3);
+                ImGui::PopFont();
+            }
+
+            if (enable_dismiss)
+            {
+                ImGui::SetCursorScreenPos({ float(x + width - 105), float(y + height - 25) });
+
+                string id = to_string() << "Dismiss" << "##" << index;
+                if (ImGui::Button(id.c_str(), { 100, 20 }))
+                {
+                    dismissed = true;
                 }
             }
 
+            unset_color_scheme();
         }
-        else
-        {
-            draw_text(x, y, height - 35);
-        }
-
-        if (enable_expand)
-        {
-            ImGui::SetCursorScreenPos({ float(x + 5), float(y + height - 25) });
-
-            ImGui::PushFont(win.get_large_font());
-            
-            ImGui::PushStyleColor(ImGuiCol_Button, transparent);
-            ImGui::PushStyleColor(ImGuiCol_ButtonActive, transparent);
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, transparent);
-            string id = to_string() << textual_icons::dotdotdot << "##" << index;
-            if (ImGui::Button(id.c_str()))
-            {
-                selected = *this;
-            }
-
-            if (ImGui::IsItemHovered())
-                win.link_hovered();
-
-            ImGui::PopStyleColor(3);
-            ImGui::PopFont();
-        }
-
-        if (enable_dismiss)
-        {
-            ImGui::SetCursorScreenPos({ float(x + width - 105), float(y + height - 25) });
-
-            string id = to_string() << "Dismiss" << "##" << index;
-            if (ImGui::Button(id.c_str(), { 100, 20 }))
-            {
-                dismissed = true;
-            }
-        }
-
-        unset_color_scheme();
 
         if (expanded)
         {
+            if (update_manager->started() && update_state == 0) update_state = 1;
+
             auto flags = ImGuiWindowFlags_NoResize |
                 ImGuiWindowFlags_NoMove |
                 ImGuiWindowFlags_NoCollapse;
@@ -526,7 +539,7 @@ namespace rs2
             ImGui::OpenPopup(title.c_str());
             if (ImGui::BeginPopupModal(title.c_str(), nullptr, flags))
             {
-                ImGui::SetCursorPosX(190);
+                ImGui::SetCursorPosX(200);
                 std::string progress_str = to_string() << "Progress: " << update_manager->get_progress() << "%";
                 ImGui::Text("%s", progress_str.c_str());
 
@@ -541,11 +554,15 @@ namespace rs2
                 ImGui::PopStyleColor();
 
                 ImGui::SetCursorPosX(190);
-                if (ImGui::Button("OK", ImVec2(120, 0)))
-                {
-                    expanded = false;
-                    ImGui::CloseCurrentPopup();
-                }
+                if (visible || update_manager->done() || update_manager->failed())
+                    if (ImGui::Button("OK", ImVec2(120, 0)))
+                    {
+                        update_state = 3;
+                        pinned = false;
+                        dismissed = true;
+                        expanded = false;
+                        ImGui::CloseCurrentPopup();
+                    }
 
                 ImGui::EndPopup();
             }
@@ -640,14 +657,14 @@ namespace rs2
                     return ((n.get_age_in_ms() > n.get_max_lifetime_ms() && !n.pinned && !n.expanded) || n.to_close);
                 }), end(pending_notifications));
 
-                int idx = 0;
                 auto height = 60;
                 for (auto& noti : pending_notifications)
                 {
                     follow_up.push_back(noti.draw(win, w, height, selected, error_message));
-                    height += noti.height + 4 +
-                        std::min(noti.count, noti.max_stack) * noti.stack_offset;
-                    idx++;
+
+                    if (noti.visible)
+                        height += noti.height + 4 +
+                            std::min(noti.count, noti.max_stack) * noti.stack_offset;
                 }
             }
 
@@ -721,12 +738,21 @@ namespace rs2
         }
     }
 
-    void notifications_model::attach_update_manager(int idx, std::shared_ptr<firmware_update_manager> manager)
+    void notifications_model::attach_update_manager(int idx, 
+        std::shared_ptr<firmware_update_manager> manager, bool expanded)
     {
         std::lock_guard<std::mutex> lock(m);
         for (auto& noti : pending_notifications)
         {
-            if (noti.index == idx) noti.update_manager = manager;
+            if (noti.index == idx)
+            {
+                noti.update_manager = manager;
+                if (expanded)
+                {
+                    noti.expanded = true;
+                    noti.visible = false;
+                }
+            }
         }
     }
 }

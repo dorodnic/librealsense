@@ -28,6 +28,7 @@ namespace rs2
         void start();
         int get_progress() const { return _progress; }
         bool done() const { return _done; }
+        bool started() const { return _started; }
         bool failed() const { return _failed; }
         const std::string& get_log() const { return _log; }
 

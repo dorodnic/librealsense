@@ -35,7 +35,7 @@ public class FirmwareUpdateActivity extends AppCompatActivity {
         mFwUpdateButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                try(DeviceList dl = mRsContext.queryDevices(ProductClass.D400)){
+                try(DeviceList dl = mRsContext.queryDevices(ProductClass.DEPTH)){
                     try(Device d = dl.createDevice(0)){
                         d.enterToFwUpdateMode();
                     }
@@ -43,28 +43,60 @@ public class FirmwareUpdateActivity extends AppCompatActivity {
             }
         });
 
-        if(mRsContext.queryDevices(ProductClass.D400).getDeviceCount() > 0){
-            mFwUpdateButton.setVisibility(View.VISIBLE);
-            printInfo();
+        try(DeviceList dl = mRsContext.queryDevices()){
+            if(dl.getDeviceCount() == 0)
+                return;
+            try(Device device = dl.createDevice(0)){
+                if(device.getClass() == FwUpdateDevice.class){
+                    int fw_image = getFwImageId(device);
+                    tryUpdate(fw_image);
+                }
+                else
+                    printInfo(device);
+            }
         }
-        if(mRsContext.queryDevices(ProductClass.D400_RECOVERY).getDeviceCount() > 0){
+    }
+
+    private void tryUpdate(final int fw_image){
+        try{
             mFwUpdateButton.setVisibility(View.GONE);
             Thread t = new Thread(new Runnable() {
                 @Override
                 public void run() {
-                    updateFirmware(FirmwareUpdateActivity.this);
+                    try(DeviceList dl = mRsContext.queryDevices()){
+                        if(dl.getDeviceCount() == 0)
+                            return;
+                        try(Device device = dl.createDevice(0)){
+                            if(device.getClass() == FwUpdateDevice.class){
+                                FwUpdateDevice fwud = device.as(FwUpdateDevice.class);
+                                updateFirmware(fwud, FirmwareUpdateActivity.this, fw_image);
+                            }
+                        }
+                    }
                 }
             });
             t.start();
         }
-
+        catch(Exception e){
+            Log.e(TAG, e.getMessage());
+            Toast.makeText(this, e.getMessage(), Toast.LENGTH_LONG).show();
+            finish();
+        }
     }
 
-    private void printInfo(){
-        DeviceList devices = mRsContext.queryDevices(ProductClass.D400);
-        if(devices.getDeviceCount() == 0)
-            return;
-        Device device = devices.createDevice(0);
+    private int getFwImageId(Device device){
+        if(device.supportsInfo(CameraInfo.PRODUCT_LINE)){
+            String pl = device.getInfo(CameraInfo.PRODUCT_LINE);
+            if(pl.equals("D400"))
+                return R.raw.fw_d4xx;
+            if(pl.equals("SR300"))
+                return R.raw.fw_sr3xx;
+        }
+        throw new RuntimeException("FW update is not supported for the connected device");
+    }
+
+    private void printInfo(Device device){
+        mFwUpdateButton.setVisibility(View.VISIBLE);
         final String recFw = device.getInfo(CameraInfo.RECOMMENDED_FIRMWARE_VERSION);
         final String fw = device.getInfo(CameraInfo.FIRMWARE_VERSION);
         runOnUiThread(new Runnable() {
@@ -78,8 +110,8 @@ public class FirmwareUpdateActivity extends AppCompatActivity {
         });
     }
 
-    public static byte[] readFwFile(Context context) throws IOException {
-        InputStream in = context.getResources().openRawResource(R.raw.fw_d4xx);
+    public static byte[] readFwFile(Context context, int fwResId) throws IOException {
+        InputStream in = context.getResources().openRawResource(fwResId);
         int length = in.available();
         ByteBuffer buff = ByteBuffer.allocateDirect(length);
         int len = in.read(buff.array(),0, buff.capacity());
@@ -89,28 +121,21 @@ public class FirmwareUpdateActivity extends AppCompatActivity {
         return buff.array();
     }
 
-    private synchronized void updateFirmware(Context context) {
+    private synchronized void updateFirmware(FwUpdateDevice device,Context context, int fwResId) {
         try {
-            final byte[] bytes = readFwFile(context);
-            try (DeviceList dl = mRsContext.queryDevices(ProductClass.D400_RECOVERY)) {
-                if (dl.getDeviceCount() == 0)
-                    throw new Exception("device not found");
-                try (Device d = dl.createDevice(0)) {
-                    FwUpdateDevice fwud = d.as(FwUpdateDevice.class);
-                    fwud.updateFw(bytes, new ProgressListener() {
+            final byte[] bytes = readFwFile(context, fwResId);
+            device.updateFw(bytes, new ProgressListener() {
+                @Override
+                public void onProgress(final float progress) {
+                    runOnUiThread(new Runnable() {
                         @Override
-                        public void onProgress(final float progress) {
-                            runOnUiThread(new Runnable() {
-                                @Override
-                                public void run() {
-                                    TextView tv = findViewById(R.id.fwUpdateMainText);
-                                    tv.setText("FW update progress: " + (int) (progress * 100) + "[%]");
-                                }
-                            });
+                        public void run() {
+                            TextView tv = findViewById(R.id.fwUpdateMainText);
+                            tv.setText("FW update progress: " + (int) (progress * 100) + "[%]");
                         }
                     });
                 }
-            }
+            });
             Log.i(TAG, "Firmware update process finished successfully");
             runOnUiThread(new Runnable() {
                 @Override

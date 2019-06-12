@@ -3935,9 +3935,9 @@ namespace rs2
                     {
                         keep_showing_advanced_mode_modal = true;
                     }
-                }
 
-                ImGui::Separator();
+                    ImGui::Separator();
+                }
 
                 if (ImGui::Selectable("Hardware Reset"))
                 {
@@ -3956,13 +3956,32 @@ namespace rs2
                     }
                 }
 
-                ImGui::Separator();
-
-                if (ImGui::Selectable("Update FW"))
+                if (ImGui::Selectable("Firmware Update"))
                 {
                     try
                     {
-                        fw_update_requested = true;
+                        auto ret = file_dialog_open(open_file, "Signed Firmware Image\0*.bin\0", NULL, NULL);
+                        if (ret)
+                        {
+                            std::ifstream file(ret, std::ios::binary | std::ios::in);
+                            if (file.good())
+                            {
+                                std::vector<uint8_t> content((std::istreambuf_iterator<char>(file)),
+                                    std::istreambuf_iterator<char>());
+
+                                auto manager = std::make_shared<firmware_update_manager>(*this, dev, content);
+
+                                auto id = viewer.not_model.add_notification({ "Manual Update requested",
+                                    RS2_LOG_SEVERITY_INFO,
+                                    RS2_NOTIFICATION_CATEGORY_FIRMWARE_UPDATE_RECOMMENDED });
+
+                                viewer.not_model.attach_update_manager(id, manager, true);
+
+                                cleanup();
+
+                                manager->start();
+                            }
+                        }
                     }
                     catch (const error& e)
                     {
@@ -3974,7 +3993,6 @@ namespace rs2
                     }
                 }
             }
-
 
             if (!something_to_show)
             {

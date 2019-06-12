@@ -24,6 +24,7 @@
 #include "../third-party/json.hpp"
 
 #include "realsense-ui-advanced-mode.h"
+#include "fw-update-helper.h"
 
 ImVec4 from_rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a, bool consistent_color = false);
 ImVec4 operator+(const ImVec4& c, float v);
@@ -766,9 +767,9 @@ namespace rs2
         std::vector<std::string> restarting_device_info;
         std::set<std::string> advanced_mode_settings_file_names;
         std::string selected_file_preset;
-        bool fw_update_requested = false;
 
         std::function<void()> cleanup = []{};
+
     private:
         void draw_info_icon(ux_window& window, ImFont* font, const ImVec2& size);
         int draw_seek_bar();

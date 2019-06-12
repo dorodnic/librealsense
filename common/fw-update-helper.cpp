@@ -22,9 +22,7 @@ namespace rs2
     static std::map<int, std::string> product_line_to_fw =
     {
         {RS2_PRODUCT_LINE_D400, FW_D4XX_FW_IMAGE_VERSION},
-        {RS2_PRODUCT_LINE_D400_RECOVERY, FW_D4XX_FW_IMAGE_VERSION},
         {RS2_PRODUCT_LINE_SR300, FW_SR3XX_FW_IMAGE_VERSION},
-        {RS2_PRODUCT_LINE_SR300_RECOVERY, FW_SR3XX_FW_IMAGE_VERSION}
     };
 
     std::string get_available_firmware_version(int product_line)
@@ -45,7 +43,6 @@ namespace rs2
             auto hex = fw_get_D4XX_FW_Image(size);
             auto vec = std::vector<uint8_t>(hex, hex + size);
             rv[RS2_PRODUCT_LINE_D400] = vec;
-            rv[RS2_PRODUCT_LINE_D400_RECOVERY] = vec;
         }
 
         if ("" != FW_SR3XX_FW_IMAGE_VERSION)
@@ -54,7 +51,6 @@ namespace rs2
             auto hex = fw_get_SR3XX_FW_Image(size);
             auto vec = std::vector<uint8_t>(hex, hex + size);
             rv[RS2_PRODUCT_LINE_SR300] = vec;
-            rv[RS2_PRODUCT_LINE_SR300_RECOVERY] = vec;
         }
 
         return rv;
@@ -130,6 +126,7 @@ namespace rs2
                 std::mutex m;
                 std::condition_variable cv;
                 bool dfu_connected = false;
+                bool dev_reconnected = false;
                 fw_update_device dfu{ };
 
                 std::string serial = self->_dev.query_sensors().front().get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
@@ -137,7 +134,7 @@ namespace rs2
                 self->_progress = 10;
 
                 ctx.set_devices_changed_callback(
-                    [ptr, &cv, &dfu_connected, serial, &dfu, cleanup](event_information& info)
+                    [ptr, &cv, &dfu_connected, &dev_reconnected, serial, &dfu, cleanup](event_information& info)
                 {
                     auto self = ptr.lock();
                     if (!self) return;
@@ -150,6 +147,17 @@ namespace rs2
                             
                         for (auto d : devs)
                         {
+                            if (d.query_sensors().size() && d.query_sensors().front().supports(RS2_CAMERA_INFO_SERIAL_NUMBER))
+                            {
+                                auto s = d.query_sensors().front().get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
+                                if (s == serial)
+                                {
+                                    self->log("Discovered connection of the original device");
+                                    dev_reconnected = true;
+                                    cv.notify_all();
+                                }
+                            }
+
                             if (d.is<fw_update_device>())
                             {
                                 if (d.supports(RS2_CAMERA_INFO_SERIAL_NUMBER))
@@ -191,7 +199,18 @@ namespace rs2
 
                 {
                     std::unique_lock<std::mutex> lk(m);
-                    cv.wait(lk, [&] { return dfu_connected; });
+                    if (!cv.wait_for(lk, std::chrono::seconds(10),
+                        [&] { return dfu_connected || dev_reconnected; }))
+                    {
+                        self->fail("Device did not reconnect in time!");
+                        return;
+                    }
+                }
+
+                if (dev_reconnected)
+                {
+                    self->fail("Device reconnected before update started!");
+                    return;
                 }
 
                 self->log("Recovery device connected");
@@ -221,5 +240,7 @@ namespace rs2
             }
         });
         t.detach();
+
+        _started = true;
     }
 }

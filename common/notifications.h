@@ -74,6 +74,7 @@ namespace rs2
         // Behaviour variables
         bool dismissed = false;
         bool expanded = false;
+        bool visible = true;
         bool pinned = false;
         bool enable_dismiss = true;
         bool enable_expand = true;
@@ -94,7 +95,8 @@ namespace rs2
         void draw(ux_window& win, int w, int h, std::string& error_message);
 
         void dismiss(int idx);
-        void attach_update_manager(int idx, std::shared_ptr<firmware_update_manager> manager);
+        void attach_update_manager(int idx, 
+            std::shared_ptr<firmware_update_manager> manager, bool expanded = false);
 
         void foreach_log(std::function<void(const std::string& line)> action)
         {

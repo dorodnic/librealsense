@@ -14,9 +14,9 @@ namespace librealsense
     int get_product_line(uint16_t pid, platform::usb_class cls)
     {
         if (SR300_RECOVERY == pid && platform::RS2_USB_CLASS_VENDOR_SPECIFIC == cls)
-            return RS2_PRODUCT_LINE_SR300_RECOVERY;
+            return RS2_PRODUCT_LINE_SR300;
         if(ds::RS_RECOVERY_PID == pid)
-            return RS2_PRODUCT_LINE_D400_RECOVERY;
+            return RS2_PRODUCT_LINE_D400;
         return 0;
     }
 

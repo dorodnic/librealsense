@@ -187,7 +187,7 @@ bool refresh_devices(std::mutex& m,
             if (!initial_refresh)
             {
                 if (added || dev.is<playback>())
-                    viewer_model.not_model.add_notification({ dev_descriptor.first + " Connected\n",
+                viewer_model.not_model.add_notification({ dev_descriptor.first + " Connected\n",
                         RS2_LOG_SEVERITY_INFO, RS2_NOTIFICATION_CATEGORY_UNKNOWN_ERROR });
                 else
                     viewer_model.not_model.add_notification({ dev_descriptor.first + " Connected\n",
@@ -302,6 +302,7 @@ int main(int argc, const char** argv) try
             device_names, *device_models, viewer_model, error_message);
         return true;
     };
+
 
     // Closing the window
     while (window)

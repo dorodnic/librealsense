@@ -11,7 +11,7 @@ endif()
 
 add_executable(${PROJECT_NAME} rs-fw-update.cpp)
 set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 11)
-target_link_libraries(${PROJECT_NAME} ${DEPENDENCIES} uvc_fw)
+target_link_libraries(${PROJECT_NAME} ${DEPENDENCIES})
 include_directories(../../third-party/tclap/include ${CMAKE_BINARY_DIR})
 set_target_properties (${PROJECT_NAME} PROPERTIES FOLDER Tools)
 
