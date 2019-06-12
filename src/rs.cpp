@@ -38,6 +38,7 @@
 #include "proc/temporal-filter.h"
 #include "software-device.h"
 #include "fw-update/fw-update-device.h"
+#include "global_timestamp_reader.h"
 
 ////////////////////////
 // API implementation //
@@ -1128,6 +1129,7 @@ int rs2_is_device_extendable_to(const rs2_device* dev, rs2_extension extension, 
         case RS2_EXTENSION_PLAYBACK              : return VALIDATE_INTERFACE_NO_THROW(dev->device, librealsense::playback_device)             != nullptr;
         case RS2_EXTENSION_TM2                   : return VALIDATE_INTERFACE_NO_THROW(dev->device, librealsense::tm2_extensions)              != nullptr;
         case RS2_EXTENSION_FW_UPDATE_DEVICE      : return VALIDATE_INTERFACE_NO_THROW(dev->device, librealsense::fw_update_device_interface)            != nullptr;
+        case RS2_EXTENSION_GLOBAL_TIMER          : return VALIDATE_INTERFACE_NO_THROW(dev->device, librealsense::global_time_interface)       != nullptr;
 
         default:
             return false;

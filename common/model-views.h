@@ -547,7 +547,9 @@ namespace rs2
             bool* options_invalidated,
             std::string& error_message);
 
-        subdevice_model(device& dev, std::shared_ptr<sensor> s, std::string& error_message);
+        subdevice_model(device& dev, std::shared_ptr<sensor> s, std::string& error_message, viewer_model& viewer);
+        ~subdevice_model();
+
         bool is_there_common_fps() ;
         bool draw_stream_selection();
         bool is_selected_combination_supported();
@@ -597,6 +599,7 @@ namespace rs2
             return false;
         }
 
+        viewer_model& viewer;
         std::function<void()> on_frame = []{};
         std::shared_ptr<sensor> s;
         device dev;

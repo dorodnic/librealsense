@@ -21,6 +21,7 @@ if(BUILD_GRAPHICAL_EXAMPLES)
         ../../third-party/imgui/imgui_impl_glfw.cpp
         ../../third-party/imgui/imgui-fonts-karla.hpp
         ../../third-party/imgui/imgui-fonts-fontawesome.hpp
+            ../../common/realsense-ui-advanced-mode.h
         ../../third-party/glad/glad.c
         ../../third-party/tinyfiledialogs/tinyfiledialogs.c
         ../../third-party/tinyfiledialogs/tinyfiledialogs.h

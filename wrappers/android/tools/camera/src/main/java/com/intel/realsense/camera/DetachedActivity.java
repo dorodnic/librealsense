@@ -10,12 +10,12 @@ import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.view.View;
 import android.widget.Button;
+import android.widget.TextView;
 
 import com.intel.realsense.librealsense.CameraInfo;
 import com.intel.realsense.librealsense.Device;
 import com.intel.realsense.librealsense.DeviceList;
 import com.intel.realsense.librealsense.DeviceListener;
-import com.intel.realsense.librealsense.ProductClass;
 import com.intel.realsense.librealsense.RsContext;
 
 public class DetachedActivity extends AppCompatActivity {
@@ -29,7 +29,6 @@ public class DetachedActivity extends AppCompatActivity {
     private Context mAppContext;
     private RsContext mRsContext = new RsContext();
 
-    private boolean mFinished = false;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -52,7 +51,10 @@ public class DetachedActivity extends AppCompatActivity {
             return;
         }
 
-        mFinished = false;
+        String appVersion = BuildConfig.VERSION_NAME;
+        String lrsVersion = RsContext.getVersion();
+        TextView versions = findViewById(R.id.versionsText);
+        versions.setText("librealsense version: " + lrsVersion + "\ncamera app version: " + appVersion);
         mPermissionsGrunted = true;
     }
 
@@ -77,57 +79,56 @@ public class DetachedActivity extends AppCompatActivity {
     private void init() {
         RsContext.init(getApplicationContext());
         mRsContext.setDevicesChangedCallback(mListener);
-        validated_device();
-    }
 
-    private synchronized void validated_device(){
-        if(mFinished)
-            return;
-        if(mRsContext.queryDevices(ProductClass.D400).getDeviceCount() > 0){
-            if(!verify_minimal_fw_version())
+        if(mRsContext.queryDevices().getDeviceCount() > 0){
+            if(!validated_device())
                 return;
-            mFinished = true;
             Intent intent = new Intent(mAppContext, PreviewActivity.class);
             startActivity(intent);
             finish();
         }
-        if(mRsContext.queryDevices(ProductClass.D400_RECOVERY).getDeviceCount() > 0){
-            mFinished = true;
-            Intent intent = new Intent(mAppContext, FirmwareUpdateActivity.class);
-            startActivity(intent);
-            finish();
-        }
     }
 
-    private boolean verify_minimal_fw_version(){
-        DeviceList devices = mRsContext.queryDevices();
-        if(devices.getDeviceCount() == 0)
-            return false;
-        Device device = devices.createDevice(0);
-        if(!device.supportsInfo(CameraInfo.RECOMMENDED_FIRMWARE_VERSION))
-            return true;
-        final String recFw = device.getInfo(CameraInfo.RECOMMENDED_FIRMWARE_VERSION);
-        final String fw = device.getInfo(CameraInfo.FIRMWARE_VERSION);
-        String[] sFw = fw.split("\\.");
-        String[] sRecFw = recFw.split("\\.");
-        for(int i = 0; i < sRecFw.length; i++){
-            if(Integer.parseInt(sFw[i]) > Integer.parseInt(sRecFw[i]))
-                break;
-            if(Integer.parseInt(sFw[i]) < Integer.parseInt(sRecFw[i])){
-                mFinished = true;
-                Intent intent = new Intent(mAppContext, FirmwareUpdateActivity.class);
-                startActivity(intent);
-                finish();
-                return false;
-            }
-        }
-        return true;
+    private boolean validated_device(){
+         try(DeviceList devices = mRsContext.queryDevices()){
+             if(devices.getDeviceCount() == 0)
+                 return false;
+             try(Device device = devices.createDevice(0)) {
+                 if (!device.supportsInfo(CameraInfo.RECOMMENDED_FIRMWARE_VERSION))
+                     return true;
+                 final String recFw = device.getInfo(CameraInfo.RECOMMENDED_FIRMWARE_VERSION);
+                 final String fw = device.getInfo(CameraInfo.FIRMWARE_VERSION);
+                 String[] sFw = fw.split("\\.");
+                 String[] sRecFw = recFw.split("\\.");
+                 for(int i = 0; i < sRecFw.length; i++){
+                     if(Integer.parseInt(sFw[i]) > Integer.parseInt(sRecFw[i]))
+                         break;
+                     if(Integer.parseInt(sFw[i]) < Integer.parseInt(sRecFw[i])){
+                         runOnUiThread(new Runnable() {
+                             @Override
+                             public void run() {
+                                 TextView textView = findViewById(R.id.connectCameraText);
+                                 textView.setText("The FW of the connected device is:\n " + fw +
+                                         "\n\nThe recommended FW for this device is:\n " + recFw +
+                                         "\n\nPlease update your device to the recommended FW or higher");
+                             }
+                         });
+                         return false;
+                     }
+                 }
+                 return true;
+             }
+         }
     }
 
     private DeviceListener mListener = new DeviceListener() {
         @Override
         public void onDeviceAttach() {
-            validated_device();
+            if(!validated_device())
+                return;
+            Intent intent = new Intent(mAppContext, PreviewActivity.class);
+            startActivity(intent);
+            finish();
         }
 
         @Override

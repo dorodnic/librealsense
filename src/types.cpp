@@ -181,6 +181,7 @@ namespace librealsense
             CASE(POSE_SENSOR)
             CASE(WHEEL_ODOMETER)
             CASE(FW_UPDATE_DEVICE)
+            CASE(GLOBAL_TIMER)
         default: assert(!is_valid(value)); return UNKNOWN_VALUE;
         }
 #undef CASE
@@ -273,6 +274,7 @@ namespace librealsense
             CASE(LLD_TEMPERATURE)
             CASE(MC_TEMPERATURE)
             CASE(MA_TEMPERATURE)
+            CASE(APD_TEMPERATURE)
             CASE(HARDWARE_PRESET)
             CASE(GLOBAL_TIME_ENABLED)
         default: assert(!is_valid(value)); return UNKNOWN_VALUE;

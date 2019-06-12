@@ -881,11 +881,12 @@ namespace rs2
 
     subdevice_model::subdevice_model(
         device& dev,
-        std::shared_ptr<sensor> s, std::string& error_message)
+        std::shared_ptr<sensor> s, std::string& error_message, viewer_model& viewer)
         : s(s), dev(dev), tm2(), ui(), last_valid_ui(),
         streaming(false), _pause(false),
         depth_colorizer(std::make_shared<rs2::gl::colorizer>()),
-        yuy2rgb(std::make_shared<rs2::gl::yuy_decoder>())
+        yuy2rgb(std::make_shared<rs2::gl::yuy_decoder>()),
+        viewer(viewer)
     {
         restore_processing_block("colorizer", depth_colorizer);
         restore_processing_block("yuy2rgb", yuy2rgb);
@@ -936,7 +937,10 @@ namespace rs2
                 model->visible = false;
 
             if (shared_filter->is<zero_order_invalidation>())
+            {
                 zero_order_artifact_fix = model;
+                viewer.zo_sensors++;
+            }
 
             if (shared_filter->is<hole_filling_filter>())
                 model->enabled = false;
@@ -1070,6 +1074,11 @@ namespace rs2
         }
     }
 
+    subdevice_model::~subdevice_model()
+    {
+        if(zero_order_artifact_fix)
+            viewer.zo_sensors--;
+    }
 
     bool subdevice_model::is_there_common_fps()
     {
@@ -1509,7 +1518,7 @@ namespace rs2
         try {
             s->start([&, syncer](frame f)
             {
-                if (viewer.synchronization_enable && is_synchronized_frame(viewer, f))
+                if (viewer.zo_sensors.load() > 0 || (viewer.synchronization_enable && is_synchronized_frame(viewer, f)))
                 {
                     syncer->invoke(f);
                 }
@@ -2753,28 +2762,29 @@ namespace rs2
                     manager = std::make_shared<firmware_update_manager>(*this, dev, table[product_line]);
                 }
 
-                if (!is_upgradeable(fw, recommended)) continue;
-
-                std::string msg = to_string() 
-                    << name.first << " (S/N " << name.second << ")\n"
-                    << "Current Version: " + fw + "\nRecommended Version: " + recommended;
-                if (!fw_update_required) 
+                if (is_upgradeable(fw, recommended))
                 {
-                    auto id = viewer.not_model.add_notification({ msg,
-                        RS2_LOG_SEVERITY_INFO,
-                        RS2_NOTIFICATION_CATEGORY_FIRMWARE_UPDATE_RECOMMENDED });
-                    
-                    fw_update_required = true;
+                    std::string msg = to_string()
+                        << name.first << " (S/N " << name.second << ")\n"
+                        << "Current Version: " + fw + "\nRecommended Version: " + recommended;
+                    if (!fw_update_required)
+                    {
+                        auto id = viewer.not_model.add_notification({ msg,
+                            RS2_LOG_SEVERITY_INFO,
+                            RS2_NOTIFICATION_CATEGORY_FIRMWARE_UPDATE_RECOMMENDED });
 
-                    if (manager) viewer.not_model.attach_update_manager(id, manager);
+                        fw_update_required = true;
 
-                    cleanup = [id, &viewer]{
-                        viewer.not_model.dismiss(id); 
-                    };
-                }
+                        if (manager) viewer.not_model.attach_update_manager(id, manager);
+
+                        cleanup = [id, &viewer] {
+                            viewer.not_model.dismiss(id);
+                        };
+                    }
+                }                
             }
 
-            auto model = std::make_shared<subdevice_model>(dev, std::make_shared<sensor>(sub), error_message);
+            auto model = std::make_shared<subdevice_model>(dev, std::make_shared<sensor>(sub), error_message, viewer);
             subdevices.push_back(model);
         }
 
@@ -3075,7 +3085,7 @@ namespace rs2
         {
             try
             {
-                if(viewer.synchronization_enable)
+                if(viewer.synchronization_enable || viewer.zo_sensors.load() >0)
                 {
                     auto frames = viewer.syncer->try_wait_for_frames();
                     for(auto f:frames)

@@ -467,7 +467,8 @@ namespace rs2
 
     viewer_model::viewer_model()
             : ppf(*this), 
-              synchronization_enable(true)
+              synchronization_enable(true),
+              zo_sensors(0)
     {
         syncer = std::make_shared<syncer_model>();
         reset_camera();

@@ -17,6 +17,7 @@ if(BUILD_GRAPHICAL_EXAMPLES)
         depth-quality-model.h
         depth-quality-model.cpp
         depth-metrics.h
+            ../../common/realsense-ui-advanced-mode.h
         ../../third-party/imgui/imgui.cpp
         ../../third-party/imgui/imgui_draw.cpp
         ../../third-party/imgui/imgui_impl_glfw.cpp
