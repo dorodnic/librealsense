@@ -615,6 +615,12 @@ namespace rs2
                 m.enable_expand = false;
             }
 
+            if (n.get_category() == RS2_NOTIFICATION_CATEGORY_COUNT)
+            {
+                m.pinned = true;
+                m.enable_expand = false;
+            }
+
             if (use_custom_action)
             {
                 m.custom_action = custom_action;

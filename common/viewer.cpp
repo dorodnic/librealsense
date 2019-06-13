@@ -12,6 +12,8 @@
 #include "viewer.h"
 #include "os.h"
 
+#include "udev-rules.h"
+
 #include <opengl3.h>
 
 #include <imgui_internal.h>
@@ -433,6 +435,44 @@ namespace rs2
         ImGui::PopFont();
     }
 
+    void viewer_model::check_permissions()
+    {
+#ifdef __linux__ 
+
+        if (directory_exists("/etc/udev/rules.d"))
+        {
+            std::ifstream f("/etc/udev/rules.d/99-realsense-libusb.rules");
+
+            int id = -1;
+
+            if(!f.good())
+            {
+                id = not_model.add_notification({ "RealSense UDEV-Rules are missing!\n"
+                        "UDEV-Rules configure correct permissions\nfor RealSense devices.\n",
+                     RS2_LOG_SEVERITY_WARN,
+                     RS2_NOTIFICATION_CATEGORY_COUNT });
+            }
+            else
+            {
+                std::string str((std::istreambuf_iterator<char>(f)),
+                                 std::istreambuf_iterator<char>());
+                
+                std::string udev = realsense_udev_rules;
+
+                if (udev != str)
+                {
+                    id = not_model.add_notification({ "RealSense UDEV-Rules are outdated!\n"
+                        "UDEV-Rules configure correct permissions\nfor RealSense devices.\n",
+                        RS2_LOG_SEVERITY_WARN,
+                        RS2_NOTIFICATION_CATEGORY_COUNT });
+                }
+            }
+        }
+
+       
+#endif
+    }
+
     void viewer_model::update_configuration()
     {
         continue_with_ui_not_aligned = config_file::instance().get_or_default(
@@ -476,6 +516,8 @@ namespace rs2
         not_model.add_log(to_string() << "librealsense version: " << api_version_to_string(rs2_get_api_version(&e)) << "\n");
     
         update_configuration();
+
+        check_permissions();
     }
 
     void viewer_model::gc_streams()

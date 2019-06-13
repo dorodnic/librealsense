@@ -91,3 +91,5 @@ if (IMPORT_UVC_FW)
         set(IMPORT_UVC_FW OFF)
     endif()
 endif()
+
+include(CMake/embedd_udev_rules.cmake)
