@@ -445,10 +445,16 @@ namespace rs2
 
             int id = -1;
 
+            std::string message = "UDEV-Rules configure correct permissions\nfor RealSense devices.`\n"
+                        "Missing UDEV-Rules will cause 'Permissions Denied' errors\nunless the application is running under 'sudo' (not recommended)\n"
+                        "To install UDEV-Rules run in terminal:\nwget https://raw.githubusercontent.com/IntelRealSense/librealsense/master/config/99-realsense-libusb.rules\n"
+                        "sudo cp 99-realsense-libusb.rules /etc/udev/rules.d/\n"
+                        "sudo udevadm control --reload-rules && udevadm trigger\n";
+
             if(!f.good())
             {
-                id = not_model.add_notification({ "RealSense UDEV-Rules are missing!\n"
-                        "UDEV-Rules configure correct permissions\nfor RealSense devices.\n",
+                message = "RealSense UDEV-Rules are missing!\n" + message;
+                id = not_model.add_notification({ message,
                      RS2_LOG_SEVERITY_WARN,
                      RS2_NOTIFICATION_CATEGORY_COUNT });
             }
@@ -461,8 +467,9 @@ namespace rs2
 
                 if (udev != str)
                 {
-                    id = not_model.add_notification({ "RealSense UDEV-Rules are outdated!\n"
-                        "UDEV-Rules configure correct permissions\nfor RealSense devices.\n",
+                    message = "RealSense UDEV-Rules are outdated!\n" + message;
+                    id = not_model.add_notification({ 
+                        message,
                         RS2_LOG_SEVERITY_WARN,
                         RS2_NOTIFICATION_CATEGORY_COUNT });
                 }
