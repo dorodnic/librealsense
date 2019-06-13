@@ -18,6 +18,8 @@
 
 using namespace TCLAP;
 
+#define WAIT_FOR_DEVICE_TIMEOUT 5
+
 std::vector<uint8_t> read_fw_file(std::string file_path)
 {
     std::vector<uint8_t> rv;
@@ -140,6 +142,11 @@ int main(int argc, char** argv) try
 
     ctx.set_devices_changed_callback([&](rs2::event_information& info)
     {
+        if (info.get_new_devices().size() == 0)
+        {
+            return;
+        }
+
         for (auto&& d : info.get_new_devices())
         {
             std::lock_guard<std::mutex> lk(mutex);
@@ -148,8 +155,8 @@ int main(int argc, char** argv) try
             else
                 new_device = d;
         }
-
-        cv.notify_one();
+        if(new_fw_update_device || new_device)
+            cv.notify_one();
     });
 
     auto devs = ctx.query_devices(RS2_PRODUCT_LINE_DEPTH);
@@ -173,24 +180,19 @@ int main(int argc, char** argv) try
         d.enter_to_fw_update_mode();
 
         std::unique_lock<std::mutex> lk(mutex);
-        if (!cv.wait_for(lk, std::chrono::seconds(5), [&] { return new_fw_update_device; }))
-            break;
-
-        if (new_fw_update_device)
-        {
-            std::cout << std::endl << "device in FW update mode, start updating." << std::endl;
-            update(new_fw_update_device, fw_image);
-            done = true;
-        }
-        else
+        if (!cv.wait_for(lk, std::chrono::seconds(WAIT_FOR_DEVICE_TIMEOUT), [&] { return new_fw_update_device; }))
         {
             std::cout << std::endl << "failed to locate a device in FW update mode." << std::endl;
             return EXIT_FAILURE;
         }
+
+        std::cout << std::endl << "device in FW update mode, start updating." << std::endl;
+        update(new_fw_update_device, fw_image);
+        done = true;
     }
 
     std::unique_lock<std::mutex> lk(mutex);
-    cv.wait_for(lk, std::chrono::seconds(5), [&] { return !done || new_device; });
+    cv.wait_for(lk, std::chrono::seconds(WAIT_FOR_DEVICE_TIMEOUT), [&] { return !done || new_device; });
 
     if (!device_found && !recover_arg.isSet())
     {
