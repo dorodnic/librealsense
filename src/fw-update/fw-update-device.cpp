@@ -129,9 +129,9 @@ namespace librealsense
             size_t chunk_size = std::min(transfer_size, remaining_bytes);
 
             auto curr_block = ((uint8_t*)fw_image + offset);
-            auto sts = messenger->control_transfer(0x21 /*DFU_DOWNLOAD_PACKET*/, RS2_DFU_DOWNLOAD, block_number, 0, curr_block, chunk_size, transferred, 10);
-            if(sts != platform::RS2_USB_STATUS_SUCCESS || !wait_for_state(messenger, RS2_DFU_STATE_DFU_DOWNLOAD_IDLE))
-                throw std::runtime_error("failed to download firmware");
+            auto sts = messenger->control_transfer(0x21 /*DFU_DOWNLOAD_PACKET*/, RS2_DFU_DOWNLOAD, block_number, 0, curr_block, chunk_size, transferred, 1000000);
+            if(sts != platform::RS2_USB_STATUS_SUCCESS || !wait_for_state(messenger, RS2_DFU_STATE_DFU_DOWNLOAD_IDLE, 100000))
+                throw std::runtime_error("Failed to download firmware");
 
             block_number++;
             remaining_bytes -= chunk_size;
@@ -149,7 +149,7 @@ namespace librealsense
         // the Manifestation phase begins.
         auto sts = messenger->control_transfer(0x21 /*DFU_DOWNLOAD_PACKET*/, RS2_DFU_DOWNLOAD, block_number, 0, NULL, 0, transferred, 10);
         if (sts != platform::RS2_USB_STATUS_SUCCESS)
-            throw std::runtime_error("failed to send final FW packet");
+            throw std::runtime_error("Failed to send final FW packet");
 
         // After the zero length DFU_DNLOAD request terminates the Transfer
         // phase, the device is ready to manifest the new firmware. As described
@@ -165,7 +165,7 @@ namespace librealsense
         // either RS2_DFU_STATE_DFU_MANIFEST_WAIT_RESET or RS2_DFU_STATE_DFU_ERROR status.
         // This command also reset the device
         if (!wait_for_state(messenger, RS2_DFU_STATE_DFU_MANIFEST_WAIT_RESET, 20000))
-            throw std::runtime_error("firmware manifest failed");
+            throw std::runtime_error("Firmware manifest failed");
     }
 
     sensor_interface& fw_update_device::get_sensor(size_t i)

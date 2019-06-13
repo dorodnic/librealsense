@@ -129,9 +129,13 @@ namespace rs2
                 bool dev_reconnected = false;
                 fw_update_device dfu{ };
 
-                std::string serial = self->_dev.query_sensors().front().get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
+                std::string serial = "";
+                if (self->_dev.supports(RS2_CAMERA_INFO_SERIAL_NUMBER))
+                    serial = self->_dev.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
+                else
+                    serial = self->_dev.query_sensors().front().get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
 
-                self->_progress = 10;
+                self->_progress = 5;
 
                 ctx.set_devices_changed_callback(
                     [ptr, &cv, &dfu_connected, &dev_reconnected, serial, &dfu, cleanup](event_information& info)
@@ -150,7 +154,7 @@ namespace rs2
                             if (d.query_sensors().size() && d.query_sensors().front().supports(RS2_CAMERA_INFO_SERIAL_NUMBER))
                             {
                                 auto s = d.query_sensors().front().get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
-                                if (s == serial)
+                                //if (s == serial)
                                 {
                                     self->log("Discovered connection of the original device");
                                     dev_reconnected = true;
@@ -194,30 +198,55 @@ namespace rs2
                     }
                 });
 
-                self->log("Requesting to switch to recovery mode");
-                self->_dev.enter_to_fw_update_mode();
+
+                if (!self->_dev.is<fw_update_device>())
+                {
+                    self->log("Requesting to switch to recovery mode");
+                    self->_dev.enter_to_fw_update_mode();
+
+                    {
+                        std::unique_lock<std::mutex> lk(m);
+                        if (!cv.wait_for(lk, std::chrono::seconds(10),
+                            [&] { return dfu_connected || dev_reconnected; }))
+                        {
+                            self->fail("Device did not reconnect in time!");
+                            return;
+                        }
+                    }
+
+                    if (dev_reconnected)
+                    {
+                        self->fail("Device reconnected before update started!");
+                        return;
+                    }
+                }
+                else
+                {
+                    dfu = self->_dev.as<fw_update_device>();
+                }
+
+                self->_progress = 10;
+
+                self->log("Recovery device connected, starting update");
+
+                dfu.update_fw(self->_fw, [&](const float progress)
+                {
+                    self->_progress = (ceil(progress*10)/10 * 80) + 10;
+                });
+
+                self->log("Update completed");
 
                 {
                     std::unique_lock<std::mutex> lk(m);
-                    if (!cv.wait_for(lk, std::chrono::seconds(10),
-                        [&] { return dfu_connected || dev_reconnected; }))
+                    if (!cv.wait_for(lk, std::chrono::seconds(60),
+                        [&] { return dev_reconnected; }))
                     {
                         self->fail("Device did not reconnect in time!");
                         return;
                     }
                 }
 
-                if (dev_reconnected)
-                {
-                    self->fail("Device reconnected before update started!");
-                    return;
-                }
-
-                self->log("Recovery device connected");
-
-                dfu.hardware_reset();
-
-                std::this_thread::sleep_for(std::chrono::seconds(5));
+                self->log("Device reconnected succesfully!");
 
                 self->_progress = 100;
 
