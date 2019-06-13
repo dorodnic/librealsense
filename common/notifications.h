@@ -41,7 +41,7 @@ namespace rs2
         bool interacted() const;
         std::function<void()> draw(ux_window& win, int w, int y, 
             notification_model& selected, std::string& error_message);
-        void draw_text(int x, int y, int h);
+        void draw_text(const char* msg, int x, int y, int h);
         void set_color_scheme(float t) const;
         void unset_color_scheme() const;
         void draw_progress_bar(ux_window& win, int w);

@@ -3156,7 +3156,7 @@ namespace rs2
         is_recording = false;
         notification_data nd{ to_string() << "Saved recording to: " << saved_to_filename,
             RS2_LOG_SEVERITY_INFO,
-            RS2_NOTIFICATION_CATEGORY_COUNT };
+            RS2_NOTIFICATION_CATEGORY_UNKNOWN_ERROR };
         viewer.not_model.add_notification(nd);
     }
 

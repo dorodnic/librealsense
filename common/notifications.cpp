@@ -210,7 +210,7 @@ namespace rs2
         return 10000;
     }
 
-    void notification_model::draw_text(int x, int y, int h)
+    void notification_model::draw_text(const char* msg, int x, int y, int h)
     {
         std::string text_name = to_string() << "##notification_text_" << index;
         ImGui::PushTextWrapPos(x + width - 100);
@@ -220,9 +220,9 @@ namespace rs2
         ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabActive, transparent);
         ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabHovered, transparent);
         ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, regular_blue);
-        if (enable_click) ImGui::Text("%s", message.c_str());
-        else ImGui::InputTextMultiline(text_name.c_str(), const_cast<char*>(message.c_str()),
-            message.size() + 1, { float(width - (count > 1 ? 40 : 10)), float(h) },
+        if (enable_click) ImGui::Text("%s", msg);
+        else ImGui::InputTextMultiline(text_name.c_str(), const_cast<char*>(msg),
+            strlen(msg) + 1, { float(width - (count > 1 ? 40 : 10)), float(h) },
             ImGuiInputTextFlags_ReadOnly);
         ImGui::PopStyleColor(6);
         ImGui::PopTextWrapPos();
@@ -281,7 +281,12 @@ namespace rs2
 
             set_color_scheme(t);
 
-            auto lines = static_cast<int>(std::count(message.begin(), message.end(), '\n') + 1);
+            auto title = message;
+
+            auto parts = split_string(title, '`');
+            if (parts.size() > 1) title = parts[0];
+
+            auto lines = static_cast<int>(std::count(title.begin(), title.end(), '\n') + 1);
             height = lines * 30 + 5;
 
             if (category == RS2_NOTIFICATION_CATEGORY_FIRMWARE_UPDATE_RECOMMENDED)
@@ -368,7 +373,7 @@ namespace rs2
 
                     ImGui::SetCursorScreenPos({ float(x + 5), float(y + 27) });
 
-                    draw_text(x, y, height - 50);
+                    draw_text(title.c_str(), x, y, height - 50);
 
                     ImGui::SetCursorScreenPos({ float(x + 9), float(y + height - 67) });
 
@@ -477,7 +482,7 @@ namespace rs2
             }
             else
             {
-                draw_text(x, y, height - 35);
+                draw_text(title.c_str(), x, y, height - 35);
             }
 
             if (enable_expand)
@@ -615,6 +620,11 @@ namespace rs2
                 m.enable_expand = false;
             }
 
+            if (n.get_category() == RS2_NOTIFICATION_CATEGORY_COUNT)
+            {
+                m.pinned = true;
+            }
+
             if (use_custom_action)
             {
                 m.custom_action = custom_action;
@@ -689,11 +699,17 @@ namespace rs2
             if (ImGui::BeginPopupModal("Notification from Hardware", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
             {
                 ImGui::Text("Received the following notification:");
+
+                auto parts = split_string(selected.message, '`');
+
                 std::stringstream ss;
                 ss << "Timestamp: "
                     << std::fixed << selected.timestamp
                     << "\nSeverity: " << selected.severity
-                    << "\nDescription: " << selected.message;
+                    << "\nDescription: ";
+                    
+                for (auto&& part : parts) ss << part << "\n";
+
                 auto s = ss.str();
                 ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, regular_blue);
                 ImGui::InputTextMultiline("notification", const_cast<char*>(s.c_str()),

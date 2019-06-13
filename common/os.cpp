@@ -11,6 +11,9 @@
 #include <regex>
 #include <cmath>
 
+#include <sys/types.h>
+#include <sys/stat.h>
+
 #include "os.h"
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -149,6 +152,18 @@ Some auxillary functionalities might be affected. Please report this message if 
         float scale = sqrt(how_many_pixels_in_mm) / 5.f;
         if (scale < 1.f) return 1;
         return (int)(floor(scale));
+    }
+
+    bool directory_exists(const char* dir)
+    {
+        struct stat info;
+
+        if (stat(dir, &info ) != 0)
+            return false;
+        else if (info.st_mode & S_IFDIR) 
+            return true;
+        else
+            return false;
     }
 
     const char* file_dialog_open(file_dialog_mode flags, const char* filters, 

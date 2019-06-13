@@ -19,6 +19,8 @@ namespace rs2
 
     void open_url(const char* url);
 
+    bool directory_exists(const char* dir);
+
     std::vector<std::string> split_string(std::string& input, char delim);
 
     // Helper function to get window rect from GLFW

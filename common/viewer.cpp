@@ -12,6 +12,8 @@
 #include "viewer.h"
 #include "os.h"
 
+#include "udev-rules.h"
+
 #include <opengl3.h>
 
 #include <imgui_internal.h>
@@ -433,6 +435,51 @@ namespace rs2
         ImGui::PopFont();
     }
 
+    void viewer_model::check_permissions()
+    {
+#ifdef __linux__ 
+
+        if (directory_exists("/etc/udev/rules.d"))
+        {
+            std::ifstream f("/etc/udev/rules.d/99-realsense-libusb.rules");
+
+            int id = -1;
+
+            std::string message = "UDEV-Rules configure correct permissions\nfor RealSense devices.`\n"
+                        "Missing UDEV-Rules will cause 'Permissions Denied' errors\nunless the application is running under 'sudo' (not recommended)\n"
+                        "To install UDEV-Rules run in terminal:\nwget https://raw.githubusercontent.com/IntelRealSense/librealsense/master/config/99-realsense-libusb.rules\n"
+                        "sudo cp 99-realsense-libusb.rules /etc/udev/rules.d/\n"
+                        "sudo udevadm control --reload-rules && udevadm trigger\n";
+
+            if(!f.good())
+            {
+                message = "RealSense UDEV-Rules are missing!\n" + message;
+                id = not_model.add_notification({ message,
+                     RS2_LOG_SEVERITY_WARN,
+                     RS2_NOTIFICATION_CATEGORY_COUNT });
+            }
+            else
+            {
+                std::string str((std::istreambuf_iterator<char>(f)),
+                                 std::istreambuf_iterator<char>());
+                
+                std::string udev = realsense_udev_rules;
+
+                if (udev != str)
+                {
+                    message = "RealSense UDEV-Rules are outdated!\n" + message;
+                    id = not_model.add_notification({ 
+                        message,
+                        RS2_LOG_SEVERITY_WARN,
+                        RS2_NOTIFICATION_CATEGORY_COUNT });
+                }
+            }
+        }
+
+       
+#endif
+    }
+
     void viewer_model::update_configuration()
     {
         continue_with_ui_not_aligned = config_file::instance().get_or_default(
@@ -476,6 +523,8 @@ namespace rs2
         not_model.add_log(to_string() << "librealsense version: " << api_version_to_string(rs2_get_api_version(&e)) << "\n");
     
         update_configuration();
+
+        check_permissions();
     }
 
     void viewer_model::gc_streams()

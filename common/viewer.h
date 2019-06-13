@@ -127,6 +127,8 @@ namespace rs2
         bool show_pose_info_3d = false;
 
     private:
+        void check_permissions();
+
         bool popup_triggered = false;
 
         struct rgb {
