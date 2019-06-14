@@ -442,21 +442,20 @@ namespace rs2
         if (directory_exists("/etc/udev/rules.d"))
         {
             std::ifstream f("/etc/udev/rules.d/99-realsense-libusb.rules");
-
-            int id = -1;
-
             std::string message = "UDEV-Rules configure correct permissions\nfor RealSense devices.`\n"
                         "Missing UDEV-Rules will cause 'Permissions Denied' errors\nunless the application is running under 'sudo' (not recommended)\n"
-                        "To install UDEV-Rules run in terminal:\nwget https://raw.githubusercontent.com/IntelRealSense/librealsense/master/config/99-realsense-libusb.rules\n"
-                        "sudo cp 99-realsense-libusb.rules /etc/udev/rules.d/\n"
-                        "sudo udevadm control --reload-rules && udevadm trigger\n";
+                        "To install UDEV-Rules run in terminal:\n"
+                        "$ sudo cp ~/.99-realsense-libusb.rules /etc/udev/rules.d/99-realsense-libusb.rules && sudo udevadm control --reload-rules && udevadm trigger\n";
+
+            bool create_file = false;
 
             if(!f.good())
             {
                 message = "RealSense UDEV-Rules are missing!\n" + message;
-                id = not_model.add_notification({ message,
+                not_model.add_notification({ message,
                      RS2_LOG_SEVERITY_WARN,
                      RS2_NOTIFICATION_CATEGORY_COUNT });
+                create_file = true;
             }
             else
             {
@@ -468,11 +467,21 @@ namespace rs2
                 if (udev != str)
                 {
                     message = "RealSense UDEV-Rules are outdated!\n" + message;
-                    id = not_model.add_notification({ 
+                    not_model.add_notification({ 
                         message,
                         RS2_LOG_SEVERITY_WARN,
                         RS2_NOTIFICATION_CATEGORY_COUNT });
+                    create_file = true;
                 }
+            }
+
+            if (create_file)
+            {
+                std::string tmp_filename = to_string() << get_folder_path(special_folder::app_data) << "/.99-realsense-libusb.rules";
+
+                std::ofstream out(tmp_filename.c_str());
+                out << realsense_udev_rules;
+                out.close();
             }
         }
 

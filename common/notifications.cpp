@@ -722,6 +722,23 @@ namespace rs2
                     ImGui::CloseCurrentPopup();
                 }
 
+                std::string clip = "";
+                auto lines = split_string(selected.message, '\n');
+                for (auto line : lines)
+                {
+                    if (line.size() && line[0] == '$') clip += line.substr(2) + "\n";
+                }
+                if (clip != "")
+                {
+                    ImGui::SameLine();
+                    if (ImGui::Button(" Copy Commands "))
+                    {
+                        glfwSetClipboardString(win, clip.c_str());
+                    }
+                    if (ImGui::IsItemActive())
+                        ImGui::SetTooltip("Paste the copied commands to a terminal and enter your password to run");
+                }
+
                 ImGui::EndPopup();
             }
 

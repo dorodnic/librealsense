@@ -47,7 +47,7 @@ namespace rs2
 
         ~ux_window();
 
-        operator GLFWwindow*() { return _win; }
+        operator GLFWwindow*() const { return _win; }
 
         void begin_frame();
 
