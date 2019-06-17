@@ -560,6 +560,7 @@ namespace rs2
 
                 ImGui::SetCursorPosX(190);
                 if (visible || update_manager->done() || update_manager->failed())
+                {
                     if (ImGui::Button("OK", ImVec2(120, 0)))
                     {
                         update_state = 3;
@@ -568,6 +569,17 @@ namespace rs2
                         expanded = false;
                         ImGui::CloseCurrentPopup();
                     }
+                }
+                else
+                {
+                    ImGui::PushStyleColor(ImGuiCol_Button, transparent);
+                    ImGui::PushStyleColor(ImGuiCol_ButtonActive, transparent);
+                    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, transparent);
+                    ImGui::PushStyleColor(ImGuiCol_Text, transparent);
+                    ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, transparent);
+                    ImGui::Button("OK", ImVec2(120, 0));
+                    ImGui::PopStyleColor(5);
+                }
 
                 ImGui::EndPopup();
             }

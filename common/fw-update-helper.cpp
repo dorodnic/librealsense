@@ -115,20 +115,16 @@ namespace rs2
         auto me = shared_from_this();
         std::weak_ptr<firmware_update_manager> ptr(me);
 
-        std::thread t([ptr, cleanup]{
+        _ctx = context();
+        _dfu_connected = false;
+        _dev_reconnected = false;
+        
+        std::thread t([ptr, cleanup]() {
             auto self = ptr.lock();
             if (!self) return;
 
             try
             {
-                context ctx;
-
-                std::mutex m;
-                std::condition_variable cv;
-                bool dfu_connected = false;
-                bool dev_reconnected = false;
-                fw_update_device dfu{ };
-
                 std::string serial = "";
                 if (self->_dev.supports(RS2_CAMERA_INFO_SERIAL_NUMBER))
                     serial = self->_dev.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
@@ -137,8 +133,8 @@ namespace rs2
 
                 self->_progress = 5;
 
-                ctx.set_devices_changed_callback(
-                    [ptr, &cv, &dfu_connected, &dev_reconnected, serial, &dfu, cleanup](event_information& info)
+                self->_ctx.set_devices_changed_callback(
+                    [ptr, serial, cleanup](event_information& info)
                 {
                     auto self = ptr.lock();
                     if (!self) return;
@@ -157,8 +153,8 @@ namespace rs2
                                 //if (s == serial)
                                 {
                                     self->log("Discovered connection of the original device");
-                                    dev_reconnected = true;
-                                    cv.notify_all();
+                                    self->_dev_reconnected = true;
+                                    self->_cv.notify_all();
                                 }
                             }
 
@@ -169,9 +165,9 @@ namespace rs2
                                     //if (serial == d.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER))
                                     // TODO: Use serial number
                                     {
-                                        dfu = d;
-                                        dfu_connected = true;
-                                        cv.notify_all();
+                                        self->_dfu = d;
+                                        self->_dfu_connected = true;
+                                        self->_cv.notify_all();
                                     }
                                 }
                             }
@@ -205,16 +201,16 @@ namespace rs2
                     self->_dev.enter_to_fw_update_mode();
 
                     {
-                        std::unique_lock<std::mutex> lk(m);
-                        if (!cv.wait_for(lk, std::chrono::seconds(10),
-                            [&] { return dfu_connected || dev_reconnected; }))
+                        std::unique_lock<std::mutex> lk(self->_m);
+                        if (!self->_cv.wait_for(lk, std::chrono::seconds(10),
+                            [&] { return self->_dfu_connected || self->_dev_reconnected; }))
                         {
                             self->fail("Device did not reconnect in time!");
                             return;
                         }
                     }
 
-                    if (dev_reconnected)
+                    if (self->_dev_reconnected)
                     {
                         self->fail("Device reconnected before update started!");
                         return;
@@ -222,24 +218,24 @@ namespace rs2
                 }
                 else
                 {
-                    dfu = self->_dev.as<fw_update_device>();
+                    self->_dfu = self->_dev.as<fw_update_device>();
                 }
 
                 self->_progress = 10;
 
                 self->log("Recovery device connected, starting update");
 
-                dfu.update_fw(self->_fw, [&](const float progress)
+                self->_dfu.update_fw(self->_fw, [&](const float progress)
                 {
-                    self->_progress = (ceil(progress*10)/10 * 80) + 10;
+                    self->_progress = (ceil(progress*10)/10 * 70) + 10;
                 });
 
-                self->log("Update completed");
+                self->log("Update completed, waiting for device to reconnect");
 
                 {
-                    std::unique_lock<std::mutex> lk(m);
-                    if (!cv.wait_for(lk, std::chrono::seconds(60),
-                        [&] { return dev_reconnected; }))
+                    std::unique_lock<std::mutex> lk(self->_m);
+                    if (!self->_cv.wait_for(lk, std::chrono::seconds(60),
+                        [&] { return self->_dev_reconnected; }))
                     {
                         self->fail("Device did not reconnect in time!");
                         return;

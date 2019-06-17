@@ -48,5 +48,12 @@ namespace rs2
         device_model& _model;
         std::mutex _log_lock;
         std::string _last_error;
+
+        context _ctx;
+        std::mutex _m;
+        std::condition_variable _cv;
+        bool _dfu_connected = false;
+        bool _dev_reconnected = false;
+        fw_update_device _dfu;
     };
 }
