@@ -16,7 +16,7 @@ import com.intel.realsense.librealsense.CameraInfo;
 import com.intel.realsense.librealsense.Device;
 import com.intel.realsense.librealsense.DeviceList;
 import com.intel.realsense.librealsense.DeviceListener;
-import com.intel.realsense.librealsense.FwUpdateDevice;
+import com.intel.realsense.librealsense.UpdateDevice;
 import com.intel.realsense.librealsense.ProductClass;
 import com.intel.realsense.librealsense.RsContext;
 
@@ -94,7 +94,7 @@ public class DetachedActivity extends AppCompatActivity {
             if(dl.getDeviceCount() == 0)
                 return;
             try(Device device = dl.createDevice(0)){
-                if(device.getClass() == FwUpdateDevice.class){
+                if(device instanceof UpdateDevice){
                     mFinished = true;
                     Intent intent = new Intent(mAppContext, FirmwareUpdateActivity.class);
                     startActivity(intent);

@@ -12,8 +12,10 @@ public class DeviceList extends LrsClass {
 
     public Device createDevice(int index){
         long deviceHandle = nCreateDevice(mHandle, index);
-        if (nIsDeviceExtendableTo(deviceHandle, Extension.FW_UPDATE_DEVICE.value()))
-            return new FwUpdateDevice(deviceHandle);
+        if (nIsDeviceExtendableTo(deviceHandle, Extension.UPDATABLE.value()))
+            return new Updatable(deviceHandle);
+        if (nIsDeviceExtendableTo(deviceHandle, Extension.UPDATE_DEVICE.value()))
+            return new UpdateDevice(deviceHandle);
         return new Device(deviceHandle);
     }
 

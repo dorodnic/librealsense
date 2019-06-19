@@ -34,7 +34,7 @@ public class SettingsActivity extends AppCompatActivity {
     private static final int INDEX_DEVICE_INFO = 0;
     private static final int INDEX_ADVANCE_MODE = 1;
     private static final int INDEX_PRESETS = 2;
-    private static final int INDEX_FW_UPDATE = 3;
+    private static final int INDEX_UPDATE = 3;
 
     private Device _device;
 
@@ -88,7 +88,7 @@ public class SettingsActivity extends AppCompatActivity {
         final Map<Integer,String> settingsMap = new TreeMap<>();
         settingsMap.put(INDEX_DEVICE_INFO,"Device info");
         settingsMap.put(INDEX_ADVANCE_MODE,"Enable advanced mode");
-        settingsMap.put(INDEX_FW_UPDATE,"Firmware update");
+        settingsMap.put(INDEX_UPDATE,"Firmware update");
 
         if(device.supportsInfo(CameraInfo.ADVANCED_MODE) && device.isInAdvancedMode()){
             settingsMap.put(INDEX_ADVANCE_MODE,"Disable advanced mode");
@@ -118,7 +118,7 @@ public class SettingsActivity extends AppCompatActivity {
                         startActivity(intent);
                         break;
                     }
-                    case INDEX_FW_UPDATE: {
+                    case INDEX_UPDATE: {
                         Intent intent = new Intent(SettingsActivity.this, FirmwareUpdateActivity.class);
                         startActivity(intent);
                         break;
