@@ -13,7 +13,7 @@
 
 namespace librealsense
 {
-    rs2_dfu_state fw_update_device::get_dfu_state(std::shared_ptr<platform::usb_messenger> messenger) const
+    rs2_dfu_state update_device::get_dfu_state(std::shared_ptr<platform::usb_messenger> messenger) const
     {
         uint8_t state = RS2_DFU_STATE_DFU_ERROR;
         uint32_t transferred = 0;
@@ -27,14 +27,14 @@ namespace librealsense
         return (rs2_dfu_state)state;
     }
 
-    void fw_update_device::detach(std::shared_ptr<platform::usb_messenger> messenger) const
+    void update_device::detach(std::shared_ptr<platform::usb_messenger> messenger) const
     {
         auto timeout = 1000;
         uint32_t transferred = 0;
         messenger->control_transfer(0x21 /*DFU_DETACH_PACKET*/, RS2_DFU_DETACH, timeout, 0, NULL, 0, transferred, timeout);
     }
 
-    bool fw_update_device::wait_for_state(std::shared_ptr<platform::usb_messenger> messenger, const rs2_dfu_state state, size_t timeout) const 
+    bool update_device::wait_for_state(std::shared_ptr<platform::usb_messenger> messenger, const rs2_dfu_state state, size_t timeout) const 
     {
         std::chrono::milliseconds elapsed_milliseconds;
         auto start = std::chrono::system_clock::now();
@@ -62,7 +62,7 @@ namespace librealsense
         return false;
     }
 
-    fw_update_device::fw_update_device(const std::shared_ptr<context>& ctx, bool register_device_notifications, std::shared_ptr<platform::usb_device> usb_device)
+    update_device::update_device(const std::shared_ptr<context>& ctx, bool register_device_notifications, std::shared_ptr<platform::usb_device> usb_device)
         : _context(ctx), _usb_device(usb_device)
     {
         auto messenger = _usb_device->open();
@@ -87,14 +87,14 @@ namespace librealsense
         _serial_number = formattedBuffer.str();
     }
 
-    fw_update_device::~fw_update_device()
+    update_device::~update_device()
     {
 
     }
 
     //since we currently don't have serial number that we can use to identify the device
     //this method looks for changes in the DFU device list
-    bool fw_update_device::wait_for_device(int mask, uint32_t timeout) const
+    bool update_device::wait_for_device(int mask, uint32_t timeout) const
     {
         auto dfu_dev_count = _context->query_devices(mask).size();
         if (dfu_dev_count == 0)
@@ -111,7 +111,7 @@ namespace librealsense
         }
     }
 
-    void fw_update_device::update_fw(const void* fw_image, int fw_image_size, fw_update_progress_callback_ptr update_progress_callback) const
+    void update_device::update(const void* fw_image, int fw_image_size, fw_update_progress_callback_ptr update_progress_callback) const
     {
         auto messenger = _usb_device->open();
 
@@ -168,72 +168,67 @@ namespace librealsense
             throw std::runtime_error("Firmware manifest failed");
     }
 
-    sensor_interface& fw_update_device::get_sensor(size_t i)
+    sensor_interface& update_device::get_sensor(size_t i)
     { 
         throw std::runtime_error("try to get sensor from fw loader device");
     }
 
-    const sensor_interface& fw_update_device::get_sensor(size_t i) const
+    const sensor_interface& update_device::get_sensor(size_t i) const
     {
         throw std::runtime_error("try to get sensor from fw loader device");
     }
 
-    size_t fw_update_device::get_sensors_count() const
+    size_t update_device::get_sensors_count() const
     {
         return 0;
     }
 
-    void fw_update_device::hardware_reset()
+    void update_device::hardware_reset()
     {
         //TODO_MK
     }
 
-    std::shared_ptr<matcher> fw_update_device::create_matcher(const frame_holder& frame) const
+    std::shared_ptr<matcher> update_device::create_matcher(const frame_holder& frame) const
     {
         return nullptr;
     }
 
-    std::shared_ptr<context> fw_update_device::get_context() const
+    std::shared_ptr<context> update_device::get_context() const
     {
         return _context;
     }
 
-    platform::backend_device_group fw_update_device::get_device_data() const
+    platform::backend_device_group update_device::get_device_data() const
     {
-        throw std::runtime_error("get_device_data is not supported by fw_update_device");//TODO_MK
+        throw std::runtime_error("get_device_data is not supported by update_device");//TODO_MK
     }
 
-    std::pair<uint32_t, rs2_extrinsics> fw_update_device::get_extrinsics(const stream_interface& stream) const
+    std::pair<uint32_t, rs2_extrinsics> update_device::get_extrinsics(const stream_interface& stream) const
     {
-        throw std::runtime_error("get_extrinsics is not supported by fw_update_device");
+        throw std::runtime_error("get_extrinsics is not supported by update_device");
     }
 
-    bool fw_update_device::is_valid() const
+    bool update_device::is_valid() const
     {
         return true;
     }
 
-    std::vector<tagged_profile> fw_update_device::get_profiles_tags() const
+    std::vector<tagged_profile> update_device::get_profiles_tags() const
     {
         return std::vector<tagged_profile>();
     }
 
-    void fw_update_device::tag_profiles(stream_profiles profiles) const
+    void update_device::tag_profiles(stream_profiles profiles) const
     {
     
     }
 
-    bool fw_update_device::compress_while_record() const
+    bool update_device::compress_while_record() const
     {
         return false;
     }
 
-    void fw_update_device::enter_to_fw_update_mode() const
-    {
-        throw std::runtime_error("enter_to_fw_update_mode is not supported by fw_update_device");
-    }
-
-    const std::string& fw_update_device::get_info(rs2_camera_info info) const
+    const std::string& update_device::get_info(rs2_camera_info info) const
     {
         switch (info)
         {
@@ -245,7 +240,7 @@ namespace librealsense
         }
     }
 
-    bool fw_update_device::supports_info(rs2_camera_info info) const
+    bool update_device::supports_info(rs2_camera_info info) const
     {
         switch (info)
         {
@@ -256,11 +251,11 @@ namespace librealsense
         }
     }
 
-    void fw_update_device::create_snapshot(std::shared_ptr<info_interface>& snapshot) const
+    void update_device::create_snapshot(std::shared_ptr<info_interface>& snapshot) const
     {
         
     }
-    void fw_update_device::enable_recording(std::function<void(const info_interface&)> record_action)
+    void update_device::enable_recording(std::function<void(const info_interface&)> record_action)
     {
         
     }

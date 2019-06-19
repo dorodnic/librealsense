@@ -54,6 +54,6 @@ namespace rs2
         std::condition_variable _cv;
         bool _dfu_connected = false;
         bool _dev_reconnected = false;
-        fw_update_device _dfu;
+        update_device _dfu;
     };
 }

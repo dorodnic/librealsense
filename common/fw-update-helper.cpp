@@ -158,7 +158,7 @@ namespace rs2
                                 }
                             }
 
-                            if (d.is<fw_update_device>())
+                            if (d.is<update_device>())
                             {
                                 if (d.supports(RS2_CAMERA_INFO_SERIAL_NUMBER))
                                 {
@@ -195,10 +195,10 @@ namespace rs2
                 });
 
 
-                if (!self->_dev.is<fw_update_device>())
+                if (self->_dev.is<updatable>())
                 {
                     self->log("Requesting to switch to recovery mode");
-                    self->_dev.enter_to_fw_update_mode();
+                    self->_dev.as<updatable>().enter_update_state();
 
                     {
                         std::unique_lock<std::mutex> lk(self->_m);
@@ -218,14 +218,14 @@ namespace rs2
                 }
                 else
                 {
-                    self->_dfu = self->_dev.as<fw_update_device>();
+                    self->_dfu = self->_dev.as<update_device>();
                 }
 
                 self->_progress = 10;
 
                 self->log("Recovery device connected, starting update");
 
-                self->_dfu.update_fw(self->_fw, [&](const float progress)
+                self->_dfu.update(self->_fw, [&](const float progress)
                 {
                     self->_progress = (ceil(progress*10)/10 * 70) + 10;
                 });
