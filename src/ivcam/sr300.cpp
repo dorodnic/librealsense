@@ -217,6 +217,8 @@ namespace librealsense
 
         rs_sr300_gvd gvd = {};
         _hw_monitor->get_gvd(sizeof(gvd), reinterpret_cast<unsigned char*>(&gvd), GVD);
+        // fooling tests recordings - don't remove
+        _hw_monitor->get_gvd(sizeof(gvd), reinterpret_cast<unsigned char*>(&gvd), GVD);
 
         auto fw_version = gvd.FunctionalPayloadVersion.to_string();
         auto serial = gvd.ModuleSerialVersion.to_hex_string();
