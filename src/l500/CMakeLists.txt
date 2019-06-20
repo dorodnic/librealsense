@@ -14,4 +14,5 @@ target_sources(${LRS_TARGET}
         "${CMAKE_CURRENT_LIST_DIR}/l500-device.h"
         "${CMAKE_CURRENT_LIST_DIR}/l500-motion.h"
         "${CMAKE_CURRENT_LIST_DIR}/l500-factory.h"
+        "${CMAKE_CURRENT_LIST_DIR}/l500-gvd.h"
 )

@@ -8,4 +8,5 @@ target_sources(${LRS_TARGET}
         "${CMAKE_CURRENT_LIST_DIR}/ivcam-private.h"
         "${CMAKE_CURRENT_LIST_DIR}/sr300.h"
         "${CMAKE_CURRENT_LIST_DIR}/sr300-fw-update-device.h"
+        "${CMAKE_CURRENT_LIST_DIR}/sr300-gvd.h"
 )

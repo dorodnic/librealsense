@@ -3,6 +3,7 @@
 
 #include <vector>
 #include "l500-device.h"
+#include "l500-gvd.h"
 #include "context.h"
 #include "stream.h"
 #include "l500-depth.h"
@@ -57,11 +58,12 @@ namespace librealsense
         }
 #endif
 
-
-        auto fw_version = _hw_monitor->get_firmware_version_string(GVD, fw_version_offset);
-        auto serial = _hw_monitor->get_module_serial_string(GVD, module_serial_offset, module_serial_size);
-
-        _fw_version = firmware_version(fw_version);
+        l500::rs_l500_gvd gvd = {};
+        _hw_monitor->get_gvd(sizeof(gvd), reinterpret_cast<unsigned char*>(&gvd), GVD);
+        auto asic_serial = gvd.AsicModuleSerial.to_hex_string();
+        auto optic_serial = gvd.OpticModuleSerial.to_hex_string();
+        auto fwv = gvd.FunctionalPayloadVersion.to_string();
+        _fw_version = firmware_version(fwv);
 
         auto pid_hex_str = hexify(group.uvc_devices.front().pid);
 
@@ -75,8 +77,9 @@ namespace librealsense
         }
 
         register_info(RS2_CAMERA_INFO_NAME, device_name);
-        register_info(RS2_CAMERA_INFO_SERIAL_NUMBER, serial);
-        register_info(RS2_CAMERA_INFO_FIRMWARE_VERSION, fw_version);
+        register_info(RS2_CAMERA_INFO_SERIAL_NUMBER, optic_serial);
+        register_info(RS2_CAMERA_INFO_ASIC_SERIAL_NUMBER, asic_serial);
+        register_info(RS2_CAMERA_INFO_FIRMWARE_VERSION, _fw_version);
         register_info(RS2_CAMERA_INFO_DEBUG_OP_CODE, std::to_string(static_cast<int>(fw_cmd::GLD)));
         register_info(RS2_CAMERA_INFO_PHYSICAL_PORT, group.uvc_devices.front().device_path);
         register_info(RS2_CAMERA_INFO_PRODUCT_ID, pid_hex_str);
