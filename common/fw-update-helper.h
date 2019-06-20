@@ -9,6 +9,7 @@
 #include <vector>
 #include <string>
 #include <mutex>
+#include <condition_variable>
 
 namespace rs2
 {
