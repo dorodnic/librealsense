@@ -9,6 +9,8 @@
 #include <condition_variable>
 #include <model-views.h>
 
+#include "os.h"
+
 #ifdef INTERNAL_FW
 #include "common/fw/D4XX_FW_Image.h"
 #include "common/fw/SR3XX_FW_Image.h"
@@ -145,31 +147,44 @@ namespace rs2
                         if (devs.size() > 0)
                             self->log("New device connected, checking if recovery...");
                             
-                        for (auto d : devs)
-                        {
-                            if (d.query_sensors().size() && d.query_sensors().front().supports(RS2_CAMERA_INFO_SERIAL_NUMBER))
-                            {
-                                auto s = d.query_sensors().front().get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
-                                //if (s == serial)
-                                {
-                                    self->log("Discovered connection of the original device");
-                                    self->_dev_reconnected = true;
-                                    self->_cv.notify_all();
-                                }
-                            }
+                        const int retries = 5;
 
-                            if (d.is<fw_update_device>())
+                        for (int j = 0; j < devs.size(); j++)
+                        for (int i = 0; i < retries; i++)
+                        {
+                            try
                             {
-                                if (d.supports(RS2_CAMERA_INFO_SERIAL_NUMBER))
+                                auto d = devs[j];
+
+                                if (d.query_sensors().size() && d.query_sensors().front().supports(RS2_CAMERA_INFO_SERIAL_NUMBER))
                                 {
-                                    //if (serial == d.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER))
-                                    // TODO: Use serial number
+                                    auto s = d.query_sensors().front().get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
+                                    //if (s == serial)
                                     {
-                                        self->_dfu = d;
-                                        self->_dfu_connected = true;
+                                        self->log("Discovered connection of the original device");
+                                        self->_dev_reconnected = true;
                                         self->_cv.notify_all();
                                     }
                                 }
+
+                                if (d.is<fw_update_device>())
+                                {
+                                    if (d.supports(RS2_CAMERA_INFO_SERIAL_NUMBER))
+                                    {
+                                        //if (serial == d.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER))
+                                        // TODO: Use serial number
+                                        {
+                                            self->_dfu = d;
+                                            self->_dfu_connected = true;
+                                            self->_cv.notify_all();
+                                        }
+                                    }
+                                }
+                            }
+                            catch (...)
+                            {
+                                if (i < retries - 1) std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                                else throw;
                             }
                         }
                         if (info.was_removed(self->_dev))
@@ -193,6 +208,63 @@ namespace rs2
                         cleanup();
                     }
                 });
+
+                self->log("Backing-up camera flash memory");
+                if (auto dbg = self->_dev.as<debug_protocol>())
+                {
+                    int flash_size = 1024 * 2048;
+                    int max_bulk_size = 1016;
+                    int max_iterations = int(flash_size / max_bulk_size + 1);
+
+                    std::vector<uint8_t> flash;
+                    flash.reserve(flash_size);
+
+                    for (int i = 0; i < max_iterations; i++)
+                    {
+                        int offset = max_bulk_size * i;
+                        int size = max_bulk_size;
+                        if (i == max_iterations - 1)
+                        {
+                            size = flash_size - offset;
+                        }
+
+                        uint8_t buff[]{ 0x14, 0x0, 0xAB, 0xCD, 0x9, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0 };
+                        *((int*)(buff + 8)) = offset;
+                        *((int*)(buff + 12)) = size;
+                        std::vector<uint8_t> data(buff, buff + sizeof(buff));
+                        bool appended = false;
+
+                        const int retries = 3;
+                        for (int j = 0; j < retries && !appended; j++)
+                        {
+                            try
+                            {
+                                auto res = dbg.send_and_receive_raw_data(data);
+                                flash.insert(flash.end(), res.begin(), res.end());
+                                appended = true;
+                            }
+                            catch (...) 
+                            {
+                                if (i < retries - 1) std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                                else throw;
+                            }
+                        }
+
+                        self->_progress = ((float)i / max_iterations) * 40 + 5;
+                    }
+
+                    auto temp = get_folder_path(special_folder::app_data);
+                    temp += serial + "." + get_timestamped_file_name() + ".bin";
+
+                    {
+                        std::ofstream file(temp.c_str(), std::ios::binary);
+                        file.write((const char*)flash.data(), flash.size());
+                    }
+
+                    std::string log_line = "Backup completed and saved as '";
+                    log_line += temp + "'";
+                    self->log(log_line);
+                }
 
 
                 if (!self->_dev.is<fw_update_device>())
@@ -221,13 +293,13 @@ namespace rs2
                     self->_dfu = self->_dev.as<fw_update_device>();
                 }
 
-                self->_progress = 10;
+                self->_progress = 50;
 
                 self->log("Recovery device connected, starting update");
 
                 self->_dfu.update_fw(self->_fw, [&](const float progress)
                 {
-                    self->_progress = (ceil(progress*10)/10 * 70) + 10;
+                    self->_progress = (ceil(progress*10)/10 * 45) + 50;
                 });
 
                 self->log("Update completed, waiting for device to reconnect");

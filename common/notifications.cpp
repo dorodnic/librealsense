@@ -563,9 +563,12 @@ namespace rs2
                 {
                     if (ImGui::Button("OK", ImVec2(120, 0)))
                     {
-                        update_state = 3;
-                        pinned = false;
-                        dismissed = true;
+                        if (update_manager->done() || update_manager->failed())
+                        {
+                            update_state = 3;
+                            pinned = false;
+                            dismissed = true;
+                        }
                         expanded = false;
                         ImGui::CloseCurrentPopup();
                     }
