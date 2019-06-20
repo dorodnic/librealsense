@@ -42,10 +42,6 @@ public class Device extends LrsClass {
         return nSerializePresetToJson(mHandle);
     }
 
-    public void enterToFwUpdateMode() {
-        nEnterToFwUpdateMode(mHandle);
-    }
-
     public <T extends Device> T as(Class<T> type) {
         return (T) this;
     }
@@ -68,7 +64,6 @@ public class Device extends LrsClass {
     private static native void nLoadPresetFromJson(long handle, byte[] data);
     private static native byte[] nSerializePresetToJson(long handle);
     private static native long[] nQuerySensors(long handle);
-    private static native void nEnterToFwUpdateMode(long handle);
     private static native void nHardwareReset(long handle);
     private static native void nRelease(long handle);
 }

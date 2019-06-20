@@ -2742,12 +2742,13 @@ namespace rs2
         for (auto&& sub : dev.query_sensors())
         {
             if (sub.supports(RS2_CAMERA_INFO_FIRMWARE_VERSION) && 
-                sub.supports(RS2_CAMERA_INFO_RECOMMENDED_FIRMWARE_VERSION))
+                sub.supports(RS2_CAMERA_INFO_RECOMMENDED_FIRMWARE_VERSION) &&
+                sub.supports(RS2_CAMERA_INFO_PRODUCT_LINE))
             {
                 std::string fw = sub.get_info(RS2_CAMERA_INFO_FIRMWARE_VERSION);
                 std::string recommended = sub.get_info(RS2_CAMERA_INFO_RECOMMENDED_FIRMWARE_VERSION);
 
-                int product_line = RS2_PRODUCT_LINE_D400; // TODO: Make generic
+                int product_line = parse_product_line(sub.get_info(RS2_CAMERA_INFO_PRODUCT_LINE)); 
 
                 std::string available = get_available_firmware_version(product_line);
 
@@ -3713,6 +3714,46 @@ namespace rs2
         ImGui::PopStyleColor(2);
     }
 
+    void device_model::begin_update(std::vector<uint8_t> data, viewer_model& viewer, std::string& error_message)
+    {
+        try
+        {
+            if (data.size() == 0)
+            {
+                auto ret = file_dialog_open(open_file, "Signed Firmware Image\0*.bin\0", NULL, NULL);
+                if (ret)
+                {
+                    std::ifstream file(ret, std::ios::binary | std::ios::in);
+                    if (file.good())
+                    {
+                        data = std::vector<uint8_t>((std::istreambuf_iterator<char>(file)),
+                            std::istreambuf_iterator<char>());
+                    }
+                }
+            }
+            
+            auto manager = std::make_shared<firmware_update_manager>(*this, dev, data);
+
+            auto id = viewer.not_model.add_notification({ "Manual Update requested",
+                RS2_LOG_SEVERITY_INFO,
+                RS2_NOTIFICATION_CATEGORY_FIRMWARE_UPDATE_RECOMMENDED });
+
+            viewer.not_model.attach_update_manager(id, manager, true);
+
+            cleanup();
+
+            manager->start();
+        }
+        catch (const error& e)
+        {
+            error_message = error_to_string(e);
+        }
+        catch (const std::exception& e)
+        {
+            error_message = e.what();
+        }
+    }
+
     float device_model::draw_device_panel(float panel_width,
                                           ux_window& window,
                                           std::string& error_message,
@@ -3956,41 +3997,26 @@ namespace rs2
                     }
                 }
 
-                if (ImGui::Selectable("Firmware Update"))
+                if (ImGui::Selectable("Firmware Update..."))
                 {
-                    try
-                    {
-                        auto ret = file_dialog_open(open_file, "Signed Firmware Image\0*.bin\0", NULL, NULL);
-                        if (ret)
-                        {
-                            std::ifstream file(ret, std::ios::binary | std::ios::in);
-                            if (file.good())
-                            {
-                                std::vector<uint8_t> content((std::istreambuf_iterator<char>(file)),
-                                    std::istreambuf_iterator<char>());
+                    begin_update({}, viewer, error_message);
+                }
 
-                                auto manager = std::make_shared<firmware_update_manager>(*this, dev, content);
+                if ((dev.supports(RS2_CAMERA_INFO_PRODUCT_LINE)) ||
+                    (dev.query_sensors().size() && dev.query_sensors().front().supports(RS2_CAMERA_INFO_PRODUCT_LINE)))
+                if (ImGui::Selectable("Flash Recommended Firmware"))
+                {
+                    auto sensors = dev.query_sensors();
+                    auto product_line_str = "";
+                    if (dev.supports(RS2_CAMERA_INFO_PRODUCT_LINE)) 
+                        product_line_str = dev.get_info(RS2_CAMERA_INFO_PRODUCT_LINE);
+                    if (sensors.size() && sensors.front().supports(RS2_CAMERA_INFO_PRODUCT_LINE)) 
+                        product_line_str = sensors.front().get_info(RS2_CAMERA_INFO_PRODUCT_LINE);
+                    int product_line = parse_product_line(product_line_str);
 
-                                auto id = viewer.not_model.add_notification({ "Manual Update requested",
-                                    RS2_LOG_SEVERITY_INFO,
-                                    RS2_NOTIFICATION_CATEGORY_FIRMWARE_UPDATE_RECOMMENDED });
+                    static auto table = create_default_fw_table();
 
-                                viewer.not_model.attach_update_manager(id, manager, true);
-
-                                cleanup();
-
-                                manager->start();
-                            }
-                        }
-                    }
-                    catch (const error& e)
-                    {
-                        error_message = error_to_string(e);
-                    }
-                    catch (const std::exception& e)
-                    {
-                        error_message = e.what();
-                    }
+                    begin_update(table[product_line], viewer, error_message);
                 }
             }
 

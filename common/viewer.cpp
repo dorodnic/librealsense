@@ -746,8 +746,8 @@ namespace rs2
                 if (ImGui::Button(" Update Recommended ", ImVec2(0, 0)))
                 {
                     fw = ud.fw_image;
-                    if (ud.curr_fw_version != "")
-                        ud.dev.enter_to_fw_update_mode();
+                    if (ud.curr_fw_version != "" && ud.dev.is<updatable>())
+                        ud.dev.as<updatable>().enter_update_state();
                     ImGui::CloseCurrentPopup();
                 }
                 ImGui::SameLine();
@@ -764,8 +764,8 @@ namespace rs2
                 if (!ret)
                     return;
                 fw = read_fw_file(ret);
-                if(ud.curr_fw_version != "")
-                    ud.dev.enter_to_fw_update_mode();
+                if(ud.curr_fw_version != "" && ud.dev.is<updatable>())
+                    ud.dev.as<updatable>().enter_update_state();
                 ImGui::CloseCurrentPopup();
             }
             ImGui::SameLine();
@@ -821,7 +821,8 @@ namespace rs2
             if (ImGui::Button(" Update Recommended ", ImVec2(0, 0)))
             {
                 update = true;
-                ud.dev.enter_to_fw_update_mode();
+                if(ud.dev.is<updatable>())
+                    ud.dev.as<updatable>().enter_update_state();
                 ImGui::CloseCurrentPopup();
             }
             ImGui::SameLine();

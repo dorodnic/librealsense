@@ -27,6 +27,13 @@ namespace rs2
         {RS2_PRODUCT_LINE_SR300, FW_SR3XX_FW_IMAGE_VERSION},
     };
 
+    int parse_product_line(std::string id)
+    {
+        if (id == "D400") return RS2_PRODUCT_LINE_D400;
+        else if (id == "SR300") return RS2_PRODUCT_LINE_SR300;
+        else return -1;
+    }
+
     std::string get_available_firmware_version(int product_line)
     {
         auto it = product_line_to_fw.find(product_line);
@@ -167,7 +174,7 @@ namespace rs2
                                     }
                                 }
 
-                                if (d.is<fw_update_device>())
+                                if (d.is<update_device>())
                                 {
                                     if (d.supports(RS2_CAMERA_INFO_SERIAL_NUMBER))
                                     {
@@ -209,9 +216,12 @@ namespace rs2
                     }
                 });
 
-                self->log("Backing-up camera flash memory");
+                int next_progress = 10;
+
                 if (auto dbg = self->_dev.as<debug_protocol>())
                 {
+                    self->log("Backing-up camera flash memory");
+
                     int flash_size = 1024 * 2048;
                     int max_bulk_size = 1016;
                     int max_iterations = int(flash_size / max_bulk_size + 1);
@@ -264,13 +274,15 @@ namespace rs2
                     std::string log_line = "Backup completed and saved as '";
                     log_line += temp + "'";
                     self->log(log_line);
+
+                    next_progress = 50;
                 }
 
 
-                if (!self->_dev.is<fw_update_device>())
+                if (self->_dev.is<updatable>())
                 {
                     self->log("Requesting to switch to recovery mode");
-                    self->_dev.enter_to_fw_update_mode();
+                    self->_dev.as<updatable>().enter_update_state();
 
                     {
                         std::unique_lock<std::mutex> lk(self->_m);
@@ -290,16 +302,16 @@ namespace rs2
                 }
                 else
                 {
-                    self->_dfu = self->_dev.as<fw_update_device>();
+                    self->_dfu = self->_dev.as<update_device>();
                 }
 
-                self->_progress = 50;
+                self->_progress = next_progress;
 
                 self->log("Recovery device connected, starting update");
 
-                self->_dfu.update_fw(self->_fw, [&](const float progress)
+                self->_dfu.update(self->_fw, [&](const float progress)
                 {
-                    self->_progress = (ceil(progress*10)/10 * 45) + 50;
+                    self->_progress = (ceil(progress*10)/10 * (90 - next_progress)) + next_progress;
                 });
 
                 self->log("Update completed, waiting for device to reconnect");

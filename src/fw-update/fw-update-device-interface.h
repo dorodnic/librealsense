@@ -8,10 +8,16 @@
 
 namespace librealsense
 {
-    class fw_update_device_interface : public device_interface
+    class updatable
     {
     public:
-        virtual void update_fw(const void* fw_image, int fw_image_size, fw_update_progress_callback_ptr = nullptr) const = 0;
+        virtual void enter_update_state() const = 0;
+    };
+
+    class update_device_interface : public device_interface
+    {
+    public:
+        virtual void update(const void* fw_image, int fw_image_size, fw_update_progress_callback_ptr = nullptr) const = 0;
 
     protected:
         virtual const std::string& get_name() const = 0;
@@ -20,5 +26,6 @@ namespace librealsense
         virtual const std::string& get_product_line() const = 0;
     };
 
-    MAP_EXTENSION(RS2_EXTENSION_FW_UPDATE_DEVICE, fw_update_device_interface);
+    MAP_EXTENSION(RS2_EXTENSION_UPDATE_DEVICE, update_device_interface);
+    MAP_EXTENSION(RS2_EXTENSION_UPDATABLE, updatable);
 }

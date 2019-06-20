@@ -37,10 +37,10 @@ std::vector<uint8_t> read_fw_file(std::string file_path)
     return rv;
 }
 
-void update(rs2::fw_update_device fwu_dev, std::vector<uint8_t> fw_image)
+void update(rs2::update_device fwu_dev, std::vector<uint8_t> fw_image)
 {  
     std::cout << std::endl << "FW update started" << std::endl << std::endl;
-    fwu_dev.update_fw(fw_image, [&](const float progress)
+    fwu_dev.update(fw_image, [&](const float progress)
     {
         printf("\rFW update progress: %d[%%]", (int)(progress * 100));
     });
@@ -85,7 +85,7 @@ int main(int argc, char** argv) try
     std::string selected_serial_number;
 
     rs2::device new_device;
-    rs2::fw_update_device new_fw_update_device;
+    rs2::update_device new_fw_update_device;
 
     bool done = false;
 
@@ -150,7 +150,7 @@ int main(int argc, char** argv) try
         for (auto&& d : info.get_new_devices())
         {
             std::lock_guard<std::mutex> lk(mutex);
-            if (d.is<rs2::fw_update_device>())
+            if (d.is<rs2::update_device>())
                 new_fw_update_device = d;
             else
                 new_device = d;
@@ -164,11 +164,15 @@ int main(int argc, char** argv) try
 
     for (auto&& d : devs)
     {
-        if (recover_arg.isSet() && d.is<rs2::fw_update_device>())
+        if (recover_arg.isSet() && d.is<rs2::update_device>())
         {
             update(d, fw_image);
             done = true;
+            break;
         }
+
+        if (!d.is<rs2::updatable>())
+            continue;
 
         auto sn = d.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
         if (sn != selected_serial_number)
@@ -177,7 +181,7 @@ int main(int argc, char** argv) try
         auto fw = d.get_info(RS2_CAMERA_INFO_FIRMWARE_VERSION);
         std::cout << std::endl << "device found, current FW version: " << fw << std::endl;
 
-        d.enter_to_fw_update_mode();
+        d.as<rs2::updatable>().enter_update_state();
 
         std::unique_lock<std::mutex> lk(mutex);
         if (!cv.wait_for(lk, std::chrono::seconds(WAIT_FOR_DEVICE_TIMEOUT), [&] { return new_fw_update_device; }))
@@ -189,6 +193,7 @@ int main(int argc, char** argv) try
         std::cout << std::endl << "device in FW update mode, start updating." << std::endl;
         update(new_fw_update_device, fw_image);
         done = true;
+        break;
     }
 
     std::unique_lock<std::mutex> lk(mutex);

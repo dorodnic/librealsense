@@ -37,7 +37,7 @@
 #include "environment.h"
 #include "proc/temporal-filter.h"
 #include "software-device.h"
-#include "fw-update/fw-update-device.h"
+#include "fw-update/fw-update-device-interface.h"
 #include "global_timestamp_reader.h"
 
 ////////////////////////
@@ -1117,19 +1117,20 @@ int rs2_is_device_extendable_to(const rs2_device* dev, rs2_extension extension, 
     VALIDATE_ENUM(extension);
     switch (extension)
     {
-        case RS2_EXTENSION_DEBUG                 : return VALIDATE_INTERFACE_NO_THROW(dev->device, librealsense::debug_interface)             != nullptr;
-        case RS2_EXTENSION_INFO                  : return VALIDATE_INTERFACE_NO_THROW(dev->device, librealsense::info_interface)              != nullptr;
-        case RS2_EXTENSION_OPTIONS               : return VALIDATE_INTERFACE_NO_THROW(dev->device, librealsense::options_interface)           != nullptr;
-        case RS2_EXTENSION_VIDEO                 : return VALIDATE_INTERFACE_NO_THROW(dev->device, librealsense::video_sensor_interface)      != nullptr;
-        case RS2_EXTENSION_ROI                   : return VALIDATE_INTERFACE_NO_THROW(dev->device, librealsense::roi_sensor_interface)        != nullptr;
-        case RS2_EXTENSION_DEPTH_SENSOR          : return VALIDATE_INTERFACE_NO_THROW(dev->device, librealsense::depth_sensor)                != nullptr;
-        case RS2_EXTENSION_DEPTH_STEREO_SENSOR   : return VALIDATE_INTERFACE_NO_THROW(dev->device, librealsense::depth_stereo_sensor)         != nullptr;
-        case RS2_EXTENSION_ADVANCED_MODE         : return VALIDATE_INTERFACE_NO_THROW(dev->device, librealsense::ds5_advanced_mode_interface) != nullptr;
-        case RS2_EXTENSION_RECORD                : return VALIDATE_INTERFACE_NO_THROW(dev->device, librealsense::record_device)               != nullptr;
-        case RS2_EXTENSION_PLAYBACK              : return VALIDATE_INTERFACE_NO_THROW(dev->device, librealsense::playback_device)             != nullptr;
-        case RS2_EXTENSION_TM2                   : return VALIDATE_INTERFACE_NO_THROW(dev->device, librealsense::tm2_extensions)              != nullptr;
-        case RS2_EXTENSION_FW_UPDATE_DEVICE      : return VALIDATE_INTERFACE_NO_THROW(dev->device, librealsense::fw_update_device_interface)            != nullptr;
-        case RS2_EXTENSION_GLOBAL_TIMER          : return VALIDATE_INTERFACE_NO_THROW(dev->device, librealsense::global_time_interface)       != nullptr;
+        case RS2_EXTENSION_DEBUG                : return VALIDATE_INTERFACE_NO_THROW(dev->device, librealsense::debug_interface)             != nullptr;
+        case RS2_EXTENSION_INFO                 : return VALIDATE_INTERFACE_NO_THROW(dev->device, librealsense::info_interface)              != nullptr;
+        case RS2_EXTENSION_OPTIONS              : return VALIDATE_INTERFACE_NO_THROW(dev->device, librealsense::options_interface)           != nullptr;
+        case RS2_EXTENSION_VIDEO                : return VALIDATE_INTERFACE_NO_THROW(dev->device, librealsense::video_sensor_interface)      != nullptr;
+        case RS2_EXTENSION_ROI                  : return VALIDATE_INTERFACE_NO_THROW(dev->device, librealsense::roi_sensor_interface)        != nullptr;
+        case RS2_EXTENSION_DEPTH_SENSOR         : return VALIDATE_INTERFACE_NO_THROW(dev->device, librealsense::depth_sensor)                != nullptr;
+        case RS2_EXTENSION_DEPTH_STEREO_SENSOR  : return VALIDATE_INTERFACE_NO_THROW(dev->device, librealsense::depth_stereo_sensor)         != nullptr;
+        case RS2_EXTENSION_ADVANCED_MODE        : return VALIDATE_INTERFACE_NO_THROW(dev->device, librealsense::ds5_advanced_mode_interface) != nullptr;
+        case RS2_EXTENSION_RECORD               : return VALIDATE_INTERFACE_NO_THROW(dev->device, librealsense::record_device)               != nullptr;
+        case RS2_EXTENSION_PLAYBACK             : return VALIDATE_INTERFACE_NO_THROW(dev->device, librealsense::playback_device)             != nullptr;
+        case RS2_EXTENSION_TM2                  : return VALIDATE_INTERFACE_NO_THROW(dev->device, librealsense::tm2_extensions)              != nullptr;
+        case RS2_EXTENSION_UPDATABLE            : return VALIDATE_INTERFACE_NO_THROW(dev->device, librealsense::updatable)                   != nullptr;
+        case RS2_EXTENSION_UPDATE_DEVICE        : return VALIDATE_INTERFACE_NO_THROW(dev->device, librealsense::update_device_interface)     != nullptr;
+        case RS2_EXTENSION_GLOBAL_TIMER         : return VALIDATE_INTERFACE_NO_THROW(dev->device, librealsense::global_time_interface)       != nullptr;
 
         default:
             return false;
@@ -2338,44 +2339,47 @@ int rs2_send_wheel_odometry(const rs2_sensor* sensor, char wo_sensor_id, unsigne
 }
 HANDLE_EXCEPTIONS_AND_RETURN(0, sensor, wo_sensor_id, frame_num, translational_velocity)
 
-void rs2_update_fw_cpp(const rs2_device* device, const void* fw_image, int fw_image_size, rs2_fw_update_progress_callback* callback, rs2_error** error) BEGIN_API_CALL
+void rs2_update_cpp(const rs2_device* device, const void* fw_image, int fw_image_size, rs2_fw_update_progress_callback* callback, rs2_error** error) BEGIN_API_CALL
 {
     VALIDATE_NOT_NULL(device);
     VALIDATE_NOT_NULL(fw_image);
 
-    auto fwu = VALIDATE_INTERFACE(device->device, librealsense::fw_update_device_interface);
+    auto fwu = VALIDATE_INTERFACE(device->device, librealsense::update_device_interface);
 
     if (callback == NULL)
     {
-        fwu->update_fw(fw_image, fw_image_size, nullptr);
+        fwu->update(fw_image, fw_image_size, nullptr);
         return;
     }
-    fwu->update_fw(fw_image, fw_image_size, { callback, [](rs2_fw_update_progress_callback* p) { p->release(); } });
+    fwu->update(fw_image, fw_image_size, { callback, [](rs2_fw_update_progress_callback* p) { p->release(); } });
 }
 HANDLE_EXCEPTIONS_AND_RETURN(, device)
 
-void rs2_update_fw(const rs2_device* device, const void* fw_image, int fw_image_size, rs2_fw_update_progress_callback_ptr callback, void* client_data, rs2_error** error) BEGIN_API_CALL
+void rs2_update(const rs2_device* device, const void* fw_image, int fw_image_size, rs2_fw_update_progress_callback_ptr callback, void* client_data, rs2_error** error) BEGIN_API_CALL
 {
     VALIDATE_NOT_NULL(device);
     VALIDATE_NOT_NULL(fw_image);
 
-    auto fwu = VALIDATE_INTERFACE(device->device, librealsense::fw_update_device_interface);
+    auto fwu = VALIDATE_INTERFACE(device->device, librealsense::update_device_interface);
 
     if(callback == NULL)
     {
-        fwu->update_fw(fw_image, fw_image_size, nullptr);
+        fwu->update(fw_image, fw_image_size, nullptr);
         return;
     }
     librealsense::fw_update_progress_callback_ptr cb(new librealsense::fw_update_progress_callback(callback, client_data),
         [](fw_update_progress_callback* p) { delete p; });
-    fwu->update_fw(fw_image, fw_image_size, std::move(cb));
+    fwu->update(fw_image, fw_image_size, std::move(cb));
 }
 HANDLE_EXCEPTIONS_AND_RETURN(, device)
 
-void rs2_enter_to_fw_update_mode(const rs2_device* device, rs2_error** error) BEGIN_API_CALL
+void rs2_enter_update_state(const rs2_device* device, rs2_error** error) BEGIN_API_CALL
 {
     VALIDATE_NOT_NULL(device);
 
-    device->device->enter_to_fw_update_mode();
+    auto fwud = std::dynamic_pointer_cast<updatable>(device->device);
+    if (!fwud)
+        throw std::runtime_error("this device does not supports fw update");
+    fwud->enter_update_state();
 }
 HANDLE_EXCEPTIONS_AND_RETURN(, device)
