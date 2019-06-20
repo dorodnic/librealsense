@@ -21,7 +21,7 @@
 #include "environment.h"
 #include "ds5-color.h"
 #include "ds5-rolling-shutter.h"
-#include "ds5-gvd.h"
+#include "../gvd.h"
 
 #include "proc/decimation-filter.h"
 #include "proc/threshold.h"
@@ -409,14 +409,14 @@ namespace librealsense
         auto pid = group.uvc_devices.front().pid;
         std::string device_name = (rs400_sku_names.end() != rs400_sku_names.find(pid)) ? rs400_sku_names.at(pid) : "RS4xx";
 
-        rs_400_gvd gvd = {};
-        _hw_monitor->get_gvd(sizeof(gvd), reinterpret_cast<unsigned char*>(&gvd), GVD);
+        std::vector<uint8_t> gvd_buff(HW_MONITOR_BUFFER_SIZE);
+        _hw_monitor->get_gvd(gvd_buff.size(), gvd_buff.data(), GVD);
         // fooling tests recordings - don't remove
-        _hw_monitor->get_gvd(sizeof(gvd), reinterpret_cast<unsigned char*>(&gvd), GVD);
-
-        auto asic_serial = gvd.AsicModuleSerial.to_hex_string();
-        auto optic_serial = gvd.OpticModuleSerial.to_hex_string();
-        auto fwv = gvd.FunctionalPayloadVersion.to_string();
+        _hw_monitor->get_gvd(gvd_buff.size(), gvd_buff.data(), GVD);
+        
+        auto optic_serial = get_hex_string(gvd_buff, module_serial_offset, 6);
+        auto asic_serial = get_hex_string(gvd_buff, module_asic_serial_offset, 6);
+        auto fwv = create_fw_string(gvd_buff, camera_fw_version_offset, 4);
         _fw_version = firmware_version(fwv);
 
         _recommended_fw_version = firmware_version(D4XX_RECOMMENDED_FIRMWARE_VERSION);

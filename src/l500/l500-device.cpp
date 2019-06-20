@@ -3,7 +3,7 @@
 
 #include <vector>
 #include "l500-device.h"
-#include "l500-gvd.h"
+#include "../gvd.h"
 #include "context.h"
 #include "stream.h"
 #include "l500-depth.h"
@@ -58,11 +58,14 @@ namespace librealsense
         }
 #endif
 
-        l500::rs_l500_gvd gvd = {};
-        _hw_monitor->get_gvd(sizeof(gvd), reinterpret_cast<unsigned char*>(&gvd), GVD);
-        auto asic_serial = gvd.AsicModuleSerial.to_hex_string();
-        auto optic_serial = gvd.OpticModuleSerial.to_hex_string();
-        auto fwv = gvd.FunctionalPayloadVersion.to_string();
+        std::vector<uint8_t> gvd_buff(HW_MONITOR_BUFFER_SIZE);
+        _hw_monitor->get_gvd(gvd_buff.size(), gvd_buff.data(), GVD);
+        // fooling tests recordings - don't remove
+        _hw_monitor->get_gvd(gvd_buff.size(), gvd_buff.data(), GVD);
+
+        auto optic_serial = get_hex_string(gvd_buff, module_serial_offset, 4);
+        auto asic_serial = get_hex_string(gvd_buff, module_asic_serial_offset, 6);
+        auto fwv = create_fw_string(gvd_buff, fw_version_offset, 4);
         _fw_version = firmware_version(fwv);
 
         auto pid_hex_str = hexify(group.uvc_devices.front().pid);

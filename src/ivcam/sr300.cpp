@@ -9,7 +9,7 @@
 #include "proc/spatial-filter.h"
 #include "proc/temporal-filter.h"
 #include "proc/hole-filling-filter.h"
-#include "sr300-gvd.h"
+#include "../gvd.h"
 
 namespace librealsense
 {
@@ -215,13 +215,13 @@ namespace librealsense
         using namespace ivcam;
         static auto device_name = "Intel RealSense SR300";
 
-        rs_sr300_gvd gvd = {};
-        _hw_monitor->get_gvd(sizeof(gvd), reinterpret_cast<unsigned char*>(&gvd), GVD);
+        std::vector<uint8_t> gvd_buff(HW_MONITOR_BUFFER_SIZE);
+        _hw_monitor->get_gvd(gvd_buff.size(), gvd_buff.data(), GVD);
         // fooling tests recordings - don't remove
-        _hw_monitor->get_gvd(sizeof(gvd), reinterpret_cast<unsigned char*>(&gvd), GVD);
+        _hw_monitor->get_gvd(gvd_buff.size(), gvd_buff.data(), GVD);
 
-        auto fw_version = gvd.FunctionalPayloadVersion.to_string();
-        auto serial = gvd.ModuleSerialVersion.to_hex_string();
+        auto fw_version = create_fw_string(gvd_buff, fw_version_offset, 4);
+        auto serial = get_hex_string(gvd_buff, module_serial_offset, 6);
 
         _camer_calib_params = [this]() { return get_calibration(); };
         enable_timestamp(true, true);

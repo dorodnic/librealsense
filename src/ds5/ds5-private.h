@@ -550,6 +550,7 @@ namespace librealsense
             camera_fw_version_offset        = 12,
             is_camera_locked_offset         = 25,
             module_serial_offset            = 48,
+            module_asic_serial_offset       = 64,
             fisheye_sensor_lb               = 112,
             fisheye_sensor_hb               = 113,
             depth_sensor_type               = 166,
