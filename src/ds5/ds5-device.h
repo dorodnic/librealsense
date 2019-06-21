@@ -48,7 +48,7 @@ namespace librealsense
         void create_snapshot(std::shared_ptr<debug_interface>& snapshot) const override;
         void enable_recording(std::function<void(const debug_interface&)> record_action) override;
         platform::usb_spec get_usb_spec() const;
-        virtual double get_device_time_ms();
+        virtual double get_device_time_ms() override;
 
         void enter_update_state() const override;
 
