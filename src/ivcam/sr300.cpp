@@ -9,7 +9,6 @@
 #include "proc/spatial-filter.h"
 #include "proc/temporal-filter.h"
 #include "proc/hole-filling-filter.h"
-#include "../gvd.h"
 
 namespace librealsense
 {
@@ -220,8 +219,8 @@ namespace librealsense
         // fooling tests recordings - don't remove
         _hw_monitor->get_gvd(gvd_buff.size(), gvd_buff.data(), GVD);
 
-        auto fw_version = create_fw_string(gvd_buff, fw_version_offset, 4);
-        auto serial = get_hex_string(gvd_buff, module_serial_offset, 6);
+        auto fw_version = _hw_monitor->get_firmware_version_string(gvd_buff, fw_version_offset);
+        auto serial = _hw_monitor->get_module_serial_string(gvd_buff, module_serial_offset);
 
         _camer_calib_params = [this]() { return get_calibration(); };
         enable_timestamp(true, true);

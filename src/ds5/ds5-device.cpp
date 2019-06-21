@@ -21,7 +21,6 @@
 #include "environment.h"
 #include "ds5-color.h"
 #include "ds5-rolling-shutter.h"
-#include "../gvd.h"
 
 #include "proc/decimation-filter.h"
 #include "proc/threshold.h"
@@ -414,9 +413,9 @@ namespace librealsense
         // fooling tests recordings - don't remove
         _hw_monitor->get_gvd(gvd_buff.size(), gvd_buff.data(), GVD);
         
-        auto optic_serial = get_hex_string(gvd_buff, module_serial_offset, 6);
-        auto asic_serial = get_hex_string(gvd_buff, module_asic_serial_offset, 6);
-        auto fwv = create_fw_string(gvd_buff, camera_fw_version_offset, 4);
+        auto optic_serial = _hw_monitor->get_module_serial_string(gvd_buff, module_serial_offset);
+        auto asic_serial = _hw_monitor->get_module_serial_string(gvd_buff, module_asic_serial_offset);
+        auto fwv = _hw_monitor->get_firmware_version_string(gvd_buff, camera_fw_version_offset);
         _fw_version = firmware_version(fwv);
 
         _recommended_fw_version = firmware_version(D4XX_RECOMMENDED_FIRMWARE_VERSION);

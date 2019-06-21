@@ -3,7 +3,6 @@
 
 #include <vector>
 #include "l500-device.h"
-#include "../gvd.h"
 #include "context.h"
 #include "stream.h"
 #include "l500-depth.h"
@@ -63,9 +62,9 @@ namespace librealsense
         // fooling tests recordings - don't remove
         _hw_monitor->get_gvd(gvd_buff.size(), gvd_buff.data(), GVD);
 
-        auto optic_serial = get_hex_string(gvd_buff, module_serial_offset, 4);
-        auto asic_serial = get_hex_string(gvd_buff, module_asic_serial_offset, 6);
-        auto fwv = create_fw_string(gvd_buff, fw_version_offset, 4);
+        auto optic_serial = _hw_monitor->get_module_serial_string(gvd_buff, module_serial_offset, 4);
+        auto asic_serial = _hw_monitor->get_module_serial_string(gvd_buff, module_asic_serial_offset);
+        auto fwv = _hw_monitor->get_firmware_version_string(gvd_buff, fw_version_offset);
         _fw_version = firmware_version(fwv);
 
         auto pid_hex_str = hexify(group.uvc_devices.front().pid);
