@@ -45,9 +45,9 @@ namespace librealsense
                 if (!usb)
                     continue;
                 if (ds::RS_RECOVERY_PID == info.pid)
-                    return std::make_shared<ds_fw_update_device>(ctx, register_device_notifications, usb);
+                    return std::make_shared<ds_update_device>(ctx, register_device_notifications, usb);
                 if (SR300_RECOVERY == info.pid)
-                    return std::make_shared<sr300_fw_update_device>(ctx, register_device_notifications, usb);
+                    return std::make_shared<sr300_update_device>(ctx, register_device_notifications, usb);
             }
         }
         throw std::runtime_error(to_string() << "Faild to create FW update device, device id: " << _dfu.id);

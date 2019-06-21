@@ -156,7 +156,7 @@ namespace librealsense
         _hw_monitor->send(cmd);
     }
 
-    void sr300_camera::enter_to_fw_update_mode() const
+    void sr300_camera::enter_update_state() const
     {
         try {
             command cmd(ivcam::GoToDFU);

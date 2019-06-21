@@ -94,13 +94,13 @@ namespace librealsense
         uint8_t spare2[42];
     };
 
-    class fw_update_device : public fw_update_device_interface
+    class update_device : public update_device_interface
     {
     public:
-        fw_update_device(const std::shared_ptr<context>& ctx, bool register_device_notifications, std::shared_ptr<platform::usb_device> usb_device);
-        virtual ~fw_update_device();
+        update_device(const std::shared_ptr<context>& ctx, bool register_device_notifications, std::shared_ptr<platform::usb_device> usb_device);
+        virtual ~update_device();
 
-        virtual void update_fw(const void* fw_image, int fw_image_size, fw_update_progress_callback_ptr = nullptr) const override;
+        virtual void update(const void* fw_image, int fw_image_size, fw_update_progress_callback_ptr = nullptr) const override;
         
         virtual sensor_interface& get_sensor(size_t i) override;
 
@@ -127,8 +127,6 @@ namespace librealsense
         virtual bool compress_while_record() const override;
 
         virtual bool contradicts(const stream_profile_interface* a, const std::vector<stream_profile>& others) const override { return false; }
-
-        virtual void enter_to_fw_update_mode() const override;
 
         //info_interface
         virtual const std::string& get_info(rs2_camera_info info) const override;

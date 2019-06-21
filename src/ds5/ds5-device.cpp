@@ -79,7 +79,7 @@ namespace librealsense
         _hw_monitor->send(cmd);
     }
 
-    void ds5_device::enter_to_fw_update_mode() const
+    void ds5_device::enter_update_state() const
     {
         try {
             command cmd(ds::DFU);

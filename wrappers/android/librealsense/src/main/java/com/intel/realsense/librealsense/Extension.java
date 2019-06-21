@@ -37,7 +37,9 @@ public enum Extension {
     POSE(33),
     POSE_SENSOR(34),
     WHEEL_ODOMETER(35),
-    FW_UPDATE_DEVICE(36);
+    GLOBAL_TIMER(36),
+    UPDATABLE(37),
+    UPDATE_DEVICE(38);
 
     private final int mValue;
 

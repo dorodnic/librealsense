@@ -63,25 +63,25 @@ Java_com_intel_realsense_librealsense_Device_nQuerySensors(JNIEnv *env, jclass t
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_intel_realsense_librealsense_Device_nEnterToFwUpdateMode(JNIEnv *env, jclass type,
+Java_com_intel_realsense_librealsense_Updatable_nEnterUpdateState(JNIEnv *env, jclass type,
                                                                   jlong handle) {
     rs2_error *e = NULL;
-    rs2_enter_to_fw_update_mode(reinterpret_cast<const rs2_device *>(handle), &e);
+    rs2_enter_update_state(reinterpret_cast<const rs2_device *>(handle), &e);
     handle_error(env, e);
 }
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_intel_realsense_librealsense_FwUpdateDevice_nUpdateFw(JNIEnv *env, jobject instance,
-                                                               jlong handle, jbyteArray image_) {
+Java_com_intel_realsense_librealsense_UpdateDevice_nUpdate(JNIEnv *env, jobject instance,
+                                                           jlong handle, jbyteArray image_) {
     jbyte *image = env->GetByteArrayElements(image_, NULL);
     auto length = env->GetArrayLength(image_);
     rs2_error *e = NULL;
     jclass cls = env->GetObjectClass(instance);
     jmethodID id = env->GetMethodID(cls, "onProgress", "(F)V");
     auto cb = [&](float progress){ env->CallVoidMethod(instance, id, progress); };
-    rs2_update_fw_cpp(reinterpret_cast<const rs2_device *>(handle), image, length,
-                      new rs2::fw_update_progress_callback<decltype(cb)>(cb), &e);
+    rs2_update_cpp(reinterpret_cast<const rs2_device *>(handle), image, length,
+                   new rs2::fw_update_progress_callback<decltype(cb)>(cb), &e);
     handle_error(env, e);
     env->ReleaseByteArrayElements(image_, image, 0);
 }

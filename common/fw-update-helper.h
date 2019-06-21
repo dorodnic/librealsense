@@ -9,11 +9,13 @@
 #include <vector>
 #include <string>
 #include <mutex>
+#include <condition_variable>
 
 namespace rs2
 {
     class device_model;
 
+    int parse_product_line(std::string id);
     std::string get_available_firmware_version(int product_line);
     std::map<int, std::vector<uint8_t>> create_default_fw_table();
     std::vector<int> parse_fw_version(const std::string& fw);
@@ -54,6 +56,6 @@ namespace rs2
         std::condition_variable _cv;
         bool _dfu_connected = false;
         bool _dev_reconnected = false;
-        fw_update_device _dfu;
+        update_device _dfu;
     };
 }

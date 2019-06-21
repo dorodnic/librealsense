@@ -18,6 +18,7 @@
 #include "environment.h"
 #include "core/debug.h"
 #include "stream.h"
+#include "fw-update/fw-update-device-interface.h"
 
 namespace librealsense
 {
@@ -157,7 +158,7 @@ namespace librealsense
         platform::usb_device_info _hwm;
     };
 
-    class sr300_camera final : public virtual device, public debug_interface
+    class sr300_camera final : public virtual device, public debug_interface, public updatable
     {
     public:
         std::vector<tagged_profile> get_profiles_tags() const override
@@ -521,7 +522,7 @@ namespace librealsense
         }
         void create_snapshot(std::shared_ptr<debug_interface>& snapshot) const override;
         void enable_recording(std::function<void(const debug_interface&)> record_action) override;
-        void enter_to_fw_update_mode() const override;
+        void enter_update_state() const override;
         virtual std::shared_ptr<matcher> create_matcher(const frame_holder& frame) const override;
 
     private:

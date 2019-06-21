@@ -11,6 +11,7 @@
 #include "core/advanced_mode.h"
 #include "device.h"
 #include "global_timestamp_reader.h"
+#include "fw-update/fw-update-device-interface.h"
 
 namespace librealsense
 {
@@ -27,7 +28,7 @@ namespace librealsense
         const hw_monitor& _hw_monitor;
     };
 
-    class ds5_device : public virtual device, public debug_interface, public global_time_interface
+    class ds5_device : public virtual device, public debug_interface, public global_time_interface, public updatable
     {
     public:
         std::shared_ptr<uvc_sensor> create_depth_device(std::shared_ptr<context> ctx,
@@ -49,7 +50,7 @@ namespace librealsense
         platform::usb_spec get_usb_spec() const;
         virtual double get_device_time_ms();
 
-        void enter_to_fw_update_mode() const override;
+        void enter_update_state() const override;
 
     protected:
 

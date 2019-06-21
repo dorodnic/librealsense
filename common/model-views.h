@@ -743,6 +743,8 @@ namespace rs2
             json_loading_func json_loading = [](std::function<void()> load) {load(); },
             bool draw_device_outline = true);
         void handle_hardware_events(const std::string& serialized_data);
+        void begin_update(std::vector<uint8_t> data,
+            viewer_model& viewer, std::string& error_message);
 
         std::vector<std::shared_ptr<subdevice_model>> subdevices;
         std::shared_ptr<syncer_model> syncer;

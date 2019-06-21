@@ -12,10 +12,11 @@ import android.widget.Toast;
 import com.intel.realsense.librealsense.CameraInfo;
 import com.intel.realsense.librealsense.Device;
 import com.intel.realsense.librealsense.DeviceList;
-import com.intel.realsense.librealsense.FwUpdateDevice;
 import com.intel.realsense.librealsense.ProductClass;
 import com.intel.realsense.librealsense.ProgressListener;
 import com.intel.realsense.librealsense.RsContext;
+import com.intel.realsense.librealsense.Updatable;
+import com.intel.realsense.librealsense.UpdateDevice;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -37,7 +38,10 @@ public class FirmwareUpdateActivity extends AppCompatActivity {
             public void onClick(View view) {
                 try(DeviceList dl = mRsContext.queryDevices(ProductClass.DEPTH)){
                     try(Device d = dl.createDevice(0)){
-                        d.enterToFwUpdateMode();
+                        if(d instanceof Updatable)
+                            d.as(Updatable.class).enterUpdateState();
+                        else
+                            throw new RuntimeException("request to update a non updatable device");
                     }
                 }
             }
@@ -47,12 +51,13 @@ public class FirmwareUpdateActivity extends AppCompatActivity {
             if(dl.getDeviceCount() == 0)
                 return;
             try(Device device = dl.createDevice(0)){
-                if(device.getClass() == FwUpdateDevice.class){
+                if(device instanceof UpdateDevice){
                     int fw_image = getFwImageId(device);
                     tryUpdate(fw_image);
                 }
-                else
+                else{
                     printInfo(device);
+                }
             }
         }
     }
@@ -67,8 +72,8 @@ public class FirmwareUpdateActivity extends AppCompatActivity {
                         if(dl.getDeviceCount() == 0)
                             return;
                         try(Device device = dl.createDevice(0)){
-                            if(device.getClass() == FwUpdateDevice.class){
-                                FwUpdateDevice fwud = device.as(FwUpdateDevice.class);
+                            if(device instanceof UpdateDevice){
+                                UpdateDevice fwud = device.as(UpdateDevice.class);
                                 updateFirmware(fwud, FirmwareUpdateActivity.this, fw_image);
                             }
                         }
@@ -96,7 +101,11 @@ public class FirmwareUpdateActivity extends AppCompatActivity {
     }
 
     private void printInfo(Device device){
-        mFwUpdateButton.setVisibility(View.VISIBLE);
+        if(device instanceof Updatable)
+            mFwUpdateButton.setVisibility(View.VISIBLE);
+        final String buttonString = (device instanceof Updatable)?
+                "\n\nClicking " + mFwUpdateButton.getText() + " will update to FW " + getString(R.string.d4xx_fw_version) :
+                "";
         final String recFw = device.getInfo(CameraInfo.RECOMMENDED_FIRMWARE_VERSION);
         final String fw = device.getInfo(CameraInfo.FIRMWARE_VERSION);
         runOnUiThread(new Runnable() {
@@ -104,8 +113,7 @@ public class FirmwareUpdateActivity extends AppCompatActivity {
             public void run() {
                 TextView textView = findViewById(R.id.fwUpdateMainText);
                 textView.setText("The FW of the connected device is:\n " + fw +
-                        "\n\nThe minimal recommended FW for this device is:\n " + recFw +
-                        "\n\nClicking " + mFwUpdateButton.getText() + " will update to FW " + getString(R.string.d4xx_fw_version));
+                        "\n\nThe minimal recommended FW for this device is:\n " + recFw + buttonString);
             }
         });
     }
@@ -121,10 +129,10 @@ public class FirmwareUpdateActivity extends AppCompatActivity {
         return buff.array();
     }
 
-    private synchronized void updateFirmware(FwUpdateDevice device,Context context, int fwResId) {
+    private synchronized void updateFirmware(UpdateDevice device,Context context, int fwResId) {
         try {
             final byte[] bytes = readFwFile(context, fwResId);
-            device.updateFw(bytes, new ProgressListener() {
+            device.update(bytes, new ProgressListener() {
                 @Override
                 public void onProgress(final float progress) {
                     runOnUiThread(new Runnable() {

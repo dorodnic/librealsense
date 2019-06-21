@@ -95,14 +95,6 @@ namespace rs2
             error::handle(e);
         }
 
-        void enter_to_fw_update_mode() const
-        {
-            rs2_error* e = nullptr;
-
-            rs2_enter_to_fw_update_mode(_dev.get(), &e);
-            error::handle(e);
-        }
-
         device& operator=(const std::shared_ptr<rs2_device> dev)
         {
             _dev.reset();
@@ -171,33 +163,56 @@ namespace rs2
         void release() override { delete this; }
     };
 
-    class fw_update_device : public device
+    class updatable : public device
     {
     public:
-        fw_update_device() : device() {}
-        fw_update_device(device d)
+        updatable() : device() {}
+        updatable(device d)
             : device(d.get())
         {
             rs2_error* e = nullptr;
-            if (rs2_is_device_extendable_to(_dev.get(), RS2_EXTENSION_FW_UPDATE_DEVICE, &e) == 0 && !e)
+            if (rs2_is_device_extendable_to(_dev.get(), RS2_EXTENSION_UPDATABLE, &e) == 0 && !e)
             {
                 _dev.reset();
             }
             error::handle(e);
         }
 
-        void update_fw(const std::vector<uint8_t>& fw_image) const
+        void enter_update_state() const
         {
             rs2_error* e = nullptr;
-            rs2_update_fw_cpp(_dev.get(), fw_image.data(), fw_image.size(), NULL, &e);
+            rs2_enter_update_state(_dev.get(), &e);
+            error::handle(e);
+        }
+    };
+
+    class update_device : public device
+    {
+    public:
+        update_device() : device() {}
+        update_device(device d)
+            : device(d.get())
+        {
+            rs2_error* e = nullptr;
+            if (rs2_is_device_extendable_to(_dev.get(), RS2_EXTENSION_UPDATE_DEVICE, &e) == 0 && !e)
+            {
+                _dev.reset();
+            }
+            error::handle(e);
+        }
+
+        void update(const std::vector<uint8_t>& fw_image) const
+        {
+            rs2_error* e = nullptr;
+            rs2_update_cpp(_dev.get(), fw_image.data(), fw_image.size(), NULL, &e);
             error::handle(e);
         }
 
         template<class T>
-        void update_fw(const std::vector<uint8_t>& fw_image, T callback)
+        void update(const std::vector<uint8_t>& fw_image, T callback)
         {
             rs2_error* e = nullptr;
-            rs2_update_fw_cpp(_dev.get(), fw_image.data(), fw_image.size(), new fw_update_progress_callback<T>(std::move(callback)), &e);
+            rs2_update_cpp(_dev.get(), fw_image.data(), fw_image.size(), new fw_update_progress_callback<T>(std::move(callback)), &e);
             error::handle(e);
         }
     };
