@@ -169,50 +169,16 @@ namespace rs2
 
             int next_progress = 10;
 
-            if (auto dbg = _dev.as<debug_protocol>())
+            update_device dfu{};
+
+            if (auto upd = _dev.as<updatable>())
             {
                 log("Backing-up camera flash memory");
 
-                int flash_size = 1024 * 2048;
-                int max_bulk_size = 1016;
-                int max_iterations = int(flash_size / max_bulk_size + 1);
-
-                std::vector<uint8_t> flash;
-                flash.reserve(flash_size);
-
-                for (int i = 0; i < max_iterations; i++)
+                auto flash = upd.create_flash_backup([&](const float progress)
                 {
-                    int offset = max_bulk_size * i;
-                    int size = max_bulk_size;
-                    if (i == max_iterations - 1)
-                    {
-                        size = flash_size - offset;
-                    }
-
-                    uint8_t buff[]{ 0x14, 0x0, 0xAB, 0xCD, 0x9, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0 };
-                    *((int*)(buff + 8)) = offset;
-                    *((int*)(buff + 12)) = size;
-                    std::vector<uint8_t> data(buff, buff + sizeof(buff));
-                    bool appended = false;
-
-                    const int retries = 3;
-                    for (int j = 0; j < retries && !appended; j++)
-                    {
-                        try
-                        {
-                            auto res = dbg.send_and_receive_raw_data(data);
-                            flash.insert(flash.end(), res.begin(), res.end());
-                            appended = true;
-                        }
-                        catch (...)
-                        {
-                            if (i < retries - 1) std::this_thread::sleep_for(std::chrono::milliseconds(100));
-                            else throw;
-                        }
-                    }
-
-                    _progress = ((float)i / max_iterations) * 40 + 5;
-                }
+                    _progress = ((ceil(progress * 5) / 5) * (30 - next_progress)) + next_progress;
+                });
 
                 auto temp = get_folder_path(special_folder::app_data);
                 temp += serial + "." + get_timestamped_file_name() + ".bin";
@@ -226,15 +192,10 @@ namespace rs2
                 log_line += temp + "'";
                 log(log_line);
 
-                next_progress = 50;
-            }
+                next_progress = 40;
 
-            update_device dfu{};
-
-            if (_dev.is<updatable>())
-            {
                 log("Requesting to switch to recovery mode");
-                _dev.as<updatable>().enter_update_state();
+                upd.enter_update_state();
 
                 if (!check_for([this, serial, &dfu]() {
                     auto devs = _ctx.query_devices();
@@ -244,17 +205,6 @@ namespace rs2
                         try
                         {
                             auto d = devs[j];
-
-                            if (d.query_sensors().size() && d.query_sensors().front().supports(RS2_CAMERA_INFO_ASIC_SERIAL_NUMBER))
-                            {
-                                auto s = d.query_sensors().front().get_info(RS2_CAMERA_INFO_ASIC_SERIAL_NUMBER);
-                                if (s == serial)
-                                {
-                                    log("Discovered connection of the original device");
-                                    return false;
-                                }
-                            }
-
                             if (d.is<update_device>())
                             {
                                 if (d.supports(RS2_CAMERA_INFO_ASIC_SERIAL_NUMBER))
@@ -314,6 +264,8 @@ namespace rs2
                     }
                     catch (...) {}
                 }
+
+                return false;
             }, cleanup, std::chrono::seconds(60)))
             {
                 fail("Original device did not reconnect in time!");

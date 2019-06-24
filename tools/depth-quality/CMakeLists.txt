@@ -8,6 +8,8 @@ project(RealsenseToolsDepthQuality)
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
+include_directories(${CMAKE_BINARY_DIR})
+
 include(../../common/CMakeLists.txt)
 
 if(BUILD_GRAPHICAL_EXAMPLES)
@@ -17,7 +19,7 @@ if(BUILD_GRAPHICAL_EXAMPLES)
         depth-quality-model.h
         depth-quality-model.cpp
         depth-metrics.h
-            ../../common/realsense-ui-advanced-mode.h
+        ../../common/realsense-ui-advanced-mode.h
         ../../third-party/imgui/imgui.cpp
         ../../third-party/imgui/imgui_draw.cpp
         ../../third-party/imgui/imgui_impl_glfw.cpp
@@ -74,6 +76,12 @@ if(BUILD_GRAPHICAL_EXAMPLES)
                                            ${GTK3_LIBRARIES}
                                            Threads::Threads
                                            realsense2-gl)
+
+    if (IMPORT_UVC_FW)
+        add_definitions(-DINTERNAL_FW)
+        target_link_libraries(rs-depth-quality uvc_fw)
+    endif()
+
     set_target_properties (rs-depth-quality PROPERTIES
         FOLDER Tools
     )

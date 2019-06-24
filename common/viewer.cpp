@@ -821,7 +821,7 @@ namespace rs2
             if (ImGui::Button(" Update Recommended ", ImVec2(0, 0)))
             {
                 update = true;
-                if(ud.dev.is<updatable>())
+                if (ud.dev.is<updatable>())
                     ud.dev.as<updatable>().enter_update_state();
                 ImGui::CloseCurrentPopup();
             }
@@ -843,52 +843,6 @@ namespace rs2
         };
 
         popup(window, header, message.str(), config);
-    }
-
-    void rs2::viewer_model::popup_if_ui_not_aligned(const ux_window& window)
-    {
-        constexpr const char* graphics_updated_driver = "https://downloadcenter.intel.com/download/27266/Graphics-Intel-Graphics-Driver-for-Windows-15-60-?product=80939";
-
-        if (continue_with_ui_not_aligned)
-            return;
-
-        std::string header = to_string() << "  " << textual_icons::exclamation_triangle << " " << " UI Offset Detected";
-
-        std::stringstream message;
-        message << "The application has detected possible UI alignment issue,            \n" <<
-            "sometimes caused by outdated graphics card drivers.\n" <<
-            "For Intel Integrated Graphics driver \n";
-
-        auto config = [&]()
-        {
-            ImGui::SetCursorPos({ 190, 42 });
-            if (ImGui::Button("click here", { 150, 60 }))
-            {
-                open_url(graphics_updated_driver);
-            }
-
-            ImGui::PopStyleColor(5);
-
-            static bool dont_show_again = false;
-
-            if (ImGui::Button(" Ignore & Continue ", ImVec2(150, 0)))
-            {
-                continue_with_ui_not_aligned = true;
-                if (dont_show_again)
-                {
-                    config_file::instance().set(
-                        configurations::viewer::continue_with_ui_not_aligned,
-                        continue_with_ui_not_aligned);
-                }
-                ImGui::CloseCurrentPopup();
-            }
-
-            ImGui::SameLine();
-            ImGui::Checkbox("Don't show this again", &dont_show_again);
-        };
-
-        popup(window, header, message.str(), config);
-        return;
     }
 
     void viewer_model::show_icon(ImFont* font_18, const char* label_str, const char* text, int x, int y, int id,
