@@ -44,7 +44,7 @@ namespace librealsense
         {
             fw_version_offset = 12,
             module_serial_offset = 56, 
-            module_asic_serial_offset = 70,
+            module_asic_serial_offset = 72,
             module_serial_size = 8
         };
 
