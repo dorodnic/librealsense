@@ -2760,7 +2760,7 @@ namespace rs2
 
                     static auto table = create_default_fw_table();
 
-                    manager = std::make_shared<firmware_update_manager>(*this, dev, table[product_line]);
+                    manager = std::make_shared<firmware_update_manager>(*this, dev, viewer.ctx, table[product_line]);
                 }
 
                 if (is_upgradeable(fw, recommended))
@@ -3731,10 +3731,16 @@ namespace rs2
                         data = std::vector<uint8_t>((std::istreambuf_iterator<char>(file)),
                             std::istreambuf_iterator<char>());
                     }
+                    else
+                    {
+                        error_message = to_string() << "Could not open file '" << ret << "'";
+                        return;
+                    }
                 }
+                else return; // Aborted by the user
             }
             
-            auto manager = std::make_shared<firmware_update_manager>(*this, dev, data);
+            auto manager = std::make_shared<firmware_update_manager>(*this, dev, viewer.ctx, data);
 
             auto id = viewer.not_model.add_notification({ "Manual Update requested",
                 RS2_LOG_SEVERITY_INFO,
@@ -3999,14 +4005,16 @@ namespace rs2
                     }
                 }
 
-                if (ImGui::Selectable("Firmware Update..."))
+                if (ImGui::Selectable("Update Firmware..."))
                 {
                     begin_update({}, viewer, error_message);
                 }
+                if (ImGui::IsItemHovered()) 
+                    ImGui::SetTooltip("Install official signed firmware from file to the device");
 
                 if ((dev.supports(RS2_CAMERA_INFO_PRODUCT_LINE)) ||
                     (dev.query_sensors().size() && dev.query_sensors().front().supports(RS2_CAMERA_INFO_PRODUCT_LINE)))
-                if (ImGui::Selectable("Flash Recommended Firmware"))
+                if (ImGui::Selectable("Install Recommended Firmware "))
                 {
                     auto sensors = dev.query_sensors();
                     auto product_line_str = "";
@@ -4020,6 +4028,8 @@ namespace rs2
 
                     begin_update(table[product_line], viewer, error_message);
                 }
+                if (ImGui::IsItemHovered())
+                    ImGui::SetTooltip("Install default recommended firmware for this device");
             }
 
             if (!something_to_show)

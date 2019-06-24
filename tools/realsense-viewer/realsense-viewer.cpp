@@ -260,6 +260,7 @@ int main(int argc, const char** argv) try
     device_model* device_to_remove = nullptr;
 
     viewer_model viewer_model;
+    viewer_model.ctx = ctx;
 
     std::vector<device> connected_devs;
     std::mutex m;

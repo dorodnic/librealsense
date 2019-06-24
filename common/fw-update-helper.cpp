@@ -114,6 +114,235 @@ namespace rs2
         _failed = true;
     }
 
+    bool firmware_update_manager::check_for(
+        std::function<bool()> action, std::function<void()> cleanup,
+        std::chrono::system_clock::duration delta)
+    {
+        using namespace std;
+        using namespace std::chrono;
+
+        auto start = system_clock::now();
+        auto now = system_clock::now();
+        do
+        {
+            try
+            {
+
+                if (action()) return true;
+            }
+            catch (const error& e)
+            {
+                fail(error_to_string(e));
+                cleanup();
+                return false;
+            }
+            catch (const std::exception& ex)
+            {
+                fail(ex.what());
+                cleanup();
+                return false;
+            }
+            catch (...)
+            {
+                fail("Unknown error during update.\nPlease reconnect the camera to exit recovery mode");
+                cleanup();
+                return false;
+            }
+
+            now = system_clock::now();
+            this_thread::sleep_for(milliseconds(100));
+        } while (now - start < delta);
+        return false;
+    }
+
+    void firmware_update_manager::do_update(std::function<void()> cleanup)
+    {
+        try
+        {
+            std::string serial = "";
+            if (_dev.supports(RS2_CAMERA_INFO_ASIC_SERIAL_NUMBER))
+                serial = _dev.get_info(RS2_CAMERA_INFO_ASIC_SERIAL_NUMBER);
+            else
+                serial = _dev.query_sensors().front().get_info(RS2_CAMERA_INFO_ASIC_SERIAL_NUMBER);
+
+            _progress = 5;
+
+            int next_progress = 10;
+
+            if (auto dbg = _dev.as<debug_protocol>())
+            {
+                log("Backing-up camera flash memory");
+
+                int flash_size = 1024 * 2048;
+                int max_bulk_size = 1016;
+                int max_iterations = int(flash_size / max_bulk_size + 1);
+
+                std::vector<uint8_t> flash;
+                flash.reserve(flash_size);
+
+                for (int i = 0; i < max_iterations; i++)
+                {
+                    int offset = max_bulk_size * i;
+                    int size = max_bulk_size;
+                    if (i == max_iterations - 1)
+                    {
+                        size = flash_size - offset;
+                    }
+
+                    uint8_t buff[]{ 0x14, 0x0, 0xAB, 0xCD, 0x9, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0 };
+                    *((int*)(buff + 8)) = offset;
+                    *((int*)(buff + 12)) = size;
+                    std::vector<uint8_t> data(buff, buff + sizeof(buff));
+                    bool appended = false;
+
+                    const int retries = 3;
+                    for (int j = 0; j < retries && !appended; j++)
+                    {
+                        try
+                        {
+                            auto res = dbg.send_and_receive_raw_data(data);
+                            flash.insert(flash.end(), res.begin(), res.end());
+                            appended = true;
+                        }
+                        catch (...)
+                        {
+                            if (i < retries - 1) std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                            else throw;
+                        }
+                    }
+
+                    _progress = ((float)i / max_iterations) * 40 + 5;
+                }
+
+                auto temp = get_folder_path(special_folder::app_data);
+                temp += serial + "." + get_timestamped_file_name() + ".bin";
+
+                {
+                    std::ofstream file(temp.c_str(), std::ios::binary);
+                    file.write((const char*)flash.data(), flash.size());
+                }
+
+                std::string log_line = "Backup completed and saved as '";
+                log_line += temp + "'";
+                log(log_line);
+
+                next_progress = 50;
+            }
+
+            update_device dfu{};
+
+            if (_dev.is<updatable>())
+            {
+                log("Requesting to switch to recovery mode");
+                _dev.as<updatable>().enter_update_state();
+
+                if (!check_for([this, serial, &dfu]() {
+                    auto devs = _ctx.query_devices();
+
+                    for (int j = 0; j < devs.size(); j++)
+                    {
+                        try
+                        {
+                            auto d = devs[j];
+
+                            if (d.query_sensors().size() && d.query_sensors().front().supports(RS2_CAMERA_INFO_ASIC_SERIAL_NUMBER))
+                            {
+                                auto s = d.query_sensors().front().get_info(RS2_CAMERA_INFO_ASIC_SERIAL_NUMBER);
+                                if (s == serial)
+                                {
+                                    log("Discovered connection of the original device");
+                                    return false;
+                                }
+                            }
+
+                            if (d.is<update_device>())
+                            {
+                                if (d.supports(RS2_CAMERA_INFO_ASIC_SERIAL_NUMBER))
+                                {
+                                    if (serial == d.get_info(RS2_CAMERA_INFO_ASIC_SERIAL_NUMBER))
+                                    {
+                                        dfu = d;
+                                        return true;
+                                    }
+                                }
+                            }
+                        }
+                        catch (...) {}
+                    }
+
+                    return false;
+                }, cleanup, std::chrono::seconds(60)))
+                {
+                    fail("Recovery device did not connect in time!");
+                    return;
+                }
+            }
+            else
+            {
+                dfu = _dev.as<update_device>();
+            }
+
+            _progress = next_progress;
+
+            log("Recovery device connected, starting update");
+
+            dfu.update(_fw, [&](const float progress)
+            {
+                _progress = (ceil(progress * 10) / 10 * (90 - next_progress)) + next_progress;
+            });
+
+            log("Update completed, waiting for device to reconnect");
+
+            if (!check_for([this, serial, &dfu]() {
+                auto devs = _ctx.query_devices();
+
+                for (int j = 0; j < devs.size(); j++)
+                {
+                    try
+                    {
+                        auto d = devs[j];
+
+                        if (d.query_sensors().size() && d.query_sensors().front().supports(RS2_CAMERA_INFO_ASIC_SERIAL_NUMBER))
+                        {
+                            auto s = d.query_sensors().front().get_info(RS2_CAMERA_INFO_ASIC_SERIAL_NUMBER);
+                            if (s == serial)
+                            {
+                                log("Discovered connection of the original device");
+                                return true;
+                            }
+                        }
+                    }
+                    catch (...) {}
+                }
+            }, cleanup, std::chrono::seconds(60)))
+            {
+                fail("Original device did not reconnect in time!");
+                return;
+            }
+
+            log("Device reconnected succesfully!");
+
+            _progress = 100;
+
+            _done = true;
+        }
+        catch (const error& e)
+        {
+            fail(error_to_string(e));
+            cleanup();
+        }
+        catch (const std::exception& ex)
+        {
+            fail(ex.what());
+            cleanup();
+        }
+        catch (...)
+        {
+            fail("Unknown error during update.\nPlease reconnect the camera to exit recovery mode");
+            cleanup();
+        }
+    }
+
     void firmware_update_manager::start()
     {
         auto cleanup = _model.cleanup;
@@ -123,230 +352,12 @@ namespace rs2
 
         auto me = shared_from_this();
         std::weak_ptr<firmware_update_manager> ptr(me);
-
-        _ctx = context();
-        _dfu_connected = false;
-        _dev_reconnected = false;
         
         std::thread t([ptr, cleanup]() {
             auto self = ptr.lock();
             if (!self) return;
 
-            try
-            {
-                std::string serial = "";
-                if (self->_dev.supports(RS2_CAMERA_INFO_SERIAL_NUMBER))
-                    serial = self->_dev.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
-                else
-                    serial = self->_dev.query_sensors().front().get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
-
-                self->_progress = 5;
-
-                self->_ctx.set_devices_changed_callback(
-                    [ptr, serial, cleanup](event_information& info)
-                {
-                    auto self = ptr.lock();
-                    if (!self) return;
-
-                    try
-                    {
-                        auto devs = info.get_new_devices();
-                        if (devs.size() > 0)
-                            self->log("New device connected, checking if recovery...");
-                            
-                        const int retries = 5;
-
-                        for (int j = 0; j < devs.size(); j++)
-                        for (int i = 0; i < retries; i++)
-                        {
-                            try
-                            {
-                                auto d = devs[j];
-
-                                if (d.query_sensors().size() && d.query_sensors().front().supports(RS2_CAMERA_INFO_SERIAL_NUMBER))
-                                {
-                                    auto s = d.query_sensors().front().get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
-                                    //if (s == serial)
-                                    {
-                                        self->log("Discovered connection of the original device");
-                                        self->_dev_reconnected = true;
-                                        self->_cv.notify_all();
-                                    }
-                                }
-
-                                if (d.is<update_device>())
-                                {
-                                    if (d.supports(RS2_CAMERA_INFO_SERIAL_NUMBER))
-                                    {
-                                        //if (serial == d.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER))
-                                        // TODO: Use serial number
-                                        {
-                                            self->_dfu = d;
-                                            self->_dfu_connected = true;
-                                            self->_cv.notify_all();
-                                        }
-                                    }
-                                }
-                            }
-                            catch (...)
-                            {
-                                if (i < retries - 1) std::this_thread::sleep_for(std::chrono::milliseconds(100));
-                                else throw;
-                            }
-                        }
-                        if (info.was_removed(self->_dev))
-                        {
-                            self->log("Device successfully disconnected");
-                        }
-                    }
-                    catch (const error& e)
-                    {
-                        self->fail(error_to_string(e));
-                        cleanup();
-                    }
-                    catch (const std::exception& ex)
-                    {
-                        self->fail(ex.what());
-                        cleanup();
-                    }
-                    catch (...)
-                    {
-                        self->fail("Unknown error during update.\nPlease reconnect the camera to exit recovery mode");
-                        cleanup();
-                    }
-                });
-
-                int next_progress = 10;
-
-                if (auto dbg = self->_dev.as<debug_protocol>())
-                {
-                    self->log("Backing-up camera flash memory");
-
-                    int flash_size = 1024 * 2048;
-                    int max_bulk_size = 1016;
-                    int max_iterations = int(flash_size / max_bulk_size + 1);
-
-                    std::vector<uint8_t> flash;
-                    flash.reserve(flash_size);
-
-                    for (int i = 0; i < max_iterations; i++)
-                    {
-                        int offset = max_bulk_size * i;
-                        int size = max_bulk_size;
-                        if (i == max_iterations - 1)
-                        {
-                            size = flash_size - offset;
-                        }
-
-                        uint8_t buff[]{ 0x14, 0x0, 0xAB, 0xCD, 0x9, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0 };
-                        *((int*)(buff + 8)) = offset;
-                        *((int*)(buff + 12)) = size;
-                        std::vector<uint8_t> data(buff, buff + sizeof(buff));
-                        bool appended = false;
-
-                        const int retries = 3;
-                        for (int j = 0; j < retries && !appended; j++)
-                        {
-                            try
-                            {
-                                auto res = dbg.send_and_receive_raw_data(data);
-                                flash.insert(flash.end(), res.begin(), res.end());
-                                appended = true;
-                            }
-                            catch (...) 
-                            {
-                                if (i < retries - 1) std::this_thread::sleep_for(std::chrono::milliseconds(100));
-                                else throw;
-                            }
-                        }
-
-                        self->_progress = ((float)i / max_iterations) * 40 + 5;
-                    }
-
-                    auto temp = get_folder_path(special_folder::app_data);
-                    temp += serial + "." + get_timestamped_file_name() + ".bin";
-
-                    {
-                        std::ofstream file(temp.c_str(), std::ios::binary);
-                        file.write((const char*)flash.data(), flash.size());
-                    }
-
-                    std::string log_line = "Backup completed and saved as '";
-                    log_line += temp + "'";
-                    self->log(log_line);
-
-                    next_progress = 50;
-                }
-
-
-                if (self->_dev.is<updatable>())
-                {
-                    self->log("Requesting to switch to recovery mode");
-                    self->_dev.as<updatable>().enter_update_state();
-
-                    {
-                        std::unique_lock<std::mutex> lk(self->_m);
-                        if (!self->_cv.wait_for(lk, std::chrono::seconds(10),
-                            [&] { return self->_dfu_connected || self->_dev_reconnected; }))
-                        {
-                            self->fail("Device did not reconnect in time!");
-                            return;
-                        }
-                    }
-
-                    if (self->_dev_reconnected)
-                    {
-                        self->fail("Device reconnected before update started!");
-                        return;
-                    }
-                }
-                else
-                {
-                    self->_dfu = self->_dev.as<update_device>();
-                }
-
-                self->_progress = next_progress;
-
-                self->log("Recovery device connected, starting update");
-
-                self->_dfu.update(self->_fw, [&](const float progress)
-                {
-                    self->_progress = (ceil(progress*10)/10 * (90 - next_progress)) + next_progress;
-                });
-
-                self->log("Update completed, waiting for device to reconnect");
-
-                {
-                    std::unique_lock<std::mutex> lk(self->_m);
-                    if (!self->_cv.wait_for(lk, std::chrono::seconds(60),
-                        [&] { return self->_dev_reconnected; }))
-                    {
-                        self->fail("Device did not reconnect in time!");
-                        return;
-                    }
-                }
-
-                self->log("Device reconnected succesfully!");
-
-                self->_progress = 100;
-
-                self->_done = true;
-            }
-            catch (const error& e)
-            {
-                self->fail(error_to_string(e));
-                cleanup();
-            }
-            catch (const std::exception& ex)
-            {
-                self->fail(ex.what());
-                cleanup();
-            }
-            catch (...)
-            {
-                self->fail("Unknown error during update.\nPlease reconnect the camera to exit recovery mode");
-                cleanup();
-            }
+            self->do_update(cleanup);
         });
         t.detach();
 

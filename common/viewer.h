@@ -90,6 +90,7 @@ namespace rs2
         std::shared_ptr<syncer_model> syncer;
         post_processing_filters ppf;
 
+        context ctx;
         notifications_model not_model;
         bool is_output_collapsed = false;
         bool is_3d_view = false;
