@@ -209,7 +209,7 @@ namespace librealsense
             sr300_camera& _owner;
         };
 
-        class sr300_color_sensor : public uvc_sensor, public video_sensor_interface
+        class sr300_color_sensor : public uvc_sensor, public video_sensor_interface, public roi_sensor_base
         {
         public:
             explicit sr300_color_sensor(sr300_camera* owner, std::shared_ptr<platform::uvc_device> uvc_device,
@@ -527,6 +527,8 @@ namespace librealsense
         std::vector<uint8_t> backup_flash(update_progress_callback_ptr callback) override;
 
         virtual std::shared_ptr<matcher> create_matcher(const frame_holder& frame) const override;
+
+        void rgb_firmware_burn();
 
     private:
         const uint8_t _depth_device_idx;

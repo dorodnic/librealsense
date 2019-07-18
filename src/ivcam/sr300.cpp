@@ -10,6 +10,8 @@
 #include "proc/temporal-filter.h"
 #include "proc/hole-filling-filter.h"
 
+#include "ds5/ds5-device.h"
+
 namespace librealsense
 {
     std::shared_ptr<device_interface> sr300_info::create(std::shared_ptr<context> ctx,
@@ -310,6 +312,13 @@ namespace librealsense
                                                 return (c.Rmax / 1000 / 0xFFFF);
                                             })));
 
+        if (firmware_version(fw_version) >= firmware_version("3.26.2.0"))
+        {
+            roi_sensor_interface* roi_sensor;
+            if ((roi_sensor = dynamic_cast<roi_sensor_interface*>(&get_sensor(_color_device_idx))))
+                roi_sensor->set_roi_method(std::make_shared<ds5_auto_exposure_roi_method>(*_hw_monitor, 
+                    (ds::fw_cmd)ivcam::fw_cmd::SetRgbAeRoi));
+        }
     }
     void sr300_camera::create_snapshot(std::shared_ptr<debug_interface>& snapshot) const
     {
@@ -397,6 +406,12 @@ namespace librealsense
         return std::make_shared<timestamp_composite_matcher>(matchers);
 
     }
+
+    void sr300_camera::rgb_firmware_burn()
+    {
+
+    }
+
     processing_blocks sr300_camera::sr300_depth_sensor::get_sr300_depth_recommended_proccesing_blocks()
     {
         auto res = get_depth_recommended_proccesing_blocks();

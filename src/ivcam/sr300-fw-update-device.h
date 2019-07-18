@@ -21,5 +21,6 @@ namespace librealsense
     private:
         std::string _name;
         std::string _product_line;
+        std::shared_ptr<context> _ctx;
     };
 }
