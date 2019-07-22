@@ -33,9 +33,10 @@ namespace librealsense
         const uint16_t RS435_RGB_PID        = 0x0b07; // AWGC
         const uint16_t RS405_PID            = 0x0b0c; // DS5U
         const uint16_t RS435I_PID           = 0x0b3a; // D435i
-        const uint16_t RS416_PID            = 0x0b49;
+        const uint16_t RS416_PID            = 0x0b49; // F416
         const uint16_t RS430I_PID           = 0x0b4b; // D430i
-        const uint16_t RS465_PID            = 0x0b4d;
+        const uint16_t RS465_PID            = 0x0b4d; // D465
+        const uint16_t RS416_RGB_PID        = 0x0B52; // F416 RGB
 
         // DS5 depth XU identifiers
         const uint8_t DS5_HWMONITOR                       = 1;
@@ -48,6 +49,9 @@ namespace librealsense
         const uint8_t DS5_ASIC_AND_PROJECTOR_TEMPERATURES = 9;
         const uint8_t DS5_ENABLE_AUTO_WHITE_BALANCE       = 0xA;
         const uint8_t DS5_ENABLE_AUTO_EXPOSURE            = 0xB;
+        const uint8_t DS5_PROJECTOR_TYPE                  = 0xE;
+        const uint8_t DS5_LED_PWR_MODE                    = 0xF;
+        const uint8_t DS5_LED_PWR                         = 0x10;
 
         // Devices supported by the current version
         static const std::set<std::uint16_t> rs400_sku_pid = {
@@ -55,6 +59,7 @@ namespace librealsense
             ds::RS410_PID,
             ds::RS415_PID,
             ds::RS416_PID,
+            ds::RS416_RGB_PID,
             ds::RS430_PID,
             ds::RS430I_PID,
             ds::RS430_MM_PID,
@@ -107,6 +112,7 @@ namespace librealsense
             { RS410_MM_PID,         "Intel RealSense D410 with Tracking Module"},
             { RS415_PID,            "Intel RealSense D415"},
             { RS416_PID,            "Intel RealSense F416"},
+            { RS416_RGB_PID,        "Intel RealSense F416 with RGB Module"},
             { RS420_PID,            "Intel RealSense D420"},
             { RS420_MM_PID,         "Intel RealSense D420 with Tracking Module"},
             { RS430_PID,            "Intel RealSense D430"},
@@ -135,10 +141,19 @@ namespace librealsense
 
         const int REGISTER_CLOCK_0 = 0x0001613c;
 
+        // unlocked camera update
+        const uint32_t FLASH_SEGMENT_SIZE = 0x1000;
+        uint32_t get_read_write_segment_count(const firmware_version& fw_version, bool full_size);
+
         enum fw_cmd : uint8_t
         {
             MRD             = 0x01,     // Read Register
             FRB             = 0x09,     // Read from flash
+            FWB             = 0x0a,     // Write to flash <Parameter1 Name="StartIndex"> <Parameter2 Name="Size">
+            FES             = 0x0b,     // Erase flash sector <Parameter1 Name="Sector Index"> <Parameter2 Name="Number of Sectors">
+            FEF             = 0x0c,     // Erase flash full <Parameter1 Name="0xACE">
+            FSRU            = 0x0d,     // Flash status register unlock
+            FPLOCK          = 0x0e,     // Permanent lock on lower Quarter region of the flash
             GLD             = 0x0f,     // FW logs
             GVD             = 0x10,     // camera details
             GETINTCAL       = 0x15,     // Read calibration table
@@ -150,6 +165,7 @@ namespace librealsense
             GET_ADV         = 0x2C,     // get advanced mode control
             EN_ADV          = 0x2D,     // enable advanced mode
             UAMG            = 0X30,     // get advanced mode status
+            PFD             = 0x3b,     // Disable power features <Parameter1 Name="0 - Disable, 1 - Enable" />
             SETAEROI        = 0x44,     // set auto-exposure region of interest
             GETAEROI        = 0x45,     // get auto-exposure region of interest
             MMER            = 0x4F,     // MM EEPROM read ( from DS5 cache )

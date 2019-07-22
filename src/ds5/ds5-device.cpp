@@ -141,6 +141,54 @@ namespace librealsense
         return flash;
     }
 
+    bool ds5_device::is_flash_locked() const
+    {
+        return _is_locked;
+    }
+
+    void ds5_device::update_flash(const std::vector<uint8_t>& image, update_progress_callback_ptr callback, bool full_write)
+    {
+        if (_is_locked)
+            throw std::runtime_error("this camera is locked and doesn't allow direct flash write, for firmware update use rs2_update_firmware method (DFU)");
+        get_depth_sensor().invoke_powered([&](platform::uvc_device& dev)
+        {
+            command cmdPFD(ds::PFD);
+            cmdPFD.require_response = false;
+            auto res = _hw_monitor->send(cmdPFD);
+
+            size_t segment_size = ds::FLASH_SEGMENT_SIZE;
+            size_t segment_count = ds::get_read_write_segment_count(_fw_version, full_write);
+
+            for (size_t segment_index = 0; segment_index < segment_count; segment_index++)
+            {
+                command cmdFES(ds::FES);
+                cmdFES.require_response = false;
+                cmdFES.param1 = segment_index;
+                cmdFES.param2 = 1;
+                res = _hw_monitor->send(cmdFES);
+
+                for (int i = 0; i < segment_size; )
+                {
+                    int packet_size = std::min((int)(HW_MONITOR_COMMAND_SIZE - (i % HW_MONITOR_COMMAND_SIZE)), (int)(segment_size - i));
+                    auto index = segment_index * segment_size + i;
+                    command cmdFWB(ds::FWB);
+                    cmdFWB.require_response = false;
+                    cmdFWB.param1 = index;
+                    cmdFWB.param2 = packet_size;
+                    cmdFWB.data.assign(image.data() + index, image.data() + index + packet_size);
+                    res = _hw_monitor->send(cmdFWB);
+                    i += packet_size;
+                }
+
+                if (callback) 
+                    callback->on_update_progress((float)segment_index / (float)segment_count);
+            }
+
+            command cmdHWRST(ds::HWRST);
+            res = _hw_monitor->send(cmdHWRST);
+        });
+    }
+
     class ds5_depth_sensor : public uvc_sensor, public video_sensor_interface, public depth_stereo_sensor, public roi_sensor_base
     {
     public:
@@ -496,18 +544,27 @@ namespace librealsense
 
         auto pid_hex_str = hexify(pid);
 
-        if ((pid == RS416_PID) && _fw_version >= firmware_version("5.9.13.0"))
+        if ((pid == RS416_PID || pid == RS416_RGB_PID) && _fw_version >= firmware_version("5.9.13.0"))
         {
             depth_ep.register_option(RS2_OPTION_HARDWARE_PRESET,
                 std::make_shared<uvc_xu_option<uint8_t>>(depth_ep, depth_xu, DS5_HARDWARE_PRESET,
                     "Hardware pipe configuration"));
+            depth_ep.register_option(RS2_OPTION_PROJECTOR_TYPE,
+                std::make_shared<uvc_xu_option<uint8_t>>(depth_ep, depth_xu, DS5_PROJECTOR_TYPE,
+                    "Select between the projector and LED, 0 - for projector, 1 - for LED"));
+            depth_ep.register_option(RS2_OPTION_LED_ENABLED,
+                std::make_shared<uvc_xu_option<uint8_t>>(depth_ep, depth_xu, DS5_LED_PWR_MODE,
+                    "Toggle the LED"));
+            depth_ep.register_option(RS2_OPTION_LED_POWER,
+                std::make_shared<uvc_xu_option<uint16_t>>(depth_ep, depth_xu, DS5_LED_PWR,
+                    "Set the power level of the LED, with 0 meaning LED off"));
         }
 
         std::string is_camera_locked{ "" };
         if (_fw_version >= firmware_version("5.6.3.0"))
         {
-            auto is_locked = _hw_monitor->is_camera_locked(GVD, is_camera_locked_offset);
-            is_camera_locked = (is_locked) ? "YES" : "NO";
+            _is_locked = _hw_monitor->is_camera_locked(GVD, is_camera_locked_offset);
+            is_camera_locked = (_is_locked) ? "YES" : "NO";
 
 #ifdef HWM_OVER_XU
             //if hw_monitor was created by usb replace it with xu

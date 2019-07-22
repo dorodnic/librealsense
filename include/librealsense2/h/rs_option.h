@@ -76,6 +76,9 @@ extern "C" {
         RS2_OPTION_HARDWARE_PRESET, /**< Hardware stream configuration */
         RS2_OPTION_GLOBAL_TIME_ENABLED, /**< disable global time  */
         RS2_OPTION_APD_TEMPERATURE, /**< APD temperature*/
+        RS2_OPTION_PROJECTOR_TYPE, /**< Select between the projector and LED, 0 - for projector, 1 - for LED*/
+        RS2_OPTION_LED_ENABLED, /**< Set the LED on or off on F416 camera*/
+        RS2_OPTION_LED_POWER, /**< Set the power level of the LED, with 0 meaning projector off*/
         RS2_OPTION_ENABLE_MAPPING, /**< Enable an internal map */
         RS2_OPTION_ENABLE_RELOCALIZATION, /**< Enable appearance based relocalization */
         RS2_OPTION_ENABLE_POSE_JUMPING, /**< Enable position jumping */
