@@ -287,7 +287,7 @@ namespace rs2
             if (parts.size() > 1) title = parts[0];
 
             auto lines = static_cast<int>(std::count(title.begin(), title.end(), '\n') + 1);
-            height = lines * 30 + 5;
+            height = (lines + 1) * 30 + 5;
 
             if (category == RS2_NOTIFICATION_CATEGORY_FIRMWARE_UPDATE_RECOMMENDED)
             {
