@@ -12,6 +12,50 @@ namespace rs2
     class viewer_model
     {
     public:
+        struct series_3d
+        {
+            int selected_depth_source_uid = 0;
+            int selected_tex_source_uid = -1;
+
+            bool render_quads = true;
+
+            rs2::points last_points;
+            std::shared_ptr<texture_buffer> last_texture;
+
+            bool selected = false;
+
+            matrix4 model;
+
+            rs2::gl::pointcloud_renderer pc_renderer;
+        };
+
+        void foreach_series(std::function<void(series_3d&)> action)
+        {
+            std::vector<std::shared_ptr<series_3d>> copy;
+            {
+                std::lock_guard<std::mutex> lock(_series_lock);
+                copy = _series;
+            }
+            for (auto&& s : copy) action(*s);
+        }
+
+        series_3d& find_or_create_series(rs2::frame depth)
+        {
+            std::lock_guard<std::mutex> lock(_series_lock);
+
+            for (auto&& s : _series)
+            {
+                if (s->selected_depth_source_uid == 
+                    depth.get_profile().unique_id()) return *s;
+            }
+            auto res = std::make_shared<series_3d>();
+            res->selected_depth_source_uid = depth.get_profile().unique_id();
+            res->model = identity_matrix();
+            res->last_texture = upload_frame(std::move(depth));
+            _series.push_back(res);
+            return *_series[_series.size() - 1];
+        }
+
         void reset_camera(float3 pos = { 0.0f, 0.0f, -1.0f });
 
         void update_configuration();
@@ -35,12 +79,7 @@ namespace rs2
 
         void begin_stream(std::shared_ptr<subdevice_model> d, rs2::stream_profile p);
 
-        std::vector<frame> get_frames(frame set);
-        frame get_3d_depth_source(frame f);
-        frame get_3d_texture_source(frame f);
-
-        bool is_3d_depth_source(frame f);
-        bool is_3d_texture_source(frame f);
+        static std::vector<frame> get_frames(frame set);
 
         std::shared_ptr<texture_buffer> upload_frame(frame&& f);
 
@@ -53,10 +92,6 @@ namespace rs2
         void show_recording_icon(ImFont* font_18, int x, int y, int id, float alpha_delta);
 
         void popup_if_error(const ux_window& window, std::string& error_message);
-
-        void popup_if_fw_update_required(const ux_window& window, const fw_update_device_info& ud, bool& update);
-
-        void popup_fw_file_select(const ux_window& window, const fw_update_device_info& ud, std::vector<uint8_t>& fw, bool& cancel);
 
         void popup(const ux_window& window, const std::string& header, const std::string& message, std::function<void()> configure);
 
@@ -73,8 +108,7 @@ namespace rs2
 
         void show_top_bar(ux_window& window, const rect& viewer_rect, const device_models_list& devices);
 
-        bool render_3d_view(const rect& view_rect, ux_window& win, 
-            std::shared_ptr<texture_buffer> texture, rs2::points points, ImFont *font1, float3* picked);
+        bool render_3d_view(const rect& view_rect, ux_window& win, float3* picked);
 
         void render_2d_view(const rect& view_rect, ux_window& win, int output_height,
             ImFont *font1, ImFont *font2, size_t dev_model_num, const mouse_info &mouse, std::string& error_message);
@@ -98,8 +132,7 @@ namespace rs2
 
 
         void draw_viewport(const rect& viewer_rect, 
-            ux_window& window, int devices, std::string& error_message, 
-            std::shared_ptr<texture_buffer> texture, rs2::points  f = rs2::points());
+            ux_window& window, int devices, std::string& error_message);
 
         bool allow_3d_source_change = true;
         bool allow_stream_close = true;
@@ -111,14 +144,6 @@ namespace rs2
         bool support_non_syncronized_mode = true;
         std::atomic<bool> synchronization_enable;
         std::atomic<int> zo_sensors;
-
-        int selected_depth_source_uid = -1;
-        int selected_tex_source_uid = -1;
-
-        float dim_level = 1.f;
-
-        bool continue_with_ui_not_aligned = false;
-        bool continue_with_current_fw = false;
 
         press_button_model trajectory_button{ u8"\uf1b0", u8"\uf1b0","Draw trajectory", "Stop drawing trajectory", true };
         press_button_model grid_object_button{ u8"\uf1cb", u8"\uf1cb",  "Configure Grid", "Configure Grid", false };
@@ -161,25 +186,21 @@ namespace rs2
         float3 target = { 0.0f, 0.0f, 0.0f };
         float3 up;
         bool fixed_up = true;
-        bool render_quads = true;
 
         float view[16];
-        bool texture_wrapping_on = true;
-        GLint texture_border_mode = GL_CLAMP_TO_EDGE; // GL_CLAMP_TO_BORDER
-
-        rs2::points last_points;
-        std::shared_ptr<texture_buffer> last_texture;
 
         // Infinite pan / rotate feature:
         bool manipulating = false;
         float2 overflow = { 0.f, 0.f };
 
         rs2::gl::camera_renderer _cam_renderer;
-        rs2::gl::pointcloud_renderer _pc_renderer;
 
         double _last_no_pick_time = 0.0;
         bool _pc_selected_down = false;
-        bool _pc_selected = false;
+        bool _context_menu = false;
         double _selection_started = 0.0;
+
+        std::mutex _series_lock;
+        std::vector<std::shared_ptr<series_3d>> _series;
     };
 }

@@ -21,6 +21,8 @@
 
 #include <iostream>
 
+#include <ImGuizmo/ImGuizmo.h>
+
 namespace rs2
 {
     void prepare_config_file()
@@ -640,6 +642,7 @@ namespace rs2
         _mouse.ui_wheel = 0.f;
 
         ImGui_ImplGlfw_NewFrame(_scale_factor);
+        ImGuizmo::BeginFrame();
         //ImGui::NewFrame();
     }
 

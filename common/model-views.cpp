@@ -1481,7 +1481,7 @@ namespace rs2
         if(zero_order_artifact_fix && zero_order_artifact_fix->enabled && 
             (f.get_profile().stream_type() == RS2_STREAM_DEPTH || f.get_profile().stream_type() == RS2_STREAM_INFRARED || f.get_profile().stream_type() == RS2_STREAM_CONFIDENCE))
             return true;
-        if (!viewer.is_3d_view || viewer.is_3d_depth_source(f) || viewer.is_3d_texture_source(f))
+        if (!viewer.is_3d_view)
             return true;
 
         return false;
@@ -3036,15 +3036,20 @@ namespace rs2
 
         if(viewer.is_3d_view)
         {
-            if(auto depth = viewer.get_3d_depth_source(filtered))
+            for (auto&& f : viewer_model::get_frames(filtered))
             {
-                if (depth.get_profile().format() == RS2_FORMAT_DISPARITY32)
-                    depth = disp_to_depth.process(depth);
-                res.push_back(pc->calculate(depth));
-            }
-            if(auto texture = viewer.get_3d_texture_source(filtered))
-            {
-                update_texture(texture);
+                if (f.is<depth_frame>())
+                {
+                    if (f.get_profile().format() == RS2_FORMAT_DISPARITY32)
+                        f = disp_to_depth.process(f);
+
+                    auto&& s = viewer.find_or_create_series(f);
+
+                    s.last_points = pc->calculate(f); // TODO: Add queue of one
+
+                    res.push_back(f);
+                    update_texture(f);
+                }
             }
         }
 
@@ -3088,15 +3093,15 @@ namespace rs2
         {
             try
             {
-                if(viewer.synchronization_enable || viewer.zo_sensors.load() >0)
-                {
-                    auto frames = viewer.syncer->try_wait_for_frames();
-                    for(auto f:frames)
-                    {
-                        processing_block.invoke(f);
-                    }
-                }
-                else
+                // if(viewer.synchronization_enable || viewer.zo_sensors.load() >0)
+                // {
+                //     auto frames = viewer.syncer->try_wait_for_frames();
+                //     for(auto f:frames)
+                //     {
+                //         processing_block.invoke(f);
+                //     }
+                // }
+                // else
                 {
                     std::map<int, rs2::frame_queue> frames_queue_local;
                     {
