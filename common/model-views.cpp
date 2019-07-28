@@ -52,20 +52,36 @@ ImVec4 operator+(const ImVec4& c, float v)
     );
 }
 
+enum rs2_dsc_status : uint16_t
+{
+    RS2_DSC_STATUS_SUCCESS = 0, /**< Self calibration succeeded*/
+    RS2_DSC_STATUS_RESULT_NOT_READY = 1, /**< Self calibration result is not ready yet*/
+    RS2_DSC_STATUS_FILL_FACTOR_TOO_LOW = 2, /**< There are too little textures in the scene*/
+    RS2_DSC_STATUS_EDGE_TOO_CLOSE = 3, /**< Self calibration range is too small*/
+    RS2_DSC_STATUS_NOT_CONVERGE = 4, /**< For tare calibration only*/
+    RS2_DSC_STATUS_BURN_SUCCESS = 5,
+    RS2_DSC_STATUS_BURN_ERROR = 6,
+    RS2_DSC_STATUS_NO_DEPTH_AVERAGE = 7,
+};
+
 #pragma pack(push, 1)
+#pragma pack(1) 
+
+#define MAX_STEP_COUNT 256
+
 struct DirectSearchCalibrationResult
 {
+    uint16_t status;      // DscStatus
     uint16_t stepCount;
-    uint16_t stepSize;            // 1000th of a pixel
+    uint16_t stepSize; // 1/1000 of a pixel
     uint32_t pixelCountThreshold; // minimum number of pixels in
-								      // selected bin
-    uint16_t minDepth;            // Depth range for FWHM
-    uint16_t maxDepth;            // 
-    uint32_t center;              // 1000000th of normalized unit
-    float    healthCheck;
-    float    rightRotation[9];    // Right rotation
-    uint16_t status;              // DscStatus
-    uint16_t *results;            // stepCount number of 100th of a percent
+                                  // selected bin
+    uint16_t minDepth;  // Depth range for FWHM
+    uint16_t maxDepth;
+    uint32_t rightPy;   // 1/1000000 of normalized unit
+    float healthCheck;
+    float rightRotation[9]; // Right rotation
+    uint16_t results[0]; // 1/100 of a percent
 };
 #pragma pack(pop)
 
@@ -4034,6 +4050,95 @@ namespace rs2
                 }
             }
 
+            if (ImGui::Selectable("On Chip Calibration"))
+            {
+                try
+                {
+                    debug_protocol dp = dev;
+                    if (dp)
+                    {
+                        std::thread t([dp, &viewer]() {
+                            try
+                            {
+                                uint8_t speed = 0;
+
+                                std::vector<uint8_t> cmd =
+                                {
+                                    0x14, 0x00, 0xab, 0xcd,
+                                    0x80, 0x00, 0x00, 0x00,
+                                    0x08, 0x00, 0x00, 0x00,
+                                    0x00, 0x00, 0x00, 0x00,
+                                    0x00, 0x00, 0x00, 0x00,
+                                    0x00, 0x00, 0x00, 0x00
+                                };
+
+                                auto res = dp.send_and_receive_raw_data(cmd);
+
+                                DirectSearchCalibrationResult result;
+                                memset(&result, 0, sizeof(DirectSearchCalibrationResult));
+
+                                int count = 0;
+                                bool done = false;
+                                do
+                                {
+                                    std::this_thread::sleep_for(std::chrono::milliseconds(24));
+
+                                    cmd =
+                                    {
+                                        0x14, 0x00, 0xab, 0xcd,
+                                        0x80, 0x00, 0x00, 0x00,
+                                        0x03, 0x00, 0x00, 0x00,
+                                        0x00, 0x00, 0x00, 0x00,
+                                        0x00, 0x00, 0x00, 0x00,
+                                        0x00, 0x00, 0x00, 0x00
+                                    };
+
+                                    res = dp.send_and_receive_raw_data(cmd);
+                                    int32_t code = *((int32_t*)res.data());
+
+                                    if (res.size() >= sizeof(DirectSearchCalibrationResult))
+                                    {
+                                        result = *reinterpret_cast<DirectSearchCalibrationResult*>(res.data());
+                                        done = result.status != RS2_DSC_STATUS_RESULT_NOT_READY;
+                                    }
+                                } while (count++ < 200 && !done);
+
+                                if (!done) throw std::runtime_error("Timeout!");
+
+                                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+                                //cmd =
+                                //{
+                                //    0x14, 0x00, 0xab, 0xcd,
+                                //    0x80, 0x00, 0x00, 0x00,
+                                //    0x03, 0x00, 0x00, 0x00,
+                                //    0x00, 0x00, 0x00, 0x00,
+                                //    0x00, 0x00, 0x00, 0x00,
+                                //    0x04, 0x00, 0x00, 0x00
+                                //};
+                                //dp.send_and_receive_raw_data(cmd);
+                            }
+                            catch (const std::exception& e)
+                            {
+                                viewer.not_model.add_notification({ to_string() <<
+                                    e.what(),
+                                    RS2_LOG_SEVERITY_ERROR,
+                                    RS2_NOTIFICATION_CATEGORY_UNKNOWN_ERROR });
+                            }
+                        });
+                        t.detach();
+                    }
+                }
+                catch (const error& e)
+                {
+                    error_message = error_to_string(e);
+                }
+                catch (const std::exception& e)
+                {
+                    error_message = e.what();
+                }
+            }
+
             if (allow_remove)
             {
                 something_to_show = true;
@@ -4048,85 +4153,6 @@ namespace rs2
                     }
 
                     ImGui::Separator();
-                }
-
-                if (ImGui::Selectable("On Chip Calibration"))
-                {
-                    try
-                    {
-                        debug_protocol dp = dev;
-                        if (dp)
-                        {
-                            std::thread t([dp, &viewer]() {
-                                try
-                                {
-                                    uint8_t speed = 1;
-
-                                    std::vector<uint8_t> cmd =
-                                    {
-                                        0x14, 0x00, 0xab, 0xcd,
-                                        0x80, 0x00, 0x00, 0x00,
-                                        0x08, 0x00, 0x00, 0x00,
-                                        static_cast<uint8_t>(speed), 0x00, 0x00, 0x00,
-                                        0x00, 0x00, 0x00, 0x00,
-                                        static_cast<uint8_t>(true ? 0x00 : 0x01), 0x00, 0x00, 0x00
-                                    };
-
-                                    dp.send_and_receive_raw_data(cmd);
-
-                                    DirectSearchCalibrationResult* result = nullptr;
-
-                                    int count = 0;
-                                    bool done = false;
-                                    do
-                                    {
-                                        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
-                                        cmd =
-                                        {
-                                            0x14, 0x00, 0xab, 0xcd,
-                                            0x80, 0x00, 0x00, 0x00,
-                                            0x03, 0x00, 0x00, 0x00,
-                                            0x00, 0x00, 0x00, 0x00,
-                                            0x00, 0x00, 0x00, 0x00,
-                                            0x00, 0x00, 0x00, 0x00
-                                        };
-
-                                        auto res = dp.send_and_receive_raw_data(cmd);
-
-                                        if (res.size() <= sizeof(DirectSearchCalibrationResult))
-                                            throw std::runtime_error("Not enought response");
-
-                                        result = reinterpret_cast<DirectSearchCalibrationResult*>(res.data());
-                                        if (result)
-                                        {
-                                            result->healthCheck;
-                                            done = result->status == 0;
-                                        }
-
-                                    } while (count < 100 || done);
-
-                                    if (!done) throw std::runtime_error("Timeout!");
-                                }
-                                catch (const std::exception& e)
-                                {
-                                    viewer.not_model.add_notification({ to_string() <<
-                                        e.what(),
-                                        RS2_LOG_SEVERITY_ERROR,
-                                        RS2_NOTIFICATION_CATEGORY_UNKNOWN_ERROR });
-                                }
-                            });
-                            t.detach();
-                        }
-                    }
-                    catch (const error& e)
-                    {
-                        error_message = error_to_string(e);
-                    }
-                    catch (const std::exception& e)
-                    {
-                        error_message = e.what();
-                    }
                 }
 
                 if (ImGui::Selectable("Hardware Reset"))
