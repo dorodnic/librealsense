@@ -883,7 +883,6 @@ namespace rs2
         rs2::frame apply_filters(rs2::frame f, const rs2::frame_source& source);
         std::shared_ptr<subdevice_model> get_frame_origin(const rs2::frame& f);
 
-        void zero_first_pixel(const rs2::frame& f);
         rs2::frame last_tex_frame;
         rs2::processing_block processing_block;
         std::shared_ptr<pointcloud> pc;

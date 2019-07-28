@@ -75,7 +75,7 @@ namespace rs2
 
         void link_hovered();
 
-        double time() const { glfwGetTime(); }
+        double time() const { return glfwGetTime(); }
     private:
         void open_window();
 

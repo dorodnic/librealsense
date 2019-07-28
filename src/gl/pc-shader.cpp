@@ -263,6 +263,7 @@ namespace librealsense
         {
             if (glsl_enabled())
             {
+                clear_gl_errors();
                 _shader = std::make_shared<pointcloud_shader>();
 
                 _vertex_texture = std::make_shared<rs2::texture_buffer>();
@@ -313,7 +314,7 @@ namespace librealsense
 
         rs2::frame pointcloud_renderer::process_frame(const rs2::frame_source& src, const rs2::frame& f)
         {
-            //scoped_timer t("pointcloud_renderer");
+            scoped_timer t("pointcloud_renderer");
             if (auto points = f.as<rs2::points>())
             {
                 perform_gl_action([&]()

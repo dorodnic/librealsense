@@ -19,6 +19,9 @@ namespace rs2
 
             bool render_quads = true;
 
+            double last_picked = 0.0;
+            float3 last_picked_value{};
+
             rs2::points last_points;
             std::shared_ptr<texture_buffer> last_texture;
 
@@ -27,6 +30,8 @@ namespace rs2
             matrix4 model;
 
             rs2::gl::pointcloud_renderer pc_renderer;
+
+            series_3d() : pc_renderer() {}
         };
 
         void foreach_series(std::function<void(series_3d&)> action)
@@ -39,19 +44,21 @@ namespace rs2
             for (auto&& s : copy) action(*s);
         }
 
-        series_3d& find_or_create_series(rs2::frame depth)
+        series_3d& find_or_create_series(rs2::stream_profile p)
         {
+            auto id = p.unique_id();
+            if (streams_origin.find(id) != streams_origin.end())
+                id = streams_origin[id];
+
             std::lock_guard<std::mutex> lock(_series_lock);
 
             for (auto&& s : _series)
             {
-                if (s->selected_depth_source_uid == 
-                    depth.get_profile().unique_id()) return *s;
+                if (s->selected_depth_source_uid == id) return *s;
             }
             auto res = std::make_shared<series_3d>();
-            res->selected_depth_source_uid = depth.get_profile().unique_id();
+            res->selected_depth_source_uid = id;
             res->model = identity_matrix();
-            res->last_texture = upload_frame(std::move(depth));
             _series.push_back(res);
             return *_series[_series.size() - 1];
         }
@@ -100,7 +107,7 @@ namespace rs2
         void show_event_log(ImFont* font_14, float x, float y, float w, float h);
 
         void render_pose(rs2::rect stream_rect, float buttons_heights);
-        void try_select_pointcloud(ux_window& win);
+        void try_select_pointcloud(ux_window& win, series_3d& s);
 
         void show_3dviewer_header(ImFont* font, rs2::rect stream_rect, bool& paused, std::string& error_message);
 

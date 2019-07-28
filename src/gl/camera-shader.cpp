@@ -175,7 +175,7 @@ namespace librealsense
 
         rs2::frame camera_renderer::process_frame(const rs2::frame_source& src, const rs2::frame& f)
         {
-            //scoped_timer t("camera_renderer");
+            scoped_timer t("camera_renderer");
 
             const auto& dev = ((frame_interface*)f.get())->get_sensor()->get_device();
 

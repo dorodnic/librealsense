@@ -24,6 +24,8 @@
 
 #include <ImGuizmo/ImGuizmo.h>
 
+#include "tiny-profiler.h"
+
 namespace rs2
 {
     void viewer_model::render_pose(rs2::rect stream_rect, float buttons_heights)
@@ -830,6 +832,8 @@ namespace rs2
 
     rs2::frame viewer_model::handle_ready_frames(const rect& viewer_rect, ux_window& window, int devices, std::string& error_message)
     {
+        scoped_timer t("handle_ready_frames");
+
         frame f{};
 
         std::map<int, frame> last_frames;
@@ -858,12 +862,12 @@ namespace rs2
                             }
                         }
 
-                        auto texture = upload_frame(std::move(frame));
+                        //auto texture = upload_frame(std::move(frame));
                     }
                 }
                 else 
                 {
-                    upload_frame(std::move(f));
+                    //upload_frame(std::move(f));
                 }
             }
         }
@@ -1268,7 +1272,7 @@ namespace rs2
         }
     }
 
-    void viewer_model::try_select_pointcloud(ux_window& win)
+    void viewer_model::try_select_pointcloud(ux_window& win, series_3d& s)
     {
         win.link_hovered();
         if (win.get_mouse().mouse_down && !_pc_selected_down) 
@@ -1279,13 +1283,23 @@ namespace rs2
         if (_pc_selected_down && !win.get_mouse().mouse_down)
         {
             _pc_selected_down = false;
-            //if (win.time() - _selection_started < 0.5)
-            //   _pc_selected = !_pc_selected;
+            if (win.time() - _selection_started < 0.5)
+            {
+                s.selected = !s.selected;
+
+                if (s.selected)
+                foreach_series([&](series_3d& s2) {
+                    if (s.selected_depth_source_uid != s2.selected_depth_source_uid)
+                        s2.selected = false;
+                });
+            }
         }
     }
 
     bool viewer_model::render_3d_view(const rect& viewer_rect, ux_window& win, float3* picked_xyz)
     {
+        scoped_timer t("render_3d_view");
+
         bool picked = false;
         auto top_bar_height = 32.f;
 
@@ -1452,6 +1466,8 @@ namespace rs2
             glEnd();
         }
 
+        auto cursor = win.get_mouse().cursor;
+
         foreach_series([&](series_3d& s)
         {
 
@@ -1544,13 +1560,20 @@ namespace rs2
                 s.pc_renderer.set_matrix(RS2_GL_MATRIX_PROJECTION, perspective_mat);
 
                 s.pc_renderer.set_option(gl::pointcloud_renderer::OPTION_SELECTED, s.selected ? 1.f : 0.f);
-
-                auto cursor = win.get_mouse().cursor;
+                
                 if (viewer_rect.contains(cursor))
                 {
-                    s.pc_renderer.set_option(gl::pointcloud_renderer::OPTION_MOUSE_PICK, 1.f);
-                    s.pc_renderer.set_option(gl::pointcloud_renderer::OPTION_MOUSE_X, cursor.x);
-                    s.pc_renderer.set_option(gl::pointcloud_renderer::OPTION_MOUSE_Y, cursor.y);
+                    if (win.time() - s.last_picked < 0.5)
+                    {
+                        *picked_xyz = s.last_picked_value;
+                        picked = true;
+                    }
+                    else
+                    {
+                        s.pc_renderer.set_option(gl::pointcloud_renderer::OPTION_MOUSE_PICK, 1.f);
+                        s.pc_renderer.set_option(gl::pointcloud_renderer::OPTION_MOUSE_X, cursor.x);
+                        s.pc_renderer.set_option(gl::pointcloud_renderer::OPTION_MOUSE_Y, cursor.y);
+                    }
                 }
 
                 // Render Point-Cloud
@@ -1558,7 +1581,7 @@ namespace rs2
 
                 if (s.pc_renderer.get_option(gl::pointcloud_renderer::OPTION_PICKED_ID) > 0.f)
                 {
-                    float3 p {
+                    float3 p{
                         s.pc_renderer.get_option(gl::pointcloud_renderer::OPTION_PICKED_X),
                         s.pc_renderer.get_option(gl::pointcloud_renderer::OPTION_PICKED_Y),
                         s.pc_renderer.get_option(gl::pointcloud_renderer::OPTION_PICKED_Z),
@@ -1566,9 +1589,18 @@ namespace rs2
                     picked = true;
                     *picked_xyz = p;
 
+                    s.last_picked = win.time();
+                    s.last_picked_value = p;
+
                     //try_select_pointcloud(win);
                 }
+            }
+        });
 
+        foreach_series([&](series_3d& s)
+        {
+            if (s.last_points && s.last_texture)
+            {
                 glDisable(GL_TEXTURE_2D);
 
                 _cam_renderer.set_matrix(RS2_GL_MATRIX_CAMERA, s.model * r2 * view_mat);
@@ -1598,7 +1630,7 @@ namespace rs2
 
                         if (_cam_renderer.get_option(gl::camera_renderer::OPTION_WAS_PICKED) > 0.f)
                         {
-                            try_select_pointcloud(win);
+                            try_select_pointcloud(win, s);
                         }
 
                         glDisable(GL_BLEND);
@@ -2387,6 +2419,7 @@ namespace rs2
         ppf.start();
         streams[p.unique_id()].begin_stream(d, p);
         ppf.frames_queue.emplace(p.unique_id(), rs2::frame_queue(5));
+        find_or_create_series(p);
     }
 
     std::vector<frame> rs2::viewer_model::get_frames(frame frame)
@@ -2405,6 +2438,9 @@ namespace rs2
 
     std::shared_ptr<texture_buffer> viewer_model::upload_frame(frame&& f)
     {
+        scoped_timer t("upload_frame");
+
+
         if (f.get_profile().stream_type() == RS2_STREAM_DEPTH)
             ppf.depth_stream_active = true;
 
@@ -2419,6 +2455,8 @@ namespace rs2
     void viewer_model::draw_viewport(const rect& viewer_rect, 
         ux_window& window, int devices, std::string& error_message)
     {
+        scoped_timer t("draw_viewport");
+
         static bool first = true;
         if (first)
         {

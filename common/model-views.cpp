@@ -2895,7 +2895,7 @@ namespace rs2
 
         // Override the zero pixel in texture frame with black color for occlusion invalidation
         // TODO - this is a temporal solution to be refactored from the app level into the core library
-        if (auto set = res.as<frameset>())
+        /*if (auto set = res.as<frameset>())
         {
             for (auto f : set)
             {
@@ -2905,7 +2905,7 @@ namespace rs2
         else
         {
             zero_first_pixel(f);
-        }     
+        }     */
         return res;
     }
 
@@ -2924,33 +2924,6 @@ namespace rs2
             }
         }
         return nullptr;
-    }
-
-    //Zero the first pixel on frame ,used to invalidate the occlusion pixels
-    void post_processing_filters::zero_first_pixel(const rs2::frame& f)
-    {
-        auto stream_type = f.get_profile().stream_type();
-
-            switch (stream_type)
-            {
-            case RS2_STREAM_COLOR:
-            {
-                auto rgb_stream = const_cast<uint8_t*>(static_cast<const uint8_t*>(f.get_data()));
-                memset(rgb_stream, 0, 3);
-                // Alternatively, enable the next two lines to render invalidation with magenta color for inspection
-                //rgb_stream[0] = rgb_stream[2] = 0xff; // Use magenta to highlight the occlusion areas
-                //rgb_stream[1] = 0;
-            }
-            break;
-            case RS2_STREAM_INFRARED:
-            {
-                auto ir_stream = const_cast<uint8_t*>(static_cast<const uint8_t*>(f.get_data()));
-                memset(ir_stream, 0, 2); // Override the first two bytes to cover Y8/Y16 formats
-            }
-            break;
-            default:
-                break;
-        }
     }
 
     void post_processing_filters::map_id(rs2::frame new_frame, rs2::frame old_frame)
@@ -3043,12 +3016,13 @@ namespace rs2
                     if (f.get_profile().format() == RS2_FORMAT_DISPARITY32)
                         f = disp_to_depth.process(f);
 
-                    auto&& s = viewer.find_or_create_series(f);
-
-                    s.last_points = pc->calculate(f); // TODO: Add queue of one
+                    auto&& s = viewer.find_or_create_series(f.get_profile());
 
                     res.push_back(f);
                     update_texture(f);
+
+                    s.last_points = pc->calculate(f); // TODO: Add queue of one
+                    s.last_texture = viewer.upload_frame(std::move(f));
                 }
             }
         }
