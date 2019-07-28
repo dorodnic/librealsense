@@ -1620,6 +1620,7 @@ namespace rs2
 
                         if (viewer_rect.contains(cursor))
                         {
+                            _cam_renderer.set_option(gl::camera_renderer::OPTION_WAS_PICKED, 0.f);
                             _cam_renderer.set_option(gl::camera_renderer::OPTION_MOUSE_PICK, 1.f);
                             _cam_renderer.set_option(gl::camera_renderer::OPTION_MOUSE_X, cursor.x);
                             _cam_renderer.set_option(gl::camera_renderer::OPTION_MOUSE_Y, cursor.y);
@@ -2489,6 +2490,11 @@ namespace rs2
 
             if (picked) _context_menu = true;
 
+            series_3d* sel = nullptr;
+            foreach_series([&sel, &window](series_3d& s) { if (window.time() - s.last_picked < 0.5) sel = &s; });
+            
+            if (!sel) _context_menu = false;
+
             ImGui::PushStyleColor(ImGuiCol_Text, black);
             ImGui::PushStyleColor(ImGuiCol_PopupBg, almost_white_bg);
             ImGui::PushStyleColor(ImGuiCol_HeaderHovered, light_blue);
@@ -2554,17 +2560,17 @@ namespace rs2
 
                 if (ImGui::BeginMenu("Render Style "))
                 {
-                    // if (ImGui::MenuItem("Triangle Mesh", nullptr, &render_quads))
-                    // {
-                    //     render_quads = true;
-                    // }
+                    if (ImGui::MenuItem("Triangle Mesh", nullptr, &sel->render_quads))
+                    {
+                        sel->render_quads = true;
+                    }
 
-                    // auto render_pc = !render_quads;
+                    auto render_pc = !sel->render_quads;
 
-                    // if (ImGui::MenuItem("Point Cloud", nullptr, &render_pc))
-                    // {
-                    //     render_quads = false;
-                    // }
+                    if (ImGui::MenuItem("Point Cloud", nullptr, &render_pc))
+                    {
+                        sel->render_quads = false;
+                    }
 
                     ImGui::EndMenu();
                 }
