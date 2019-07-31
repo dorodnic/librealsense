@@ -99,21 +99,6 @@ namespace rs2
         return false; //equle
     }
 
-    void firmware_update_manager::log(std::string line)
-    {
-        std::lock_guard<std::mutex> lock(_log_lock);
-        _log += line + "\n";
-    }
-
-    void firmware_update_manager::fail(std::string error)
-    {
-        _last_error = error;
-        _progress = 0;
-        log("\nERROR: " + error);
-        log("\nFirmware Update process is safe.\nSimply reconnect the device to get it working again");
-        _failed = true;
-    }
-
     bool firmware_update_manager::check_for(
         std::function<bool()> action, std::function<void()> cleanup,
         std::chrono::system_clock::duration delta)
@@ -155,181 +140,142 @@ namespace rs2
         return false;
     }
 
-    void firmware_update_manager::do_update(std::function<void()> cleanup)
+    void firmware_update_manager::process_flow(std::function<void()> cleanup)
     {
-        try
+        std::string serial = "";
+        if (_dev.supports(RS2_CAMERA_INFO_ASIC_SERIAL_NUMBER))
+            serial = _dev.get_info(RS2_CAMERA_INFO_ASIC_SERIAL_NUMBER);
+        else
+            serial = _dev.query_sensors().front().get_info(RS2_CAMERA_INFO_ASIC_SERIAL_NUMBER);
+
+        _progress = 5;
+
+        int next_progress = 10;
+
+        update_device dfu{};
+
+        if (auto upd = _dev.as<updatable>())
         {
-            std::string serial = "";
-            if (_dev.supports(RS2_CAMERA_INFO_ASIC_SERIAL_NUMBER))
-                serial = _dev.get_info(RS2_CAMERA_INFO_ASIC_SERIAL_NUMBER);
-            else
-                serial = _dev.query_sensors().front().get_info(RS2_CAMERA_INFO_ASIC_SERIAL_NUMBER);
+            log("Backing-up camera flash memory");
 
-            _progress = 5;
-
-            int next_progress = 10;
-
-            update_device dfu{};
-
-            if (auto upd = _dev.as<updatable>())
+            auto flash = upd.create_flash_backup([&](const float progress)
             {
-                log("Backing-up camera flash memory");
+                _progress = ((ceil(progress * 5) / 5) * (30 - next_progress)) + next_progress;
+            });
 
-                auto flash = upd.create_flash_backup([&](const float progress)
-                {
-                    _progress = ((ceil(progress * 5) / 5) * (30 - next_progress)) + next_progress;
-                });
+            auto temp = get_folder_path(special_folder::app_data);
+            temp += serial + "." + get_timestamped_file_name() + ".bin";
 
-                auto temp = get_folder_path(special_folder::app_data);
-                temp += serial + "." + get_timestamped_file_name() + ".bin";
+            {
+                std::ofstream file(temp.c_str(), std::ios::binary);
+                file.write((const char*)flash.data(), flash.size());
+            }
 
-                {
-                    std::ofstream file(temp.c_str(), std::ios::binary);
-                    file.write((const char*)flash.data(), flash.size());
-                }
+            std::string log_line = "Backup completed and saved as '";
+            log_line += temp + "'";
+            log(log_line);
 
-                std::string log_line = "Backup completed and saved as '";
-                log_line += temp + "'";
-                log(log_line);
+            next_progress = 40;
 
-                next_progress = 40;
+            if (_is_signed)
+            {
+                log("Requesting to switch to recovery mode");
+                upd.enter_update_state();
 
-                if (_is_signed)
-                {
-                    log("Requesting to switch to recovery mode");
-                    upd.enter_update_state();
+                if (!check_for([this, serial, &dfu]() {
+                    auto devs = _ctx.query_devices();
 
-                    if (!check_for([this, serial, &dfu]() {
-                        auto devs = _ctx.query_devices();
-
-                        for (int j = 0; j < devs.size(); j++)
+                    for (int j = 0; j < devs.size(); j++)
+                    {
+                        try
                         {
-                            try
+                            auto d = devs[j];
+                            if (d.is<update_device>())
                             {
-                                auto d = devs[j];
-                                if (d.is<update_device>())
+                                if (d.supports(RS2_CAMERA_INFO_ASIC_SERIAL_NUMBER))
                                 {
-                                    if (d.supports(RS2_CAMERA_INFO_ASIC_SERIAL_NUMBER))
+                                    if (serial == d.get_info(RS2_CAMERA_INFO_ASIC_SERIAL_NUMBER))
                                     {
-                                        if (serial == d.get_info(RS2_CAMERA_INFO_ASIC_SERIAL_NUMBER))
-                                        {
-                                            dfu = d;
-                                            return true;
-                                        }
+                                        dfu = d;
+                                        return true;
                                     }
                                 }
                             }
-                            catch (...) {}
                         }
-
-                        return false;
-                    }, cleanup, std::chrono::seconds(60)))
-                    {
-                        fail("Recovery device did not connect in time!");
-                        return;
+                        catch (...) {}
                     }
+
+                    return false;
+                }, cleanup, std::chrono::seconds(60)))
+                {
+                    fail("Recovery device did not connect in time!");
+                    return;
                 }
             }
-            else
+        }
+        else
+        {
+            dfu = _dev.as<update_device>();
+        }
+
+        if (dfu)
+        {
+            _progress = next_progress;
+
+            log("Recovery device connected, starting update");
+
+            dfu.update(_fw, [&](const float progress)
             {
-                dfu = _dev.as<update_device>();
-            }
+                _progress = (ceil(progress * 10) / 10 * (90 - next_progress)) + next_progress;
+            });
 
-            if (dfu)
+            log("Firmware Download completed, await DFU transition event");
+            std::this_thread::sleep_for(std::chrono::seconds(3));
+            log("Firmware Update completed, waiting for device to reconnect");
+        }
+        else
+        {
+            auto upd = _dev.as<updatable>();
+            upd.update_unsigned(_fw, [&](const float progress)
             {
-                _progress = next_progress;
+                _progress = (ceil(progress * 10) / 10 * (90 - next_progress)) + next_progress;
+            });
+            log("Firmware Update completed, waiting for device to reconnect");
+        }
 
-                log("Recovery device connected, starting update");
+        if (!check_for([this, serial, &dfu]() {
+            auto devs = _ctx.query_devices();
 
-                dfu.update(_fw, [&](const float progress)
-                {
-                    _progress = (ceil(progress * 10) / 10 * (90 - next_progress)) + next_progress;
-                });
-
-                log("Firmware Download completed, await DFU transition event");
-                std::this_thread::sleep_for(std::chrono::seconds(3));
-                log("Firmware Update completed, waiting for device to reconnect");
-            }
-            else
+            for (int j = 0; j < devs.size(); j++)
             {
-                auto upd = _dev.as<updatable>();
-                upd.update_unsigned(_fw, [&](const float progress)
+                try
                 {
-                    _progress = (ceil(progress * 10) / 10 * (90 - next_progress)) + next_progress;
-                });
-                log("Firmware Update completed, waiting for device to reconnect");
-            }
+                    auto d = devs[j];
 
-            if (!check_for([this, serial, &dfu]() {
-                auto devs = _ctx.query_devices();
-
-                for (int j = 0; j < devs.size(); j++)
-                {
-                    try
+                    if (d.query_sensors().size() && d.query_sensors().front().supports(RS2_CAMERA_INFO_ASIC_SERIAL_NUMBER))
                     {
-                        auto d = devs[j];
-
-                        if (d.query_sensors().size() && d.query_sensors().front().supports(RS2_CAMERA_INFO_ASIC_SERIAL_NUMBER))
+                        auto s = d.query_sensors().front().get_info(RS2_CAMERA_INFO_ASIC_SERIAL_NUMBER);
+                        if (s == serial)
                         {
-                            auto s = d.query_sensors().front().get_info(RS2_CAMERA_INFO_ASIC_SERIAL_NUMBER);
-                            if (s == serial)
-                            {
-                                log("Discovered connection of the original device");
-                                return true;
-                            }
+                            log("Discovered connection of the original device");
+                            return true;
                         }
                     }
-                    catch (...) {}
                 }
-
-                return false;
-            }, cleanup, std::chrono::seconds(60)))
-            {
-                fail("Original device did not reconnect in time!");
-                return;
+                catch (...) {}
             }
 
-            log("Device reconnected succesfully!");
-
-            _progress = 100;
-
-            _done = true;
-        }
-        catch (const error& e)
+            return false;
+        }, cleanup, std::chrono::seconds(60)))
         {
-            fail(error_to_string(e));
-            cleanup();
+            fail("Original device did not reconnect in time!");
+            return;
         }
-        catch (const std::exception& ex)
-        {
-            fail(ex.what());
-            cleanup();
-        }
-        catch (...)
-        {
-            fail("Unknown error during update.\nPlease reconnect the camera to exit recovery mode");
-            cleanup();
-        }
-    }
 
-    void firmware_update_manager::start()
-    {
-        auto cleanup = _model.cleanup;
-        _model.cleanup = [] {};
+        log("Device reconnected succesfully!");
 
-        log("Started update process");
+        _progress = 100;
 
-        auto me = shared_from_this();
-        std::weak_ptr<firmware_update_manager> ptr(me);
-        
-        std::thread t([ptr, cleanup]() {
-            auto self = ptr.lock();
-            if (!self) return;
-
-            self->do_update(cleanup);
-        });
-        t.detach();
-
-        _started = true;
+        _done = true;
     }
 }

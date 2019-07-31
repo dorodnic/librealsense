@@ -2609,7 +2609,8 @@ namespace rs2
         }
 
         if (ss.str().size())
-            viewer.not_model.add_notification({ ss.str().c_str(), RS2_LOG_SEVERITY_INFO, RS2_NOTIFICATION_CATEGORY_HARDWARE_EVENT });
+            viewer.not_model.add_notification(notification_data{ 
+                ss.str().c_str(), RS2_LOG_SEVERITY_INFO, RS2_NOTIFICATION_CATEGORY_HARDWARE_EVENT });
 
     }
 
@@ -2803,13 +2804,10 @@ namespace rs2
                         << "Current Version: " + fw + "\nRecommended Version: " + recommended;
                     if (!fw_update_required)
                     {
-                        auto id = viewer.not_model.add_notification({ msg,
-                            RS2_LOG_SEVERITY_INFO,
-                            RS2_NOTIFICATION_CATEGORY_FIRMWARE_UPDATE_RECOMMENDED });
+                        auto id = viewer.not_model.add_notification(std::make_shared<fw_update_notification_model>(
+                            msg, manager, false));
 
                         fw_update_required = true;
-
-                        if (manager) viewer.not_model.attach_update_manager(id, manager);
 
                         cleanup = [id, &viewer] {
                             viewer.not_model.dismiss(id);
@@ -3774,11 +3772,8 @@ namespace rs2
 
             auto manager = std::make_shared<firmware_update_manager>(*this, dev, viewer.ctx, data, false);
 
-            auto id = viewer.not_model.add_notification({ "Manual Update requested",
-                RS2_LOG_SEVERITY_INFO,
-                RS2_NOTIFICATION_CATEGORY_FIRMWARE_UPDATE_RECOMMENDED });
-
-            viewer.not_model.attach_update_manager(id, manager, true);
+            viewer.not_model.add_notification(std::make_shared<fw_update_notification_model>(
+                "Manual Update requested", manager, true));
 
             cleanup();
 
@@ -3820,11 +3815,8 @@ namespace rs2
             
             auto manager = std::make_shared<firmware_update_manager>(*this, dev, viewer.ctx, data, true);
 
-            auto id = viewer.not_model.add_notification({ "Manual Update requested",
-                RS2_LOG_SEVERITY_INFO,
-                RS2_NOTIFICATION_CATEGORY_FIRMWARE_UPDATE_RECOMMENDED });
-
-            viewer.not_model.attach_update_manager(id, manager, true);
+            viewer.not_model.add_notification(std::make_shared<fw_update_notification_model>(
+                "Manual Update requested", manager, true));
 
             cleanup();
 

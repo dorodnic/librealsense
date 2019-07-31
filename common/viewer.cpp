@@ -1866,7 +1866,7 @@ namespace rs2
 
             if (ImGui::Selectable("Intel Store"))
             {
-                open_url(store_url);
+                open_url("https://store.intelrealsense.com/");
             }
 
             if (ImGui::Selectable(settings))
