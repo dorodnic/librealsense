@@ -5,6 +5,8 @@
 
 #include "process-manager.h"
 
+#include "notifications.h"
+
 namespace rs2
 {
     int parse_product_line(std::string id);
@@ -30,5 +32,16 @@ namespace rs2
         context _ctx;
         std::vector<uint8_t> _fw;
         bool _is_signed;
+    };
+
+    struct fw_update_notification_model : public process_notification_model
+    {
+        fw_update_notification_model(std::string name,
+            std::shared_ptr<firmware_update_manager> manager, bool expaned);
+
+        void set_color_scheme(float t) const override;
+        void draw_content(ux_window& win, int x, int y, float t, std::string& error_message) override;
+        void draw_expanded(ux_window& win, std::string& error_message) override;
+        int calc_height() override;
     };
 }

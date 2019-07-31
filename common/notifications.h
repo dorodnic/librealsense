@@ -2,14 +2,15 @@
 // Copyright(c) 2019 Intel Corporation. All Rights Reserved.
 
 #pragma once
-#include "model-views.h"
-#include "fw-update-helper.h"
+
 #include "process-manager.h"
 
 #include <string>
 #include <functional>
 #include <vector>
 #include <chrono>
+
+#include "ux-window.h"
 
 namespace rs2
 {
@@ -100,17 +101,6 @@ namespace rs2
         float threshold_progress = 5.f;
     };
 
-    struct fw_update_notification_model : public process_notification_model
-    {
-        fw_update_notification_model(std::string name,
-            std::shared_ptr<firmware_update_manager> manager, bool expaned);
-
-        void set_color_scheme(float t) const override;
-        void draw_content(ux_window& win, int x, int y, float t, std::string& error_message) override;
-        void draw_expanded(ux_window& win, std::string& error_message) override;
-        int calc_height() override;
-    };
-
     struct notifications_model
     {
         int add_notification(const notification_data& n);
@@ -135,4 +125,14 @@ namespace rs2
         std::vector<std::string> log;
         std::shared_ptr<notification_model> selected;
     };
+
+    inline ImVec4 saturate(const ImVec4& a, float f)
+    {
+        return{ f * a.x, f * a.y, f * a.z, a.w };
+    }
+
+    inline ImVec4 alpha(const ImVec4& v, float a)
+    {
+        return{ v.x, v.y, v.z, a };
+    }
 }
