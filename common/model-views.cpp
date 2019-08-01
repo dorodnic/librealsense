@@ -20,6 +20,7 @@
 #include "model-views.h"
 #include "notifications.h"
 #include "fw-update-helper.h"
+#include "on-chip-calib.h"
 #include "viewer.h"
 #include <imgui_internal.h>
 
@@ -2814,6 +2815,16 @@ namespace rs2
                         };
                     }
                 }                
+
+
+                {
+                    if (sub.is<depth_sensor>())
+                    {
+                        auto manager = std::make_shared<on_chip_calib_manager>(*this, dev);
+                        viewer.not_model.add_notification(std::make_shared<autocalib_notification_model>(
+                            "Check calibration", manager, false));
+                    }
+                }
             }
 
             auto model = std::make_shared<subdevice_model>(dev, std::make_shared<sensor>(sub), error_message, viewer);

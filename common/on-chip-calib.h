@@ -4,6 +4,7 @@
 #pragma once
 
 #include "process-manager.h"
+#include "notifications.h"
 
 namespace rs2
 {
@@ -20,5 +21,16 @@ namespace rs2
             std::chrono::system_clock::duration delta);
 
         device _dev;
+    };
+
+    struct autocalib_notification_model : public process_notification_model
+    {
+        autocalib_notification_model(std::string name,
+            std::shared_ptr<on_chip_calib_manager> manager, bool expaned);
+
+        void set_color_scheme(float t) const override;
+        void draw_content(ux_window& win, int x, int y, float t, std::string& error_message) override;
+        void draw_expanded(ux_window& win, std::string& error_message) override;
+        int calc_height() override;
     };
 }
