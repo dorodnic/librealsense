@@ -5,6 +5,7 @@
 
 #include "backend.h"
 #include "types.h"
+#include "fw-update/fw-update-unsigned.h"
 
 #include <map>
 #include <iomanip>
@@ -141,9 +142,10 @@ namespace librealsense
 
         const int REGISTER_CLOCK_0 = 0x0001613c;
 
-        // unlocked camera update
-        const uint32_t FLASH_SEGMENT_SIZE = 0x1000;
-        uint32_t get_read_write_segment_count(const firmware_version& fw_version, bool full_size);
+        const uint32_t FLASH_SIZE = 0x00200000;
+        const uint32_t FLASH_SECTOR_SIZE = 0x1000;
+
+        flash_info get_flash_info(const std::vector<uint8_t>& flash_buffer);
 
         enum fw_cmd : uint8_t
         {
@@ -181,6 +183,7 @@ namespace librealsense
             SETSUBPRESET    = 0x7B,     // Download sub-preset
             GETSUBPRESET    = 0x7C,     // Upload the current sub-preset
             GETSUBPRESETNAME= 0x7D,     // Retrieve sub-preset's name
+            RECPARAMSGET    = 0x7E,     // Retrieve depth calibration table in new format (fw >= 5.11.12.100)
         };
 
         #define TOSTRING(arg) #arg
@@ -328,6 +331,16 @@ namespace librealsense
             uint8_t             reserved1[88];
             float4              rect_params[max_ds5_rect_resolutions];
             uint8_t             reserved2[64];
+        };
+
+        struct new_calibration_item
+        {
+            uint16_t width;
+            uint16_t height;
+            float  fx;
+            float  fy;
+            float  ppx;
+            float  ppy;
         };
 
         template<class T>
@@ -533,8 +546,8 @@ namespace librealsense
             float3              translation;                // RGB translation vector, mm
             // RGB Projection
             float               projection[12];             // Projection matrix from depth to RGB [3 X 4]
-            uint16_t            width;                      // original calibrated resolution
-            uint16_t            height;
+            uint16_t            calib_width;                // original calibrated resolution
+            uint16_t            calib_height;
             // RGB Rectification Coefficients
             float3x3            intrinsic_matrix_rect;      // RGB intrinsic matrix after rectification
             float3x3            rotation_matrix_rect;       // Rotation matrix for rectification of RGB
@@ -635,6 +648,9 @@ namespace librealsense
 
 
         ds5_rect_resolutions width_height_to_ds5_rect_resolutions(uint32_t width, uint32_t height);
+
+        bool try_get_intrinsic_by_resolution_new(const std::vector<uint8_t>& raw_data,
+                uint32_t width, uint32_t height, rs2_intrinsics* result);
 
         rs2_intrinsics get_intrinsic_by_resolution(const std::vector<uint8_t>& raw_data, calibration_table_id table_id, uint32_t width, uint32_t height);
         rs2_intrinsics get_intrinsic_by_resolution_coefficients_table(const std::vector<uint8_t>& raw_data, uint32_t width, uint32_t height);
