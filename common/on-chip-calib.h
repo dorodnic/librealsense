@@ -16,9 +16,6 @@ namespace rs2
 
     private:
         void process_flow(std::function<void()> cleanup) override;
-        bool check_for(
-            std::function<bool()> action, std::function<void()> cleanup,
-            std::chrono::system_clock::duration delta);
 
         device _dev;
     };

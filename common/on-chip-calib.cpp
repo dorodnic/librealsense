@@ -48,7 +48,7 @@ namespace rs2
             if (update_state == 0)
                 ImGui::Text("Stereo quality benefits from regular calibration.\nRun a quick calibration health-check? (10 sec)");
             else
-                ImGui::Text("Firmware updates is underway...\nPlease do not disconnect the device");
+                ImGui::Text("Calibration process is underway, please wait...");
 
             ImGui::PopStyleColor();
         }
@@ -205,7 +205,7 @@ namespace rs2
 
     int autocalib_notification_model::calc_height()
     {
-        if (update_state != 2) return 150;
+        if (update_state != 2) return 100;
         else return 65;
     }
 
