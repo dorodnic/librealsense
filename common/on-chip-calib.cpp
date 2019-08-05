@@ -13,13 +13,30 @@
 
 namespace rs2
 {
+    enum auto_calib_ui_state
+    {
+        RS2_CALIB_STATE_INITIAL_PROMPT,
+        RS2_CALIB_STATE_FAILED,
+        RS2_CALIB_STATE_COMPLETE,
+        RS2_CALIB_STATE_HEALTH_CHECK_IN_PROGRESS,
+        RS2_CALIB_STATE_HEALTH_CHECK_DONE,
+        RS2_CALIB_STATE_CALIB_IN_PROCESS,
+        RS2_CALIB_STATE_CALIB_COMPLETE,
+    };
+
     void on_chip_calib_manager::process_flow(std::function<void()> cleanup)
     {
         log("Starting calib");
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(3000));
+        for (int i = 0; i < 50 / _speed; i++)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+            _progress = i * (2 * _speed);
+        }
 
-        log("Device reconnected succesfully!");
+        _health = distribution(generator);
+
+        log("Device calibrated succesfully!");
 
         _progress = 100;
 
@@ -31,24 +48,274 @@ namespace rs2
         using namespace std;
         using namespace chrono;
 
+        const auto bar_width = width - 115;
+
         ImGui::SetCursorScreenPos({ float(x + 9), float(y + 4) });
 
         ImVec4 shadow{ 1.f, 1.f, 1.f, 0.1f };
         ImGui::GetWindowDrawList()->AddRectFilled({ float(x), float(y) },
         { float(x + width), float(y + 25) }, ImColor(shadow));
 
-        if (update_state != 2)
+        if (update_state != RS2_CALIB_STATE_COMPLETE)
         {
-            ImGui::Text("Calibration Health-Check");
+            if (update_state == RS2_CALIB_STATE_INITIAL_PROMPT ||
+                update_state == RS2_CALIB_STATE_HEALTH_CHECK_IN_PROGRESS ||
+                update_state == RS2_CALIB_STATE_HEALTH_CHECK_DONE)
+                ImGui::Text("Calibration Health-Check");
+
+            if (update_state == RS2_CALIB_STATE_CALIB_IN_PROCESS ||
+                update_state == RS2_CALIB_STATE_CALIB_COMPLETE)
+                ImGui::Text("On-Chip Calibration");
 
             ImGui::SetCursorScreenPos({ float(x + 9), float(y + 27) });
 
             ImGui::PushStyleColor(ImGuiCol_Text, alpha(light_grey, 1. - t));
 
-            if (update_state == 0)
-                ImGui::Text("Stereo quality benefits from regular calibration.\nRun a quick calibration health-check? (10 sec)");
-            else
-                ImGui::Text("Calibration process is underway, please wait...");
+            auto t = smoothstep(glfwGetTime() - score_update_time, 0.f, 1.f);
+            float score = old_score * (1.f - t) + new_score * t;
+
+            if (update_state == RS2_CALIB_STATE_INITIAL_PROMPT)
+                ImGui::Text("Stereo quality benefits from regular calibration.\nRun a quick calibration Health-Check? (10 sec)");
+            else if (update_state == RS2_CALIB_STATE_HEALTH_CHECK_IN_PROGRESS)
+            {
+                enable_dismiss = false;
+                ImGui::Text("Health-Check is underway, please wait...\nKeep the camera stationary pointing at a wall");
+            }
+            else if (update_state == RS2_CALIB_STATE_CALIB_IN_PROCESS)
+            {
+                ImGui::Text("Camera is being calibrated...\nKeep the camera stationary pointing at a wall");
+            }
+            else if (update_state == RS2_CALIB_STATE_HEALTH_CHECK_DONE ||
+                     update_state == RS2_CALIB_STATE_CALIB_COMPLETE)
+            {
+                if (update_state == RS2_CALIB_STATE_HEALTH_CHECK_DONE)
+                    ImGui::Text("Health-Check results:");
+                else
+                    ImGui::Text("Calibration completed:");
+
+                std::vector<ImVec2> points, cover_points, redpoints, yellowpoints, greenpoints, arrow;
+                const int SEGMENTS = 60;
+                const float R = 230.f;
+                for (int i = 0; i < SEGMENTS; i++)
+                {
+                    auto t = i / (float)SEGMENTS;
+                    auto angle = -M_PI / 2.f - (M_PI / 6.f) * (1. - t) + (M_PI / 6.f) * t;
+                    float x1 = cosf(angle) * R + x + width / 2;
+                    float y1 = sinf(angle) * R + y + R + 60;
+                    points.push_back({ x1, y1 });
+
+                    if (i > 0 && i < SEGMENTS - 1)
+                        cover_points.push_back({ x1, y1 + 22 - (sinf(angle) + 1.f) * R * 0.15f });
+
+                    if (i <= SEGMENTS / 3 - 1)
+                        redpoints.push_back({ x1 + 4, y1 + 2 });
+
+                    if (i >= SEGMENTS / 3 + 1 && i <= 2 * (SEGMENTS / 3) - 1)
+                        yellowpoints.push_back({ x1, y1 + 2 });
+
+                    if (i >= 2 * (SEGMENTS / 3) + 1)
+                        greenpoints.push_back({ x1 - 4, y1 + 2 });
+                }
+                auto last = points[points.size() - 1];
+                points.push_back({ last.x - 5, last.y + 15 });
+                auto first = points.front();
+                points.insert(points.begin(), { first.x + 5, first.y + 15 });
+
+                last = redpoints[redpoints.size() - 1];
+                redpoints.push_back({ last.x + 5, last.y + 35 });
+                first = redpoints.front();
+                redpoints.push_back({ first.x + 5, first.y + 15 });
+
+                last = yellowpoints[yellowpoints.size() - 1];
+                yellowpoints.push_back({ last.x - 4, last.y + 35 });
+                first = yellowpoints.front();
+                yellowpoints.push_back({ first.x + 4, first.y + 35 });
+
+                last = greenpoints[greenpoints.size() - 1];
+                greenpoints.push_back({ last.x - 5, last.y + 15 });
+                first = greenpoints.front();
+                greenpoints.push_back({ first.x - 5, first.y + 35 });
+
+                ImGui::GetWindowDrawList()->AddConvexPolyFilled(points.data(),
+                    points.size(), ImColor(dark_window_background), true);
+
+                ImGui::GetWindowDrawList()->AddConvexPolyFilled(redpoints.data(),
+                    redpoints.size(), ImColor(alpha(redish, (1.f - smoothstep(score, 0.2f, 0.4f)) * 0.2f + 0.15f)), true);
+
+                ImGui::GetWindowDrawList()->AddConvexPolyFilled(yellowpoints.data(),
+                    yellowpoints.size(), ImColor(alpha(yellowish, smoothstep(score, 0.2f, 0.4f) * (1.f - smoothstep(score, 0.6f, 0.8f)) * 0.2f + 0.15f)), true);
+
+                ImGui::GetWindowDrawList()->AddConvexPolyFilled(greenpoints.data(),
+                    greenpoints.size(), ImColor(alpha(green, smoothstep(score, 0.6f, 0.8f) * 0.2f + 0.25f)), true);
+
+                ImGui::GetWindowDrawList()->AddPolyline(points.data(),
+                    points.size(), ImColor(alpha(light_blue, 0.9f)), false, 2.f, true);
+
+
+                auto angle = -M_PI / 2.f - (M_PI / 7.f) * (1. - score) + (M_PI / 7.2f) * score;
+                float x1 = cosf(angle) * R + x + width / 2;
+                float y1 = sinf(angle) * R + y + R + 60;
+                arrow.push_back({ x1, y1 + 8 });
+                arrow.push_back({ x1 - 5 + 7 * (1.f - score) - 7 * score, y1 + 22 });
+                arrow.push_back({ x1 + 5 + 7 * (1.f - score) - 7 * score, y1 + 22 });
+
+                ImGui::GetWindowDrawList()->AddConvexPolyFilled(arrow.data(),
+                    arrow.size(), ImColor(regular_blue), true);
+                ImGui::GetWindowDrawList()->AddPolyline(arrow.data(),
+                    arrow.size(), ImColor(light_grey), true, 3.f, true);
+
+                ImGui::GetWindowDrawList()->AddConvexPolyFilled(cover_points.data(),
+                    cover_points.size(), ImColor(sensor_bg), true);
+
+                ImGui::GetWindowDrawList()->AddPolyline(cover_points.data(),
+                    cover_points.size(), ImColor(alpha(light_blue, 0.9f)), false, 1.5f, true);
+
+                for (int i = 15; i >= 0; i -= 2)
+                {
+                    auto copy = arrow;
+                    copy[0].y += i; copy[1].y -= i; copy[2].y -= i;
+                    ImGui::GetWindowDrawList()->AddPolyline(copy.data(),
+                        copy.size(), ImColor(alpha(light_blue, 0.02f)), true, i, true);
+                }
+
+                if (update_state == RS2_CALIB_STATE_HEALTH_CHECK_DONE)
+                {
+                    if (score < 0.5f)
+                    {
+                        ImGui::SetCursorScreenPos({ float(x + 77), float(y + 102) });
+                        ImGui::Text("Calibration Recommended");
+                    }
+                    else
+                    {
+                        ImGui::SetCursorScreenPos({ float(x + 107), float(y + 102) });
+                        ImGui::Text("Calibration is OK");
+                    }
+                }
+                else
+                {
+                    auto health = get_manager().get_health();
+                    int diff = 100 * (abs(health - health_check_result) / health_check_result);
+
+                    if (health <= health_check_result)
+                    {
+                        ImGui::PushStyleColor(ImGuiCol_Text, green);
+                        ImGui::SetCursorScreenPos({ float(x + 110), float(y + 102) });
+                        std::string label = to_string() << "Improved by " << diff << "%%";
+                        ImGui::Text(label.c_str());
+                    }
+                    else
+                    {
+                        ImGui::PushStyleColor(ImGuiCol_Text, redish);
+                        ImGui::SetCursorScreenPos({ float(x + 100), float(y + 102) });
+                        std::string label = to_string() << "Deteriorated by " << diff << "%%";
+                        ImGui::Text(label.c_str());
+                    }
+
+                    ImGui::PopStyleColor();
+                }
+
+                if (update_state == RS2_CALIB_STATE_HEALTH_CHECK_DONE)
+                {
+                    auto sat = 1.f + sin(duration_cast<milliseconds>(system_clock::now() - created_time).count() / 700.f) * 0.1f;
+
+                    if (score < 0.5f)
+                    {
+                        ImGui::PushStyleColor(ImGuiCol_Button, saturate(sensor_header_light_blue, sat));
+                        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, saturate(sensor_header_light_blue, 1.5f));
+                    }
+                    
+                    std::string button_name = to_string() << "Calibrate" << "##calibrate" << index;
+
+                    ImGui::SetCursorScreenPos({ float(x + 5), float(y + height - 25) });
+                    if (ImGui::Button(button_name.c_str(), { float(bar_width), 20.f }))
+                    {
+                        update_manager->reset();
+                        update_state = RS2_CALIB_STATE_CALIB_IN_PROCESS;
+                        last_progress_time = system_clock::now();
+                        enable_dismiss = false;
+                        get_manager().set_speed(1);
+                        update_manager->start();
+                    }
+
+                    if (score < 0.5f) ImGui::PopStyleColor(2);
+
+                    if (ImGui::IsItemHovered())
+                    {
+                        ImGui::SetTooltip("%s", "Point the camera towards an object or a wall");
+                    }
+
+                    ImGui::SetCursorScreenPos({ float(x + width - 105), float(y + height - 25) });
+
+                    if (score < 0.5f)
+                    {
+                        enable_dismiss = false;
+                        string id = to_string() << "Ignore" << "##" << index;
+                        if (ImGui::Button(id.c_str(), { 100, 20 }))
+                        {
+                            update_manager->reset();
+                            update_state = RS2_CALIB_STATE_INITIAL_PROMPT;
+                            enable_dismiss = true;
+                        }
+                    }
+                    else enable_dismiss = true;
+                }
+                else
+                {
+                    auto health = get_manager().get_health();
+                    int diff = 100 * (abs(health - health_check_result) / health_check_result);
+
+                    auto sat = 1.f + sin(duration_cast<milliseconds>(system_clock::now() - created_time).count() / 700.f) * 0.1f;
+
+                    if (health <= health_check_result)
+                    {
+                        ImGui::PushStyleColor(ImGuiCol_Button, saturate(sensor_header_light_blue, sat));
+                        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, saturate(sensor_header_light_blue, 1.5f));
+                    }
+
+                    std::string button_name = to_string() << "Keep" << "##keep" << index;
+
+                    ImGui::SetCursorScreenPos({ float(x + 5), float(y + height - 25) });
+                    if (ImGui::Button(button_name.c_str(), { float(bar_width), 20.f }))
+                    {
+                        update_state = RS2_CALIB_STATE_COMPLETE;
+                        pinned = false;
+                        last_progress_time = last_interacted = system_clock::now();
+                    }
+
+                    if (health <= health_check_result) ImGui::PopStyleColor(2);
+
+                    if (ImGui::IsItemHovered())
+                    {
+                        ImGui::SetTooltip("%s", "New calibration values will be saved in device memory");
+                    }
+
+                    ImGui::SetCursorScreenPos({ float(x + width - 105), float(y + height - 25) });
+
+                    if (health > health_check_result)
+                    {
+                        ImGui::PushStyleColor(ImGuiCol_Button, saturate(sensor_header_light_blue, sat));
+                        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, saturate(sensor_header_light_blue, 1.5f));
+                    }
+
+                    string id = to_string() << "Discard" << "##" << index;
+                    if (ImGui::Button(id.c_str(), { 100, 20 }))
+                    {
+                        update_manager->reset();
+                        update_state = RS2_CALIB_STATE_HEALTH_CHECK_DONE;
+                        old_score = new_score;
+                        new_score = on_chip_calib_manager::get_score(health_check_result);
+                        score_update_time = glfwGetTime();
+                    }
+
+                    if (health > health_check_result) ImGui::PopStyleColor(2);
+
+                    if (ImGui::IsItemHovered())
+                    {
+                        ImGui::SetTooltip("%s", "New calibration values will be discarded");
+                    }
+
+                }
+            }
 
             ImGui::PopStyleColor();
         }
@@ -65,16 +332,14 @@ namespace rs2
             ImGui::PopFont();
 
             ImGui::SetCursorScreenPos({ float(x + 40), float(y + 35) });
-            ImGui::Text("Camera Calibration Done Successfully");
+            ImGui::Text("Camera Calibration Applied Successfully");
         }
 
         ImGui::SetCursorScreenPos({ float(x + 5), float(y + height - 25) });
 
-        const auto bar_width = width - 115;
-
         if (update_manager)
         {
-            if (update_state == 0)
+            if (update_state == RS2_CALIB_STATE_INITIAL_PROMPT)
             {
                 auto sat = 1.f + sin(duration_cast<milliseconds>(system_clock::now() - created_time).count() / 700.f) * 0.1f;
                 ImGui::PushStyleColor(ImGuiCol_Button, saturate(sensor_header_light_blue, sat));
@@ -85,7 +350,7 @@ namespace rs2
                 {
                     if (!update_manager->started()) update_manager->start();
 
-                    update_state = 1;
+                    update_state = RS2_CALIB_STATE_HEALTH_CHECK_IN_PROGRESS;
                     enable_dismiss = false;
                     last_progress_time = system_clock::now();
                 }
@@ -96,13 +361,20 @@ namespace rs2
                     ImGui::SetTooltip("%s", "Point the camera towards an object or a wall");
                 }
             }
-            else if (update_state == 1)
+            else if (update_state == RS2_CALIB_STATE_HEALTH_CHECK_IN_PROGRESS ||
+                     update_state == RS2_CALIB_STATE_CALIB_IN_PROCESS)
             {
                 if (update_manager->done())
                 {
-                    update_state = 2;
-                    pinned = false;
-                    last_progress_time = last_interacted = system_clock::now();
+                    if (update_state == RS2_CALIB_STATE_HEALTH_CHECK_IN_PROGRESS)
+                        health_check_result = get_manager().get_health();
+
+                    update_state++;
+                    old_score = new_score;
+                    new_score = on_chip_calib_manager::get_score(get_manager().get_health());
+                    score_update_time = glfwGetTime();
+                    //pinned = false;
+                    //last_progress_time = last_interacted = system_clock::now();
                 }
 
                 if (!expanded)
@@ -110,7 +382,7 @@ namespace rs2
                     if (update_manager->failed())
                     {
                         update_manager->check_error(error_message);
-                        update_state = 3;
+                        update_state = RS2_CALIB_STATE_FAILED;
                         pinned = false;
                         dismissed = true;
                     }
@@ -129,11 +401,13 @@ namespace rs2
                     ImGui::PopStyleColor();
                 }
             }
-        }    }
+        }
+    }
 
     void autocalib_notification_model::draw_expanded(ux_window& win, std::string& error_message)
     {
-        if (update_manager->started() && update_state == 0) update_state = 1;
+        if (update_manager->started() && update_state == RS2_CALIB_STATE_INITIAL_PROMPT) 
+            update_state = RS2_CALIB_STATE_HEALTH_CHECK_IN_PROGRESS;
 
         auto flags = ImGuiWindowFlags_NoResize |
             ImGuiWindowFlags_NoMove |
@@ -148,7 +422,7 @@ namespace rs2
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(5, 5));
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0);
 
-        std::string title = "Firmware Update";
+        std::string title = "On-Chip Calibration";
         if (update_manager->failed()) title += " Failed";
 
         ImGui::OpenPopup(title.c_str());
@@ -164,7 +438,7 @@ namespace rs2
 
             ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, regular_blue);
             auto s = update_manager->get_log();
-            ImGui::InputTextMultiline("##fw_update_log", const_cast<char*>(s.c_str()),
+            ImGui::InputTextMultiline("##autocalib_log", const_cast<char*>(s.c_str()),
                 s.size() + 1, { 490,100 }, ImGuiInputTextFlags_AutoSelectAll | ImGuiInputTextFlags_ReadOnly);
             ImGui::PopStyleColor();
 
@@ -175,7 +449,7 @@ namespace rs2
                 {
                     if (update_manager->done() || update_manager->failed())
                     {
-                        update_state = 3;
+                        update_state = RS2_CALIB_STATE_FAILED;
                         pinned = false;
                         dismissed = true;
                     }
@@ -205,8 +479,10 @@ namespace rs2
 
     int autocalib_notification_model::calc_height()
     {
-        if (update_state != 2) return 100;
-        else return 65;
+        if (update_state == RS2_CALIB_STATE_COMPLETE) return 65;
+        else if (update_state == RS2_CALIB_STATE_HEALTH_CHECK_DONE
+            || update_state == RS2_CALIB_STATE_CALIB_COMPLETE) return 160;
+        else return 100;
     }
 
     void autocalib_notification_model::set_color_scheme(float t) const
@@ -217,7 +493,7 @@ namespace rs2
 
         ImVec4 c;
 
-        if (update_state == 2)
+        if (update_state == RS2_CALIB_STATE_COMPLETE)
         {
             c = alpha(saturate(light_blue, 0.7f), 1 - t);
             ImGui::PushStyleColor(ImGuiCol_WindowBg, c);
@@ -234,12 +510,13 @@ namespace rs2
         : process_notification_model(manager)
     {
         enable_expand = false;
+        enable_dismiss = true;
         expanded = exp;
         if (expanded) visible = false;
 
         message = name;
         this->severity = RS2_LOG_SEVERITY_INFO;
-        this->category = RS2_NOTIFICATION_CATEGORY_FIRMWARE_UPDATE_RECOMMENDED;
+        this->category = RS2_NOTIFICATION_CATEGORY_HARDWARE_EVENT;
 
         pinned = true;
     }

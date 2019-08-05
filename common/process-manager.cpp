@@ -19,6 +19,14 @@ namespace rs2
         _log += line + "\n";
     }
 
+    void process_manager::reset()
+    {
+        _progress = 0;
+        _started = false;
+        _done = false;
+        _failed = false;
+    }
+
     void process_manager::fail(std::string error)
     {
         _last_error = error;

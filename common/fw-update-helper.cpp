@@ -27,6 +27,14 @@ constexpr const char* recommended_fw_url = "https://downloadcenter.intel.com/dow
 
 namespace rs2
 {
+    enum firmware_update_ui_state
+    {
+        RS2_FWU_STATE_INITIAL_PROMPT = 0,
+        RS2_FWU_STATE_IN_PROGRESS = 1,
+        RS2_FWU_STATE_COMPLETE = 2,
+        RS2_FWU_STATE_FAILED = 3,
+    };
+
     bool is_recommended_fw_available()
     {
         return !(strcmp("", FW_D4XX_FW_IMAGE_VERSION) == 0);
@@ -301,7 +309,7 @@ namespace rs2
         ImGui::GetWindowDrawList()->AddRectFilled({ float(x), float(y) },
         { float(x + width), float(y + 25) }, ImColor(shadow));
 
-        if (update_state != 2)
+        if (update_state != RS2_FWU_STATE_COMPLETE)
         {
             ImGui::Text("Firmware Update Recommended!");
 
@@ -313,7 +321,7 @@ namespace rs2
 
             ImGui::PushStyleColor(ImGuiCol_Text, alpha(light_grey, 1. - t));
 
-            if (update_state == 0)
+            if (update_state == RS2_FWU_STATE_INITIAL_PROMPT)
                 ImGui::Text("Firmware updates offer critical bug fixes and\nunlock new camera capabilities.");
             else
                 ImGui::Text("Firmware updates is underway...\nPlease do not disconnect the device");
@@ -342,7 +350,7 @@ namespace rs2
 
         if (update_manager)
         {
-            if (update_state == 0)
+            if (update_state == RS2_FWU_STATE_INITIAL_PROMPT)
             {
                 auto sat = 1.f + sin(duration_cast<milliseconds>(system_clock::now() - created_time).count() / 700.f) * 0.1f;
                 ImGui::PushStyleColor(ImGuiCol_Button, saturate(sensor_header_light_blue, sat));
@@ -353,7 +361,7 @@ namespace rs2
                 {
                     if (!update_manager->started()) update_manager->start();
 
-                    update_state = 1;
+                    update_state = RS2_FWU_STATE_IN_PROGRESS;
                     enable_dismiss = false;
                     last_progress_time = system_clock::now();
                 }
@@ -364,11 +372,11 @@ namespace rs2
                     ImGui::SetTooltip("%s", "New firmware will be flashed to the device");
                 }
             }
-            else if (update_state == 1)
+            else if (update_state == RS2_FWU_STATE_IN_PROGRESS)
             {
                 if (update_manager->done())
                 {
-                    update_state = 2;
+                    update_state = RS2_FWU_STATE_COMPLETE;
                     pinned = false;
                     last_progress_time = last_interacted = system_clock::now();
                 }
@@ -378,7 +386,7 @@ namespace rs2
                     if (update_manager->failed())
                     {
                         update_manager->check_error(error_message);
-                        update_state = 3;
+                        update_state = RS2_FWU_STATE_FAILED;
                         pinned = false;
                         dismissed = true;
                     }
@@ -416,7 +424,8 @@ namespace rs2
 
     void fw_update_notification_model::draw_expanded(ux_window& win, std::string& error_message)
     {
-        if (update_manager->started() && update_state == 0) update_state = 1;
+        if (update_manager->started() && update_state == RS2_FWU_STATE_INITIAL_PROMPT) 
+            update_state = RS2_FWU_STATE_IN_PROGRESS;
 
         auto flags = ImGuiWindowFlags_NoResize |
             ImGuiWindowFlags_NoMove |
@@ -458,7 +467,7 @@ namespace rs2
                 {
                     if (update_manager->done() || update_manager->failed())
                     {
-                        update_state = 3;
+                        update_state = RS2_FWU_STATE_FAILED;
                         pinned = false;
                         dismissed = true;
                     }
@@ -488,7 +497,7 @@ namespace rs2
 
     int fw_update_notification_model::calc_height()
     {
-        if (update_state != 2) return 150;
+        if (update_state != RS2_FWU_STATE_COMPLETE) return 150;
         else return 65;
     }
 
@@ -500,7 +509,7 @@ namespace rs2
 
         ImVec4 c;
 
-        if (update_state == 2)
+        if (update_state == RS2_FWU_STATE_COMPLETE)
         {
             c = alpha(saturate(light_blue, 0.7f), 1 - t);
             ImGui::PushStyleColor(ImGuiCol_WindowBg, c);

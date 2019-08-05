@@ -382,7 +382,7 @@ namespace rs2
                     dismissed = true;
                 }
             }
-
+            
             unset_color_scheme();
         }
 

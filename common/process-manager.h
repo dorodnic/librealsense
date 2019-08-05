@@ -27,6 +27,7 @@ namespace rs2
         bool started() const { return _started; }
         bool failed() const { return _failed; }
         const std::string& get_log() const { return _log; }
+        void reset();
 
         void check_error(std::string& error) { if (_failed) error = _last_error; }
 
