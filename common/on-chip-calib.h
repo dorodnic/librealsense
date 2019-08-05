@@ -10,13 +10,18 @@
 
 namespace rs2
 {
+    class viewer_model;
+    class subdevice_model;
+
     class on_chip_calib_manager : public process_manager
     {
     public:
-        on_chip_calib_manager(device_model& model, device dev)
-            : process_manager("On-Chip Calibration", model), _dev(dev) 
+        on_chip_calib_manager(viewer_model& viewer, std::shared_ptr<subdevice_model> sub,
+            device_model& model, device dev)
+            : process_manager("On-Chip Calibration", model), 
+             _dev(dev), _sub(sub), _viewer(viewer)
         {
-            generator.seed(glfwGetTime());
+            generator.seed(int(glfwGetTime() * 1000) % 1000);
         }
 
         static float get_score(float h) { return 1.f - std::max(0.f, std::min(1.f, h * 3.f)); }
@@ -33,6 +38,9 @@ namespace rs2
 
         std::default_random_engine generator;
         std::uniform_real_distribution<float> distribution{ 0.01f, 0.99f };
+
+        viewer_model& _viewer;
+        std::shared_ptr<subdevice_model> _sub;
     };
 
 

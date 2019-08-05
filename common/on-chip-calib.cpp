@@ -10,6 +10,7 @@
 #include <thread>
 #include <condition_variable>
 #include <model-views.h>
+#include <viewer.h>
 
 namespace rs2
 {
@@ -26,7 +27,18 @@ namespace rs2
 
     void on_chip_calib_manager::process_flow(std::function<void()> cleanup)
     {
-        log("Starting calib");
+        log(to_string() << "Starting calibration at speed " << _speed);
+
+        bool is_3d = _viewer.is_3d_view;
+        _viewer.is_3d_view = true;
+
+        _viewer.synchronization_enable = false;
+        auto profiles = _sub->get_selected_profiles();
+        _sub->play(profiles, _viewer, _model.dev_syncer);
+        for (auto&& profile : profiles)
+        {
+            _viewer.begin_stream(_sub, profile);
+        }
 
         for (int i = 0; i < 50 / _speed; i++)
         {
@@ -36,7 +48,11 @@ namespace rs2
 
         _health = distribution(generator);
 
-        log("Device calibrated succesfully!");
+        log(to_string() << "Calibration completed, health factor = " << _health);
+
+        _viewer.is_3d_view = is_3d;
+
+        _sub->stop(_viewer);
 
         _progress = 100;
 
@@ -83,6 +99,7 @@ namespace rs2
             }
             else if (update_state == RS2_CALIB_STATE_CALIB_IN_PROCESS)
             {
+                enable_dismiss = false;
                 ImGui::Text("Camera is being calibrated...\nKeep the camera stationary pointing at a wall");
             }
             else if (update_state == RS2_CALIB_STATE_HEALTH_CHECK_DONE ||

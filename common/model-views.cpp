@@ -2832,20 +2832,17 @@ namespace rs2
                         };
                     }
                 }                
-
-
-                {
-                    if (sub.is<depth_sensor>())
-                    {
-                        auto manager = std::make_shared<on_chip_calib_manager>(*this, dev);
-                        viewer.not_model.add_notification(std::make_shared<autocalib_notification_model>(
-                            "Check calibration", manager, false));
-                    }
-                }
             }
 
             auto model = std::make_shared<subdevice_model>(dev, std::make_shared<sensor>(sub), error_message, viewer);
             subdevices.push_back(model);
+
+            if (sub.is<depth_sensor>())
+            {
+                auto manager = std::make_shared<on_chip_calib_manager>(viewer, model, *this, dev);
+                viewer.not_model.add_notification(std::make_shared<autocalib_notification_model>(
+                    "Check calibration", manager, false));
+            }
         }
 
         // Initialize static camera info:
@@ -2913,7 +2910,6 @@ namespace rs2
                 for (auto&& profile : profiles)
                 {
                     viewer.begin_stream(sub, profile);
-
                 }
             }
         }
