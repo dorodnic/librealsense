@@ -32,12 +32,55 @@ namespace rs2
         bool is_3d = _viewer.is_3d_view;
         _viewer.is_3d_view = true;
 
+        auto was_streaming = _sub->streaming;
+
+        if (_sub->streaming) _sub->stop(_viewer);
+
+        auto ui = _sub->ui;
+        _sub->ui.selected_format_id.clear();
+        _sub->ui.selected_format_id[RS2_STREAM_DEPTH] = 0;
+
+        for (int i = 0; i < _sub->shared_fps_values.size(); i++)
+        {
+            if (_sub->shared_fps_values[i] == 90)
+                _sub->ui.selected_shared_fps_id = i;
+        }
+
+        for (int i = 0; i < _sub->res_values.size(); i++)
+        {
+            auto kvp = _sub->res_values[i];
+            if (kvp.first == 256 && kvp.second == 144)
+                _sub->ui.selected_res_id = i;
+        }
+
+        auto sync = _viewer.synchronization_enable.load();
+
         _viewer.synchronization_enable = false;
         auto profiles = _sub->get_selected_profiles();
+
+        if (!_model.dev_syncer)
+            _model.dev_syncer = _viewer.syncer->create_syncer();
+
         _sub->play(profiles, _viewer, _model.dev_syncer);
         for (auto&& profile : profiles)
         {
             _viewer.begin_stream(_sub, profile);
+        }
+
+        bool frame_arrived = false;
+        while (!frame_arrived)
+        {
+            for (auto&& stream : _viewer.streams)
+            {
+                if (std::find(profiles.begin(), profiles.end(), 
+                        stream.second.original_profile) != profiles.end())
+                {
+                    auto now = std::chrono::high_resolution_clock::now();
+                    if (now - stream.second.last_frame < std::chrono::milliseconds(100))
+                        frame_arrived = true;
+                }
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
 
         for (int i = 0; i < 50 / _speed; i++)
@@ -52,7 +95,37 @@ namespace rs2
 
         _viewer.is_3d_view = is_3d;
 
+        _viewer.synchronization_enable = sync;
+
         _sub->stop(_viewer);
+
+        while (frame_arrived && _viewer.streams.size())
+        {
+            for (auto&& stream : _viewer.streams)
+            {
+                if (std::find(profiles.begin(), profiles.end(),
+                    stream.second.original_profile) != profiles.end())
+                {
+                    auto now = std::chrono::high_resolution_clock::now();
+                    if (now - stream.second.last_frame > std::chrono::milliseconds(200))
+                        frame_arrived = false;
+                }
+                else frame_arrived = false;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+
+        _sub->ui = ui;
+
+        if (was_streaming)
+        {
+            auto profiles = _sub->get_selected_profiles();
+            _sub->play(profiles, _viewer, _model.dev_syncer);
+            for (auto&& profile : profiles)
+            {
+                _viewer.begin_stream(_sub, profile);
+            }
+        }
 
         _progress = 100;
 
@@ -235,7 +308,7 @@ namespace rs2
                 {
                     auto sat = 1.f + sin(duration_cast<milliseconds>(system_clock::now() - created_time).count() / 700.f) * 0.1f;
 
-                    if (score < 0.5f)
+                    if (new_score < 0.5f)
                     {
                         ImGui::PushStyleColor(ImGuiCol_Button, saturate(sensor_header_light_blue, sat));
                         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, saturate(sensor_header_light_blue, 1.5f));
@@ -254,7 +327,7 @@ namespace rs2
                         update_manager->start();
                     }
 
-                    if (score < 0.5f) ImGui::PopStyleColor(2);
+                    if (new_score < 0.5f) ImGui::PopStyleColor(2);
 
                     if (ImGui::IsItemHovered())
                     {
@@ -263,7 +336,7 @@ namespace rs2
 
                     ImGui::SetCursorScreenPos({ float(x + width - 105), float(y + height - 25) });
 
-                    if (score < 0.5f)
+                    if (new_score < 0.5f)
                     {
                         enable_dismiss = false;
                         string id = to_string() << "Ignore" << "##" << index;
