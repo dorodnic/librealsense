@@ -58,6 +58,43 @@ static const ImVec4 dark_sensor_bg = from_rgba(0x1b, 0x21, 0x25, 170);
 static const ImVec4 red = from_rgba(233, 0, 0, 255, true);
 static const ImVec4 greenish = from_rgba(33, 104, 0, 255, 0xff);
 
+template<class T>
+class animated
+{
+private:
+    T _old, _new;
+    std::chrono::system_clock::time_point _last_update;
+    std::chrono::system_clock::duration _duration;
+public:
+    animated(T def = default(T), std::chrono::system_clock::duration duration = std::chrono::milliseconds(200))
+        : _duration(duration)
+    {
+        _last_update = std::chrono::system_clock::now();
+    }
+    animated& operator=(const T& other)
+    {
+        if (other != _new)
+        {
+            _old = get();
+            _new = other;
+            _last_update = std::chrono::system_clock::now();
+        }
+        return *this;
+    }
+    T get() const
+    {
+        auto now = std::chrono::system_clock::now();
+        auto ms = std::chrono::duration_cast<std::chrono::microseconds>(now - _last_update).count();
+        auto duration_ms = std::chrono::duration_cast<std::chrono::microseconds>(_duration).count();
+        auto t = (float)ms / duration_ms;
+        t = std::max(0.f, std::min(rs2::smoothstep(t, 0.f, 1.f), 1.f));
+        return _old * (1.f - t) + _new * t;
+    }
+    operator T() const { return get(); }
+    T value() const { return _new; }
+};
+
+
 inline ImVec4 blend(const ImVec4& c, float a)
 {
     return{ c.x, c.y, c.z, a * c.w };
@@ -207,6 +244,7 @@ namespace rs2
         static const textual_icon dotdotdot                { u8"\uf141" };
         static const textual_icon link                     { u8"\uf08e" };
         static const textual_icon throphy                  { u8"\uF091" };
+        static const textual_icon metadata                 { u8"\uF00B" };
     }
 
     class subdevice_model;
@@ -670,7 +708,6 @@ namespace rs2
         bool is_stream_visible();
         void update_ae_roi_rect(const rect& stream_rect, const mouse_info& mouse, std::string& error_message);
         void show_frame(const rect& stream_rect, const mouse_info& g, std::string& error_message);
-        void show_metadata(const mouse_info& g);
         rect get_normalized_zoom(const rect& stream_rect, const mouse_info& g, bool is_middle_clicked, float zoom_val);
 
         bool is_stream_alive();
@@ -696,10 +733,9 @@ namespace rs2
         double              timestamp = 0.0;
         unsigned long long  frame_number = 0;
         rs2_timestamp_domain timestamp_domain = RS2_TIMESTAMP_DOMAIN_SYSTEM_TIME;
-        fps_calc            fps;
+        fps_calc            fps, view_fps;
         rect                roi_display_rect{};
         frame_metadata      frame_md;
-        bool                metadata_displayed  = false;
         bool                capturing_roi       = false;    // active modification of roi
         std::shared_ptr<subdevice_model> dev;
         float _frame_timeout = RS2_DEFAULT_TIMEOUT;
@@ -713,6 +749,9 @@ namespace rs2
         rect curr_info_rect{};
         temporal_event _stream_not_alive;
         bool show_map_ruler = true;
+        bool show_metadata = false;
+
+        animated<float> _info_height{ 0.f };
     };
 
     std::pair<std::string, std::string> get_device_name(const device& dev);

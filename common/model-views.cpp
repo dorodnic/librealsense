@@ -53,6 +53,13 @@ ImVec4 operator+(const ImVec4& c, float v)
     );
 }
 
+struct attribute
+{
+    std::string name;
+    std::string value;
+    std::string description;
+};
+
 enum rs2_dsc_status : uint16_t
 {
     RS2_DSC_STATUS_SUCCESS = 0, /**< Self calibration succeeded*/
@@ -1945,7 +1952,7 @@ namespace rs2
     void stream_model::show_stream_header(ImFont* font, const rect &stream_rect, viewer_model& viewer)
     {
         const auto top_bar_height = 32.f;
-        auto num_of_buttons = 4;
+        auto num_of_buttons = 5;
 
         if (!viewer.allow_stream_close) --num_of_buttons;
         if (viewer.streams.size() > 1) ++num_of_buttons;
@@ -2017,6 +2024,35 @@ namespace rs2
         ImGui::PopTextWrapPos();
 
         ImGui::SetCursorScreenPos({ stream_rect.x + stream_rect.w - 32 * num_of_buttons, stream_rect.y - top_bar_height });
+
+
+        label = to_string() << textual_icons::metadata << "##Metadata" << profile.unique_id();
+        if (show_metadata)
+        {
+            ImGui::PushStyleColor(ImGuiCol_Text, light_blue);
+            ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, light_blue);
+            if (ImGui::Button(label.c_str(), { 24, top_bar_height }))
+            {
+                show_metadata = false;
+            }
+            if (ImGui::IsItemHovered())
+            {
+                ImGui::SetTooltip("Hide frame metadata");
+            }
+            ImGui::PopStyleColor(2);
+        }
+        else
+        {
+            if (ImGui::Button(label.c_str(), { 24, top_bar_height }))
+            {
+                show_metadata = true;
+            }
+            if (ImGui::IsItemHovered())
+            {
+                ImGui::SetTooltip("Show frame metadata");
+            }
+        }
+        ImGui::SameLine();
 
         if (RS2_STREAM_DEPTH == profile.stream_type())
         {
@@ -2200,89 +2236,163 @@ namespace rs2
 
         ImGui::PopStyleColor(5);
 
-        if (show_stream_details)
+        _info_height = (show_stream_details || show_metadata) ? (show_metadata ? stream_rect.h : 32.f) : 0.f;
+
+        static const auto y_offset_info_rect = 0.f;
+        static const auto x_offset_info_rect = 0.f;
+        auto width_info_rect = stream_rect.w - 2.f * x_offset_info_rect;
+
+        curr_info_rect = rect{ stream_rect.x + x_offset_info_rect,
+            stream_rect.y + y_offset_info_rect,
+            width_info_rect,
+            _info_height };
+
+        ImGui::GetWindowDrawList()->AddRectFilled({ curr_info_rect.x, curr_info_rect.y },
+        { curr_info_rect.x + curr_info_rect.w, curr_info_rect.y + curr_info_rect.h },
+            ImColor(dark_sensor_bg));
+
+        ImGui::PushStyleColor(ImGuiCol_Text, light_grey);
+        ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, white);
+
+        ImGui::PushStyleColor(ImGuiCol_Button, header_window_bg);
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, header_window_bg);
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, header_window_bg);
+
+        float line_y = curr_info_rect.y + 8;
+
+        if (show_stream_details && !show_metadata)
         {
-            ImGui::PushStyleColor(ImGuiCol_Text, light_grey);
-            ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, white);
-
-            ImGui::PushStyleColor(ImGuiCol_Button, header_window_bg);
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, header_window_bg);
-            ImGui::PushStyleColor(ImGuiCol_ButtonActive, header_window_bg);
-
-            static const auto height_info_rect = 32.f;
-            static const auto y_offset_info_rect = 0.f;
-            static const auto x_offset_info_rect = 0.f;
-            auto width_info_rect = stream_rect.w - 2.f * x_offset_info_rect;
-
-            curr_info_rect = rect{ stream_rect.x + x_offset_info_rect,
-                                   stream_rect.y + y_offset_info_rect,
-                                   width_info_rect,
-                                   height_info_rect };
-
-            ImGui::GetWindowDrawList()->AddRectFilled({ curr_info_rect.x, curr_info_rect.y },
-                    { curr_info_rect.x + curr_info_rect.w, curr_info_rect.y + curr_info_rect.h }, 
-                    ImColor(dark_sensor_bg));
-            ImGui::SetCursorScreenPos({curr_info_rect.x + 10, curr_info_rect.y + 8});
-
-            if (timestamp_domain == RS2_TIMESTAMP_DOMAIN_SYSTEM_TIME)
-                ImGui::PushStyleColor(ImGuiCol_Text, redish);
-
-            label = to_string() << " Time: " << std::left << std::fixed << std::setprecision(1) << timestamp << " ";
-
-            if (timestamp_domain == RS2_TIMESTAMP_DOMAIN_SYSTEM_TIME) label = to_string() << textual_icons::exclamation_triangle << label;
-
-            ImGui::Text("%s", label.c_str());
-
-            if (timestamp_domain == RS2_TIMESTAMP_DOMAIN_SYSTEM_TIME) ImGui::PopStyleColor();
-
-            if (ImGui::IsItemHovered())
+            if (_info_height.get() > line_y + ImGui::GetTextLineHeight() - curr_info_rect.y)
             {
+                ImGui::SetCursorScreenPos({ curr_info_rect.x + 10, line_y });
+
                 if (timestamp_domain == RS2_TIMESTAMP_DOMAIN_SYSTEM_TIME)
+                    ImGui::PushStyleColor(ImGuiCol_Text, redish);
+
+                label = to_string() << "Time: " << std::left << std::fixed << std::setprecision(1) << timestamp << " ";
+
+                if (timestamp_domain == RS2_TIMESTAMP_DOMAIN_SYSTEM_TIME) label = to_string() << textual_icons::exclamation_triangle << label;
+
+                ImGui::Text("%s", label.c_str());
+
+                if (timestamp_domain == RS2_TIMESTAMP_DOMAIN_SYSTEM_TIME) ImGui::PopStyleColor();
+
+                if (ImGui::IsItemHovered())
                 {
-                    ImGui::BeginTooltip();
-                    ImGui::PushTextWrapPos(450.0f);
-                    ImGui::TextUnformatted("Timestamp Domain: System Time. Hardware Timestamps unavailable!\nPlease refer to frame_metadata.md for more information");
-                    ImGui::PopTextWrapPos();
-                    ImGui::EndTooltip();
+                    if (timestamp_domain == RS2_TIMESTAMP_DOMAIN_SYSTEM_TIME)
+                    {
+                        ImGui::BeginTooltip();
+                        ImGui::PushTextWrapPos(450.0f);
+                        ImGui::TextUnformatted("Timestamp Domain: System Time. Hardware Timestamps unavailable!\nPlease refer to frame_metadata.md for more information");
+                        ImGui::PopTextWrapPos();
+                        ImGui::EndTooltip();
+                    }
+                    else if (timestamp_domain == RS2_TIMESTAMP_DOMAIN_GLOBAL_TIME)
+                    {
+                        ImGui::SetTooltip("Timestamp: Global Time");
+                    }
+                    else
+                    {
+                        ImGui::SetTooltip("Timestamp: Hardware Clock");
+                    }
                 }
-                else if (timestamp_domain == RS2_TIMESTAMP_DOMAIN_GLOBAL_TIME)
+
+                ImGui::SameLine();
+
+                label = to_string() << " Frame: " << std::left << frame_number;
+                ImGui::Text("%s", label.c_str());
+
+                ImGui::SameLine();
+
+                std::string res;
+                if (profile.as<rs2::video_stream_profile>())
+                    res = to_string() << size.x << "x" << size.y << ",  ";
+                label = to_string() << res << truncate_string(rs2_format_to_string(profile.format()), 9) << ", ";
+                ImGui::Text("%s", label.c_str());
+                if (ImGui::IsItemHovered())
                 {
-                     ImGui::SetTooltip("Timestamp: Global Time");
+                    ImGui::SetTooltip("%s", "Stream Resolution, Format");
                 }
-                else
+
+                ImGui::SameLine();
+
+                label = to_string() << "FPS: " << std::setprecision(2) << std::setw(7) << std::fixed << fps.get_fps();
+                ImGui::Text("%s", label.c_str());
+                if (ImGui::IsItemHovered())
                 {
-                    ImGui::SetTooltip("Timestamp: Hardware Clock");
+                    ImGui::SetTooltip("%s", "FPS is calculated based on timestamps and not viewer time");
                 }
+
+                line_y += ImGui::GetTextLineHeight() + 5;
             }
-
-            ImGui::SameLine();
-
-            label = to_string() << " Frame: " << std::left <<  frame_number;
-            ImGui::Text("%s", label.c_str());
-
-            ImGui::SameLine();
-
-            std::string res;
-            if (profile.as<rs2::video_stream_profile>())
-                res = to_string() << size.x << "x" << size.y << ",  ";
-            label = to_string() << res << truncate_string(rs2_format_to_string(profile.format()),9) << ", ";
-            ImGui::Text("%s", label.c_str());
-            if (ImGui::IsItemHovered())
-            {
-                ImGui::SetTooltip("%s","Stream Resolution, Format");
-            }
-
-            ImGui::SameLine();
-
-            label = to_string() << "FPS: " << std::setprecision(2) << std::setw(7) <<  std::fixed << fps.get_fps();
-            ImGui::Text("%s", label.c_str());
-            if (ImGui::IsItemHovered())
-            {
-                ImGui::SetTooltip("%s", "FPS is calculated based on timestamps and not viewer time");
-            }
-
-            ImGui::PopStyleColor(5);
         }
+
+        
+
+        if (show_metadata)
+        {
+            std::vector<attribute> stream_details;
+
+            if (show_stream_details)
+            {
+                stream_details.push_back({ "Frame Timestamp",
+                    to_string() << std::fixed << std::setprecision(1) << timestamp, "" });
+                stream_details.push_back({ "Clock Domain",
+                    to_string() << rs2_timestamp_domain_to_string(timestamp_domain), "" });
+                stream_details.push_back({ "Frame Number",
+                    to_string() << frame_number, "" });
+                if (profile.as<rs2::video_stream_profile>())
+                {
+                    stream_details.push_back({ "Display Size",
+                        to_string() << original_size.x << " x " << original_size.y, "" });
+
+                    stream_details.push_back({ "Display Size",
+                        to_string() << size.x << " x " << size.y, "" });
+                }
+                stream_details.push_back({ "Pixel Format",
+                    to_string() << rs2_format_to_string(profile.format()), "" });
+
+                stream_details.push_back({ "Hardware FPS",
+                    to_string() << std::setprecision(2) << std::setw(7) << std::fixed << fps.get_fps(), "" });
+
+                stream_details.push_back({ "", "", "" });
+            }
+
+            for (auto i = 0; i < RS2_FRAME_METADATA_COUNT; i++)
+            {
+                auto&& kvp = frame_md.md_attributes[i];
+                if (kvp.first)
+                {
+                    std::string name = to_string() << rs2_frame_metadata_to_string((rs2_frame_metadata_value)i);
+                    stream_details.push_back({ name, to_string() << kvp.second, "" });
+                }
+            }
+
+            float max_text_width = 0.;
+            for (auto&& kvp : stream_details)
+                max_text_width = std::max(max_text_width, ImGui::CalcTextSize(kvp.name.c_str()).x);
+
+            for (auto&& at : stream_details)
+            {
+                if (_info_height.get() > line_y + ImGui::GetTextLineHeight() - curr_info_rect.y)
+                {
+                    ImGui::SetCursorScreenPos({ curr_info_rect.x + 10, line_y });
+
+                    ImGui::PushStyleColor(ImGuiCol_Text, light_grey);
+                    ImGui::Text(at.name.c_str()); ImGui::SameLine();
+
+                    ImGui::PopStyleColor();
+
+                    ImGui::SetCursorScreenPos({ curr_info_rect.x + 20 + max_text_width, line_y });
+
+                    ImGui::Text(at.value.c_str());
+
+                    line_y += ImGui::GetTextLineHeight() + 3;
+                }
+            }
+        }
+
+        ImGui::PopStyleColor(5);
     }
 
     void stream_model::show_stream_footer(ImFont* font, const rect &stream_rect, const mouse_info& mouse, viewer_model& viewer)
@@ -2292,7 +2402,7 @@ namespace rs2
             || (profile.stream_type() == RS2_STREAM_GPIO) 
             || (profile.stream_type() == RS2_STREAM_POSE);
 
-        if (stream_rect.contains(mouse.cursor) && !non_visual_stream)
+        if (stream_rect.contains(mouse.cursor) && !non_visual_stream && !show_metadata)
         {
             std::stringstream ss;
             rect cursor_rect{ mouse.cursor.x, mouse.cursor.y };
@@ -2716,36 +2826,6 @@ namespace rs2
 
         if (is_middle_clicked)
             _middle_pos = g.cursor;
-    }
-
-    void stream_model::show_metadata(const mouse_info& g)
-    {
-        auto flags = ImGuiWindowFlags_ShowBorders;
-
-        ImGui::PushStyleColor(ImGuiCol_WindowBg, { 0.3f, 0.3f, 0.3f, 0.5 });
-        ImGui::PushStyleColor(ImGuiCol_TitleBg, { 0.f, 0.25f, 0.3f, 1 });
-        ImGui::PushStyleColor(ImGuiCol_TitleBgActive, { 0.f, 0.3f, 0.8f, 1 });
-        ImGui::PushStyleColor(ImGuiCol_Text, { 1, 1, 1, 1 });
-
-        std::string label = to_string() << profile.stream_name() << " Stream Metadata";
-        //ImGui::Begin(label.c_str(), nullptr, flags);
-
-        // Print all available frame metadata attributes
-        for (size_t i = 0; i < RS2_FRAME_METADATA_COUNT; i++)
-        {
-            if (frame_md.md_attributes[i].first)
-            {
-                label = to_string() << rs2_frame_metadata_to_string((rs2_frame_metadata_value)i) << " = " << frame_md.md_attributes[i].second;
-                ImGui::Text("%s", label.c_str());
-            }
-        }
-
-        //ImGui::End();
-
-        ImGui::PopStyleColor();
-        ImGui::PopStyleColor();
-        ImGui::PopStyleColor();
-        ImGui::PopStyleColor();
     }
 
     void device_model::reset()

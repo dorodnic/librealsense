@@ -1474,13 +1474,6 @@ namespace rs2
                 }
             }
         }
-
-        // Metadata overlay windows shall be drawn after textures to preserve z-buffer functionality
-        for (auto &&kvp : layout)
-        {
-            if (streams[kvp.first].metadata_displayed)
-                streams[kvp.first].show_metadata(mouse);
-        }
     }
 
     void viewer_model::render_3d_view(const rect& viewer_rect,
