@@ -14,6 +14,7 @@
 namespace rs2
 {
     class device_model;
+    class notification_model;
 
     class process_manager : public std::enable_shared_from_this<process_manager>
     {
@@ -21,7 +22,7 @@ namespace rs2
         process_manager(std::string name, device_model& model)
             : _process_name(name), _model(model) {}
 
-        void start();
+        void start(std::shared_ptr<notification_model> n);
         int get_progress() const { return _progress; }
         bool done() const { return _done; }
         bool started() const { return _started; }

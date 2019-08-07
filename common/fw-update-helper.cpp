@@ -359,7 +359,7 @@ namespace rs2
 
                 if (ImGui::Button(button_name.c_str(), { float(bar_width), 20.f }) || update_manager->started())
                 {
-                    if (!update_manager->started()) update_manager->start();
+                    if (!update_manager->started()) update_manager->start(shared_from_this());
 
                     update_state = RS2_FWU_STATE_IN_PROGRESS;
                     enable_dismiss = false;

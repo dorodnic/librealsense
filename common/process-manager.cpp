@@ -35,10 +35,11 @@ namespace rs2
         _failed = true;
     }
 
-    void process_manager::start()
+    void process_manager::start(std::shared_ptr<notification_model> n)
     {
-        auto cleanup = _model.cleanup;
-        _model.cleanup = [] {};
+        auto cleanup = [n]() {
+            n->dismissed = true;
+        };
 
         log(to_string() << "Started " << _process_name << " process");
 

@@ -491,6 +491,7 @@ namespace rs2
         std::vector<std::function<void()>> follow_up;
 
         {
+            bool pinned_drawn = false;
             std::lock_guard<std::mutex> lock(m);
             if (pending_notifications.size() > 0)
             {
@@ -506,7 +507,11 @@ namespace rs2
                 auto height = 60;
                 for (auto& noti : pending_notifications)
                 {
+                    if (pinned_drawn && noti->pinned) continue;
+
                     follow_up.push_back(noti->draw(win, w, height, selected, error_message));
+
+                    if (noti->pinned) pinned_drawn = true;
 
                     if (noti->visible)
                         height += noti->height + 4 +

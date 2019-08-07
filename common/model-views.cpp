@@ -2779,7 +2779,7 @@ namespace rs2
 
     device_model::~device_model()
     {
-        cleanup();
+        for (auto&& n : related_notifications) n->dismissed = true;
     }
 
     device_model::device_model(device& dev, std::string& error_message, viewer_model& viewer)
@@ -2822,14 +2822,13 @@ namespace rs2
                         << "Current Version: " + fw + "\nRecommended Version: " + recommended;
                     if (!fw_update_required)
                     {
-                        auto id = viewer.not_model.add_notification(std::make_shared<fw_update_notification_model>(
-                            msg, manager, false));
+                        auto n = std::make_shared<fw_update_notification_model>(
+                            msg, manager, false);
+                        viewer.not_model.add_notification(n);
 
                         fw_update_required = true;
 
-                        cleanup = [id, &viewer] {
-                            viewer.not_model.dismiss(id);
-                        };
+                        related_notifications.push_back(n);
                     }
                 }                
             }
@@ -2839,9 +2838,13 @@ namespace rs2
 
             if (sub.is<depth_sensor>())
             {
+                std::string msg = to_string()
+                    << name.first << " (S/N " << name.second << ")";
                 auto manager = std::make_shared<on_chip_calib_manager>(viewer, model, *this, dev);
-                viewer.not_model.add_notification(std::make_shared<autocalib_notification_model>(
-                    "Check calibration", manager, false));
+                auto n = std::make_shared<autocalib_notification_model>(
+                    msg, manager, false);
+                viewer.not_model.add_notification(n);
+                related_notifications.push_back(n);
             }
         }
 
@@ -3796,12 +3799,15 @@ namespace rs2
 
             auto manager = std::make_shared<firmware_update_manager>(*this, dev, viewer.ctx, data, false);
 
-            viewer.not_model.add_notification(std::make_shared<fw_update_notification_model>(
-                "Manual Update requested", manager, true));
+            auto n = std::make_shared<fw_update_notification_model>(
+                "Manual Update requested", manager, true);
+            viewer.not_model.add_notification(n);
 
-            cleanup();
+            for (auto&& n : related_notifications)
+                if (dynamic_cast<fw_update_notification_model*>(n.get()))
+                    n->dismissed = true;
 
-            manager->start();
+            manager->start(n);
         }
         catch (const error& e)
         {
@@ -3839,12 +3845,15 @@ namespace rs2
             
             auto manager = std::make_shared<firmware_update_manager>(*this, dev, viewer.ctx, data, true);
 
-            viewer.not_model.add_notification(std::make_shared<fw_update_notification_model>(
-                "Manual Update requested", manager, true));
+            auto n = std::make_shared<fw_update_notification_model>(
+                "Manual Update requested", manager, true);
+            viewer.not_model.add_notification(n);
 
-            cleanup();
+            for (auto&& n : related_notifications)
+                if (dynamic_cast<fw_update_notification_model*>(n.get()))
+                    n->dismissed = true;
 
-            manager->start();
+            manager->start(n);
         }
         catch (const error& e)
         {

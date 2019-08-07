@@ -771,7 +771,7 @@ namespace rs2
         std::set<std::string> advanced_mode_settings_file_names;
         std::string selected_file_preset;
 
-        std::function<void()> cleanup = []{};
+        std::vector<std::shared_ptr<notification_model>> related_notifications;
 
     private:
         void draw_info_icon(ux_window& window, ImFont* font, const ImVec2& size);

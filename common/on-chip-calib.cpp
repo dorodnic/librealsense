@@ -164,7 +164,19 @@ namespace rs2
             float score = old_score * (1.f - t) + new_score * t;
 
             if (update_state == RS2_CALIB_STATE_INITIAL_PROMPT)
-                ImGui::Text("Stereo quality benefits from regular calibration.\nRun a quick calibration Health-Check? (10 sec)");
+            {
+                ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 2);
+
+                ImGui::Text("The following device offers On-Chip Calibration:");
+                ImGui::SetCursorScreenPos({ float(x + 9), float(y + 47) });
+
+                ImGui::PushStyleColor(ImGuiCol_Text, white);
+                ImGui::Text(message.c_str());
+                ImGui::PopStyleColor();
+
+                ImGui::SetCursorScreenPos({ float(x + 9), float(y + 65) });
+                ImGui::Text("Run quick calibration Health-Check? (~10 sec)");
+            }
             else if (update_state == RS2_CALIB_STATE_HEALTH_CHECK_IN_PROGRESS)
             {
                 enable_dismiss = false;
@@ -273,7 +285,9 @@ namespace rs2
                     if (score < 0.5f)
                     {
                         ImGui::SetCursorScreenPos({ float(x + 77), float(y + 102) });
+                        ImGui::PushStyleColor(ImGuiCol_Text, white);
                         ImGui::Text("Calibration Recommended");
+                        ImGui::PopStyleColor();
                     }
                     else
                     {
@@ -324,7 +338,7 @@ namespace rs2
                         last_progress_time = system_clock::now();
                         enable_dismiss = false;
                         get_manager().set_speed(1);
-                        update_manager->start();
+                        update_manager->start(shared_from_this());
                     }
 
                     if (new_score < 0.5f) ImGui::PopStyleColor(2);
@@ -438,7 +452,7 @@ namespace rs2
 
                 if (ImGui::Button(button_name.c_str(), { float(bar_width), 20.f }) || update_manager->started())
                 {
-                    if (!update_manager->started()) update_manager->start();
+                    if (!update_manager->started()) update_manager->start(shared_from_this());
 
                     update_state = RS2_CALIB_STATE_HEALTH_CHECK_IN_PROGRESS;
                     enable_dismiss = false;
@@ -448,7 +462,7 @@ namespace rs2
 
                 if (ImGui::IsItemHovered())
                 {
-                    ImGui::SetTooltip("%s", "Point the camera towards an object or a wall");
+                    ImGui::SetTooltip("%s", "Keep the camera pointing at an object or a wall");
                 }
             }
             else if (update_state == RS2_CALIB_STATE_HEALTH_CHECK_IN_PROGRESS ||
@@ -537,7 +551,7 @@ namespace rs2
             {
                 if (ImGui::Button("OK", ImVec2(120, 0)))
                 {
-                    if (update_manager->done() || update_manager->failed())
+                    if (update_manager->failed())
                     {
                         update_state = RS2_CALIB_STATE_FAILED;
                         pinned = false;
@@ -570,6 +584,7 @@ namespace rs2
     int autocalib_notification_model::calc_height()
     {
         if (update_state == RS2_CALIB_STATE_COMPLETE) return 65;
+        else if (update_state == RS2_CALIB_STATE_INITIAL_PROMPT) return 120;
         else if (update_state == RS2_CALIB_STATE_HEALTH_CHECK_DONE
             || update_state == RS2_CALIB_STATE_CALIB_COMPLETE) return 160;
         else return 100;
