@@ -23,6 +23,7 @@
 #include "on-chip-calib.h"
 #include "viewer.h"
 #include <imgui_internal.h>
+#include <time.h>
 
 #include "os.h"
 
@@ -2333,38 +2334,83 @@ namespace rs2
         {
             std::vector<attribute> stream_details;
 
-            if (show_stream_details)
+            if (true) // Always show stream details options
             {
                 stream_details.push_back({ "Frame Timestamp",
-                    to_string() << std::fixed << std::setprecision(1) << timestamp, "" });
+                    to_string() << std::fixed << std::setprecision(1) << timestamp, 
+                    "Frame Timestamp is normalized represetation of when the frame was taken.\n"
+                    "It's a property of every frame, so when exact creation time is not provided by the hardware, an approximation will be used.\n"
+                    "Clock Domain feilds helps interpret the meaning of timestamp\n"
+                    "Timestamp is measured in milliseconds, and is allowed to roll-over (reset to zero) in some situations" });
                 stream_details.push_back({ "Clock Domain",
-                    to_string() << rs2_timestamp_domain_to_string(timestamp_domain), "" });
+                    to_string() << rs2_timestamp_domain_to_string(timestamp_domain), 
+                    "Clock Domain describes the format of Timestamp feild. It can be one of the following:\n"
+                    "1. System Time - When no hardware timestamp is available, system time of arrival will be used.\n"
+                    "                 System time benefits from being comparable between device, but suffers from not being able to approximate latency.\n"
+                    "2. Hardware Clock - Hardware timestamp is attached to the frame by the device, and is consistent accross device sensors.\n"
+                    "                    Hardware timestamp encodes percisely when frame was captured, but cannot be compared across devices\n"
+                    "3. Global Time - Global time is provided when the device can both offer hardware timestamp and implements Global Timestamp Protocol.\n"
+                    "                 Global timestamps encode exact time of capture and at the same time are comparable accross devices." });
                 stream_details.push_back({ "Frame Number",
-                    to_string() << frame_number, "" });
+                    to_string() << frame_number, "Frame Number is a rolling ID assigned to frames.\n"
+                    "Most device do not guaranty consequitive frames to have conseuquitive frame numbers\n"
+                    "But it is true most of the time" });
+
                 if (profile.as<rs2::video_stream_profile>())
                 {
-                    stream_details.push_back({ "Display Size",
+                    stream_details.push_back({ "Hardware Size",
                         to_string() << original_size.x << " x " << original_size.y, "" });
 
                     stream_details.push_back({ "Display Size",
-                        to_string() << size.x << " x " << size.y, "" });
+                        to_string() << size.x << " x " << size.y, 
+                        "When Post-Processing is enabled, actual display size of the frame may differ from original capture size" });
                 }
                 stream_details.push_back({ "Pixel Format",
                     to_string() << rs2_format_to_string(profile.format()), "" });
 
                 stream_details.push_back({ "Hardware FPS",
-                    to_string() << std::setprecision(2) << std::setw(7) << std::fixed << fps.get_fps(), "" });
+                    to_string() << std::setprecision(2) << std::fixed << fps.get_fps(), 
+                    "Hardware FPS captures number of frames per second produced by the device.\n"
+                    "It is possible and likely that not all of these frames will make it to the application. See Frame-Drops." });
 
                 stream_details.push_back({ "", "", "" });
             }
+
+            const std::string no_md = "no md";
+
+            if (timestamp_domain == RS2_TIMESTAMP_DOMAIN_SYSTEM_TIME)
+            {
+                stream_details.push_back({ no_md, "", "" });
+            }
+
+            std::map<rs2_frame_metadata_value, std::string> descriptions = {
+                { RS2_FRAME_METADATA_FRAME_COUNTER                        , "A sequential index managed per-stream. Integer value" },
+                { RS2_FRAME_METADATA_FRAME_TIMESTAMP                      , "Timestamp set by device clock when data readout and transmit commence. usec" },
+                { RS2_FRAME_METADATA_SENSOR_TIMESTAMP                     , "Timestamp of the middle of sensor's exposure calculated by device. usec" },
+                { RS2_FRAME_METADATA_ACTUAL_EXPOSURE                      , "Sensor's exposure width. When Auto Exposure (AE) is on the value is controlled by firmware. usec" },
+                { RS2_FRAME_METADATA_GAIN_LEVEL                           , "A relative value increasing which will increase the Sensor's gain factor.\n"
+                                                                            "When AE is set On, the value is controlled by firmware. Integer value" },
+                { RS2_FRAME_METADATA_AUTO_EXPOSURE                        , "Auto Exposure Mode indicator. Zero corresponds to AE switched off. " },
+                { RS2_FRAME_METADATA_WHITE_BALANCE                        , "White Balance setting as a color temperature. Kelvin degrees" },
+                { RS2_FRAME_METADATA_TIME_OF_ARRIVAL                      , "Time of arrival in system clock " },
+                { RS2_FRAME_METADATA_TEMPERATURE                          , "Temperature of the device, measured at the time of the frame capture. Celsius degrees " },
+                { RS2_FRAME_METADATA_BACKEND_TIMESTAMP                    , "Timestamp get from uvc driver. usec" },
+                { RS2_FRAME_METADATA_ACTUAL_FPS                           , "Actual hardware FPS. May differ from requested due to Auto-Exposure" },
+                { RS2_FRAME_METADATA_FRAME_LASER_POWER_MODE               , "Laser power mode. Zero corresponds to Laser power switched off and one for switched on." },
+                { RS2_FRAME_METADATA_EXPOSURE_PRIORITY                    , "Exposure priority. When enabled Auto-exposure algorithm is allowed to reduce requested FPS to sufficiently increase exposure time (an get enough light)" },
+                { RS2_FRAME_METADATA_POWER_LINE_FREQUENCY                 , "Power Line Frequency for anti-flickering Off/50Hz/60Hz/Auto. " },
+            };
 
             for (auto i = 0; i < RS2_FRAME_METADATA_COUNT; i++)
             {
                 auto&& kvp = frame_md.md_attributes[i];
                 if (kvp.first)
                 {
-                    std::string name = to_string() << rs2_frame_metadata_to_string((rs2_frame_metadata_value)i);
-                    stream_details.push_back({ name, to_string() << kvp.second, "" });
+                    auto val = (rs2_frame_metadata_value)i;
+                    std::string name = to_string() << rs2_frame_metadata_to_string(val);
+                    std::string desc = "";
+                    if (descriptions.find(val) != descriptions.end()) desc = descriptions[val];
+                    stream_details.push_back({ name, to_string() << kvp.second, desc });
                 }
             }
 
@@ -2378,14 +2424,58 @@ namespace rs2
                 {
                     ImGui::SetCursorScreenPos({ curr_info_rect.x + 10, line_y });
 
-                    ImGui::PushStyleColor(ImGuiCol_Text, light_grey);
-                    ImGui::Text(at.name.c_str()); ImGui::SameLine();
+                    if (at.name == no_md)
+                    {
+                        auto text = "Per-frame metadata is not anabled at the OS level!\nPlease refer to installation.md for more info";
+                        auto size = ImGui::CalcTextSize(text);
 
-                    ImGui::PopStyleColor();
+                        for (int i = 6; i > 0; i-=2)
+                            ImGui::GetWindowDrawList()->AddRectFilled({ curr_info_rect.x + 10 - i, line_y - i },
+                            { curr_info_rect.x + 10 + i + size.x, line_y + size.y + i },
+                            ImColor(alpha(sensor_bg, 0.1f)));
 
-                    ImGui::SetCursorScreenPos({ curr_info_rect.x + 20 + max_text_width, line_y });
+                        ImGui::PushStyleColor(ImGuiCol_Text, redish);
+                        ImGui::Text(text);
+                        ImGui::PopStyleColor();
 
-                    ImGui::Text(at.value.c_str());
+                        line_y += ImGui::GetTextLineHeight() + 3;
+                    }
+                    else
+                    {
+                        std::string text = "";
+                        if (at.name != "") text = to_string() << at.name << ":";
+                        auto size = ImGui::CalcTextSize(text.c_str());
+
+                        for (int i = 6; i > 0; i-=2)
+                            ImGui::GetWindowDrawList()->AddRectFilled({ curr_info_rect.x + 10 - i, line_y - i },
+                            { curr_info_rect.x + 10 + i + size.x, line_y + size.y + i },
+                            ImColor(alpha(sensor_bg, 0.1f)));
+
+                        ImGui::PushStyleColor(ImGuiCol_Text, white);
+                        ImGui::Text(text.c_str()); ImGui::SameLine();
+
+                        if (at.description != "")
+                        {
+                            if (ImGui::IsItemHovered())
+                            {
+                                ImGui::SetTooltip(at.description.c_str());
+                            }
+                        }
+
+                        text = at.value;
+                        size = ImGui::CalcTextSize(text.c_str());
+
+                        for (int i = 6; i > 0; i-=2)
+                            ImGui::GetWindowDrawList()->AddRectFilled({ curr_info_rect.x + 20 + max_text_width - i, line_y - i },
+                            { curr_info_rect.x + 20 + max_text_width + i + size.x, line_y + size.y + i },
+                            ImColor(alpha(sensor_bg, 0.1f)));
+
+                        ImGui::PopStyleColor();
+
+                        ImGui::SetCursorScreenPos({ curr_info_rect.x + 20 + max_text_width, line_y });
+
+                        ImGui::Text(text.c_str());
+                    }
 
                     line_y += ImGui::GetTextLineHeight() + 3;
                 }
@@ -2918,6 +3008,28 @@ namespace rs2
 
             if (sub.is<depth_sensor>())
             {
+                time_t rawtime;
+                time ( &rawtime );
+                time ( &rawtime );
+  timeinfo = localtime ( &rawtime );
+  timeinfo->tm_year = year - 1900;
+  timeinfo->tm_mon = month - 1;
+  timeinfo->tm_mday = day;
+
+  /* call mktime: timeinfo->tm_wday will be set */
+  mktime ( timeinfo );
+
+                int last = config_file::instance().get_or_default(
+                    configurations::viewer::sdk_version, 0);
+
+                if (version > saved_version)
+                {
+                    auto n = std::make_shared<version_upgrade_model>(version);
+                    not_model.add_notification(n);
+
+                    config_file::instance().set(configurations::viewer::sdk_version, version);
+                }
+
                 std::string msg = to_string()
                     << name.first << " (S/N " << name.second << ")";
                 auto manager = std::make_shared<on_chip_calib_manager>(viewer, model, *this, dev);

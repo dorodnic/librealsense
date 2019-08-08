@@ -43,7 +43,7 @@ namespace rs2
         void draw_text(const char* msg, int x, int y, int h);
         virtual void set_color_scheme(float t) const;
         void unset_color_scheme() const;
-        const int get_max_lifetime_ms() const;
+        virtual const int get_max_lifetime_ms() const;
 
         virtual int calc_height();
         virtual void draw_pre_effect(int x, int y) {}
@@ -99,6 +99,19 @@ namespace rs2
         int last_progress = 0;
         float curr_progress_value = 0.f;
         float threshold_progress = 5.f;
+    };
+
+    struct version_upgrade_model : public process_notification_model
+    {
+        version_upgrade_model(int version);
+
+        void set_color_scheme(float t) const override;
+        void draw_content(ux_window& win, int x, int y, float t, std::string& error_message) override;
+        int calc_height() override;
+        const int get_max_lifetime_ms() const override { return 40000; }
+
+        int _version;
+        bool _first = true;
     };
 
     struct notifications_model

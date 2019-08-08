@@ -65,6 +65,9 @@ namespace rs2
         last_y = 200;
         message = "";
         last_moved = std::chrono::system_clock::now();
+
+        created_time = std::chrono::system_clock::now();
+        last_interacted = std::chrono::system_clock::now() - std::chrono::milliseconds(500);
     }
 
     notification_model::notification_model(const notification_data& n)
@@ -640,5 +643,68 @@ namespace rs2
         {
             if (noti->index == idx) noti->dismissed = true;
         }
+    }
+
+    version_upgrade_model::version_upgrade_model(int version) 
+        : process_notification_model(nullptr), _version(version)
+    {
+        enable_expand = false;
+        enable_dismiss = true;
+        update_state = 2;
+        //pinned = true;
+        last_progress_time = system_clock::now();
+    } 
+
+    void version_upgrade_model::set_color_scheme(float t) const
+    {
+        notification_model::set_color_scheme(t);
+        ImGui::PopStyleColor(1);
+        auto c = alpha(sensor_bg, 1 - t);
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, c);
+    }
+
+    void version_upgrade_model::draw_content(ux_window& win, int x, int y, float t, std::string& error_message)
+    {
+        if (_first)
+        {
+            last_progress_time = system_clock::now();
+            _first = false;
+        }
+
+        ImGui::PushStyleColor(ImGuiCol_Text, light_grey);
+        ImGui::PushFont(win.get_large_font());
+
+        ImGui::SetCursorScreenPos({ float(x + 20), float(y + 18) });
+        ImGui::Text("Welcome to"); ImGui::SameLine();
+        std::string txt = to_string() << "librealsense " << RS2_API_VERSION_STR << "!";
+
+        ImGui::PushStyleColor(ImGuiCol_Text, white);
+        ImGui::Text(txt.c_str());
+        ImGui::PopStyleColor();
+        ImGui::PopFont();
+
+        ImGui::SetCursorScreenPos({ float(x + 17), float(y + 43) });
+
+        std::string link = to_string() << "https://github.com/IntelRealSense/librealsense/wiki/Release-Notes#release-" << _version; 
+
+        ImGui::PushStyleColor(ImGuiCol_Text, white);
+        if (ImGui::Button("What's new"))
+        {
+            open_url(link.c_str());
+        }
+        ImGui::PopStyleColor();
+        if (ImGui::IsItemHovered())
+        {
+            win.link_hovered();
+            ImGui::SetTooltip("Open release notes. Internet connection is required");
+        }
+        ImGui::SameLine();
+        ImGui::SetCursorPosX(ImGui::GetCursorPosX() - 5);
+        ImGui::Text("in this release?");
+        ImGui::PopStyleColor();
+    }
+    int version_upgrade_model::calc_height()
+    {
+        return 80;
     }
 }

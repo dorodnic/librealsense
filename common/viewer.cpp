@@ -518,6 +518,21 @@ namespace rs2
 
     void viewer_model::update_configuration()
     {
+        rs2_error* e = nullptr;
+        auto version = rs2_get_api_version(&e);
+        if (e) rs2::error::handle(e);
+
+        int saved_version = config_file::instance().get_or_default(
+            configurations::viewer::sdk_version, 0);
+
+        if (version > saved_version)
+        {
+            auto n = std::make_shared<version_upgrade_model>(version);
+            not_model.add_notification(n);
+
+            config_file::instance().set(configurations::viewer::sdk_version, version);
+        }
+
         continue_with_ui_not_aligned = config_file::instance().get_or_default(
             configurations::viewer::continue_with_ui_not_aligned, false);
 

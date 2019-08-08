@@ -66,7 +66,7 @@ private:
     std::chrono::system_clock::time_point _last_update;
     std::chrono::system_clock::duration _duration;
 public:
-    animated(T def = default(T), std::chrono::system_clock::duration duration = std::chrono::milliseconds(200))
+    animated(T def, std::chrono::system_clock::duration duration = std::chrono::milliseconds(200))
         : _duration(duration)
     {
         _last_update = std::chrono::system_clock::now();
@@ -163,6 +163,7 @@ namespace rs2
             static const char* continue_with_ui_not_aligned { "viewer_model.continue_with_ui_not_aligned" };
             static const char* continue_with_current_fw{ "viewer_model.continue_with_current_fw" };
             static const char* settings_tab        { "viewer_model.settings_tab" };
+            static const char* sdk_version         { "viewer_model.sdk_version" };
 
             static const char* log_to_console      { "viewer_model.log_to_console" };
             static const char* log_to_file         { "viewer_model.log_to_file" };
