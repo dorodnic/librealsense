@@ -766,67 +766,6 @@ namespace rs2
         return rv;
     }
 
-    void rs2::viewer_model::popup_fw_file_select(const ux_window& window, const fw_update_device_info& ud, std::vector<uint8_t>& fw, bool& cancel)
-    {
-        ImFont* font_14 = window.get_font();
-        cancel = false;
-
-        std::stringstream header;
-        header << "Update device " << ud.serial_number << " firmware";
-        std::stringstream message;
-        if (ud.curr_fw_version != "")
-            message << "The current firmware on the device is: " << ud.curr_fw_version << std::endl;
-        if (ud.minimal_fw_version != "")
-            message << "The minimal firmware for this device is: " << ud.minimal_fw_version << std::endl;
-        if (ud.recommended_fw_version != "")
-            message << "The recommended firmware is: " << ud.recommended_fw_version;
-
-        auto custom_command = [&]()
-        {
-            if (ud.recommended_fw_version != "")
-            {
-                ImGui::SetCursorPos({ 10, 100 });
-                ImGui::PopStyleColor(5);
-                if (ImGui::Button(" Update Recommended ", ImVec2(0, 0)))
-                {
-                    fw = ud.fw_image;
-                    if (ud.curr_fw_version != "" && ud.dev.is<updatable>())
-                        ud.dev.as<updatable>().enter_update_state();
-                    ImGui::CloseCurrentPopup();
-                    _active_popups.erase(_active_popups.begin());
-                }
-                ImGui::SameLine();
-            }
-            else
-            {
-                ImGui::SetCursorPos({ 10, 100 });
-                ImGui::PopStyleColor(5);
-            }
-
-            if (ImGui::Button(" Pick Firmware ", ImVec2(0, 0)))
-            {
-                auto ret = file_dialog_open(open_file, "Firmware\0*.bin\0", NULL, NULL);
-                if (!ret)
-                    return;
-                fw = read_fw_file(ret);
-                if(ud.curr_fw_version != "" && ud.dev.is<updatable>())
-                    ud.dev.as<updatable>().enter_update_state();
-                ImGui::CloseCurrentPopup();
-                _active_popups.erase(_active_popups.begin());
-            }
-            ImGui::SameLine();
-            if (ImGui::Button(" Cancel ", ImVec2(0, 0)))
-            {
-                cancel = true;
-                ImGui::CloseCurrentPopup();
-                _active_popups.erase(_active_popups.begin());
-            }
-        };
-
-        popup p = { header.str(), message.str(), custom_command };
-        _active_popups.push_back(p);
-    }
-
     void rs2::viewer_model::popup_firmware_update_progress(const ux_window& window, const float progress)
     {
         std::string header = "Firmware update in progress";
@@ -840,57 +779,6 @@ namespace rs2
 
 
             ImGui::ProgressBar(progress, { 300 , 25 }, "Firmware update");
-        };
-
-        popup p = { header, message.str(), custom_command };
-        _active_popups.push_back(p);
-    }
-
-    void rs2::viewer_model::popup_if_fw_update_required(const ux_window& window, const fw_update_device_info& ud, bool& update)
-    {
-        update = false;
-        if (continue_with_current_fw)
-            return;
-
-        std::string header = "It's time to update";
-        std::stringstream message;
-        message << "New Firmware is available for device: " << ud.serial_number << std::endl <<
-            "The current firmware on the device is: " << ud.curr_fw_version << std::endl;
-        if (ud.minimal_fw_version != "")
-            message << "The minimal firmware for this device is: " << ud.minimal_fw_version << std::endl;
-        message << "The recommended firmware is: " << ud.recommended_fw_version;
-
-        auto custom_command = [&]()
-        {
-            ImGui::SetCursorPos({ 10, 100 });
-            ImGui::PopStyleColor(5);
-
-            static bool dont_show_again = false;
-
-            if (ImGui::Button(" Update Recommended ", ImVec2(0, 0)))
-            {
-                update = true;
-                if (ud.dev.is<updatable>())
-                    ud.dev.as<updatable>().enter_update_state();
-                ImGui::CloseCurrentPopup();
-                _active_popups.erase(_active_popups.begin());
-            }
-            ImGui::SameLine();
-            if (ImGui::Button(" Ignore & Continue ", ImVec2(0, 0)))
-            {
-                continue_with_current_fw = true;
-                if (dont_show_again)
-                {
-                    config_file::instance().set(
-                        configurations::viewer::continue_with_current_fw,
-                        continue_with_current_fw);
-                }
-                ImGui::CloseCurrentPopup();
-                _active_popups.erase(_active_popups.begin());
-            }
-
-            ImGui::SameLine();
-            ImGui::Checkbox("Don't show this again", &dont_show_again);
         };
 
         popup p = { header, message.str(), custom_command };

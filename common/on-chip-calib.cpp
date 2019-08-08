@@ -25,6 +25,40 @@ namespace rs2
         RS2_CALIB_STATE_CALIB_COMPLETE,
     };
 
+    enum rs2_dsc_status : uint16_t
+    {
+        RS2_DSC_STATUS_SUCCESS = 0, /**< Self calibration succeeded*/
+        RS2_DSC_STATUS_RESULT_NOT_READY = 1, /**< Self calibration result is not ready yet*/
+        RS2_DSC_STATUS_FILL_FACTOR_TOO_LOW = 2, /**< There are too little textures in the scene*/
+        RS2_DSC_STATUS_EDGE_TOO_CLOSE = 3, /**< Self calibration range is too small*/
+        RS2_DSC_STATUS_NOT_CONVERGE = 4, /**< For tare calibration only*/
+        RS2_DSC_STATUS_BURN_SUCCESS = 5,
+        RS2_DSC_STATUS_BURN_ERROR = 6,
+        RS2_DSC_STATUS_NO_DEPTH_AVERAGE = 7,
+    };
+
+#pragma pack(push, 1)
+#pragma pack(1) 
+
+#define MAX_STEP_COUNT 256
+
+    struct DirectSearchCalibrationResult
+    {
+        uint32_t opcode;
+        uint16_t status;      // DscStatus
+        uint16_t stepCount;
+        uint16_t stepSize; // 1/1000 of a pixel
+        uint32_t pixelCountThreshold; // minimum number of pixels in
+                                      // selected bin
+        uint16_t minDepth;  // Depth range for FWHM
+        uint16_t maxDepth;
+        uint32_t rightPy;   // 1/1000000 of normalized unit
+        float healthCheck;
+        float rightRotation[9]; // Right rotation
+        uint16_t results[0]; // 1/100 of a percent
+    };
+#pragma pack(pop)
+
     void on_chip_calib_manager::process_flow(std::function<void()> cleanup)
     {
         log(to_string() << "Starting calibration at speed " << _speed);
@@ -86,10 +120,70 @@ namespace rs2
         for (int i = 0; i < 50 / _speed; i++)
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
-            _progress = i * (2 * _speed);
+            
         }
 
-        _health = distribution(generator);
+        uint8_t speed = 4 - _speed;
+
+        std::vector<uint8_t> cmd =
+        {
+            0x14, 0x00, 0xab, 0xcd,
+            0x80, 0x00, 0x00, 0x00,
+            0x08, 0x00, 0x00, 0x00,
+            speed, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00
+        };
+
+        debug_protocol dp = _dev;
+
+        auto res = dp.send_and_receive_raw_data(cmd);
+
+        DirectSearchCalibrationResult result;
+        memset(&result, 0, sizeof(DirectSearchCalibrationResult));
+
+        int count = 0;
+        bool done = false;
+        do
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+            cmd =
+            {
+                0x14, 0x00, 0xab, 0xcd,
+                0x80, 0x00, 0x00, 0x00,
+                0x03, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00
+            };
+
+            res = dp.send_and_receive_raw_data(cmd);
+            int32_t code = *((int32_t*)res.data());
+
+            if (res.size() >= sizeof(DirectSearchCalibrationResult))
+            {
+                result = *reinterpret_cast<DirectSearchCalibrationResult*>(res.data());
+                done = result.status != RS2_DSC_STATUS_RESULT_NOT_READY;
+            }
+
+            _progress = count * (2 * _speed);
+
+        } while (count++ < 200 && !done);
+
+        if (!done)
+        {
+            throw std::runtime_error("Timeout!");
+        }
+
+        if (result.status != RS2_DSC_STATUS_SUCCESS)
+        {
+            throw std::runtime_error(to_string() << "Status = " << result.status);
+        }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+        _health = abs(result.healthCheck);
 
         log(to_string() << "Calibration completed, health factor = " << _health);
 

@@ -100,18 +100,6 @@ inline ImVec4 blend(const ImVec4& c, float a)
     return{ c.x, c.y, c.z, a * c.w };
 }
 
-struct fw_update_device_info
-{
-    rs2::device dev;
-    int product_line;
-    bool upgrade_recommended;
-    std::string serial_number;
-    std::string curr_fw_version;
-    std::string recommended_fw_version;
-    std::string minimal_fw_version;
-    std::vector<uint8_t> fw_image;
-};
-
 namespace rs2
 {
     void prepare_config_file();
@@ -164,6 +152,7 @@ namespace rs2
             static const char* continue_with_current_fw{ "viewer_model.continue_with_current_fw" };
             static const char* settings_tab        { "viewer_model.settings_tab" };
             static const char* sdk_version         { "viewer_model.sdk_version" };
+            static const char* last_calib_notice   { "viewer_model.last_calib_notice" };
 
             static const char* log_to_console      { "viewer_model.log_to_console" };
             static const char* log_to_file         { "viewer_model.log_to_file" };
@@ -245,7 +234,7 @@ namespace rs2
         static const textual_icon dotdotdot                { u8"\uf141" };
         static const textual_icon link                     { u8"\uf08e" };
         static const textual_icon throphy                  { u8"\uF091" };
-        static const textual_icon metadata                 { u8"\uF00B" };
+        static const textual_icon metadata                 { u8"\uF0AE" };
     }
 
     class subdevice_model;
@@ -735,6 +724,7 @@ namespace rs2
         unsigned long long  frame_number = 0;
         rs2_timestamp_domain timestamp_domain = RS2_TIMESTAMP_DOMAIN_SYSTEM_TIME;
         fps_calc            fps, view_fps;
+        int                 count = 0;
         rect                roi_display_rect{};
         frame_metadata      frame_md;
         bool                capturing_roi       = false;    // active modification of roi

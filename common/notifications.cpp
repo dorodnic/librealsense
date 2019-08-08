@@ -671,23 +671,23 @@ namespace rs2
             _first = false;
         }
 
-        ImGui::PushStyleColor(ImGuiCol_Text, light_grey);
+        ImGui::PushStyleColor(ImGuiCol_Text, alpha(light_grey, 1.f - t));
         ImGui::PushFont(win.get_large_font());
 
-        ImGui::SetCursorScreenPos({ float(x + 20), float(y + 18) });
+        ImGui::SetCursorScreenPos({ float(x + 20), float(y + 16) });
         ImGui::Text("Welcome to"); ImGui::SameLine();
         std::string txt = to_string() << "librealsense " << RS2_API_VERSION_STR << "!";
 
-        ImGui::PushStyleColor(ImGuiCol_Text, white);
+        ImGui::PushStyleColor(ImGuiCol_Text, alpha(white, 1.f - t));
         ImGui::Text(txt.c_str());
         ImGui::PopStyleColor();
         ImGui::PopFont();
 
-        ImGui::SetCursorScreenPos({ float(x + 17), float(y + 43) });
+        ImGui::SetCursorScreenPos({ float(x + 17), float(y + 41) });
 
         std::string link = to_string() << "https://github.com/IntelRealSense/librealsense/wiki/Release-Notes#release-" << _version; 
 
-        ImGui::PushStyleColor(ImGuiCol_Text, white);
+        ImGui::PushStyleColor(ImGuiCol_Text, alpha(white, 1.f - t));
         if (ImGui::Button("What's new"))
         {
             open_url(link.c_str());

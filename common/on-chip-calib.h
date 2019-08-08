@@ -24,7 +24,7 @@ namespace rs2
             generator.seed(int(glfwGetTime() * 1000) % 1000);
         }
 
-        static float get_score(float h) { return 1.f - std::max(0.f, std::min(1.f, h * 3.f)); }
+        static float get_score(float h) { return 1.f - std::max(0.f, std::min(1.f, h * 30.f)); }
         float get_health() const { return _health; }
 
         void set_speed(int speed) { _speed = speed; }
@@ -33,7 +33,7 @@ namespace rs2
         void process_flow(std::function<void()> cleanup) override;
 
         float _health = 0.f;
-        int _speed = 5;
+        int _speed = 4;
         device _dev;
 
         std::default_random_engine generator;

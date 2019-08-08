@@ -61,39 +61,6 @@ struct attribute
     std::string description;
 };
 
-enum rs2_dsc_status : uint16_t
-{
-    RS2_DSC_STATUS_SUCCESS = 0, /**< Self calibration succeeded*/
-    RS2_DSC_STATUS_RESULT_NOT_READY = 1, /**< Self calibration result is not ready yet*/
-    RS2_DSC_STATUS_FILL_FACTOR_TOO_LOW = 2, /**< There are too little textures in the scene*/
-    RS2_DSC_STATUS_EDGE_TOO_CLOSE = 3, /**< Self calibration range is too small*/
-    RS2_DSC_STATUS_NOT_CONVERGE = 4, /**< For tare calibration only*/
-    RS2_DSC_STATUS_BURN_SUCCESS = 5,
-    RS2_DSC_STATUS_BURN_ERROR = 6,
-    RS2_DSC_STATUS_NO_DEPTH_AVERAGE = 7,
-};
-
-#pragma pack(push, 1)
-#pragma pack(1) 
-
-#define MAX_STEP_COUNT 256
-
-struct DirectSearchCalibrationResult
-{
-    uint16_t status;      // DscStatus
-    uint16_t stepCount;
-    uint16_t stepSize; // 1/1000 of a pixel
-    uint32_t pixelCountThreshold; // minimum number of pixels in
-                                  // selected bin
-    uint16_t minDepth;  // Depth range for FWHM
-    uint16_t maxDepth;
-    uint32_t rightPy;   // 1/1000000 of normalized unit
-    float healthCheck;
-    float rightRotation[9]; // Right rotation
-    uint16_t results[0]; // 1/100 of a percent
-};
-#pragma pack(pop)
-
 namespace rs2
 {
     template <typename T>
@@ -1731,6 +1698,7 @@ namespace rs2
         timestamp = f.get_timestamp();
         fps.add_timestamp(f.get_timestamp(), f.get_frame_number());
 
+        view_fps.add_timestamp(glfwGetTime() * 1000, count++);
 
         // populate frame metadata attributes
         for (auto i = 0; i < RS2_FRAME_METADATA_COUNT; i++)
@@ -2371,7 +2339,12 @@ namespace rs2
                 stream_details.push_back({ "Hardware FPS",
                     to_string() << std::setprecision(2) << std::fixed << fps.get_fps(), 
                     "Hardware FPS captures number of frames per second produced by the device.\n"
-                    "It is possible and likely that not all of these frames will make it to the application. See Frame-Drops." });
+                    "It is possible and likely that not all of these frames will make it to the application." });
+                
+                stream_details.push_back({ "Viewer FPS",
+                    to_string() << std::setprecision(2) << std::fixed << view_fps.get_fps(),
+                    "Viewer FPS captures how many frames the application manages to render.\n"
+                    "Frame drops can occur for variety of reasons." });
 
                 stream_details.push_back({ "", "", "" });
             }
@@ -2429,7 +2402,7 @@ namespace rs2
                         auto text = "Per-frame metadata is not anabled at the OS level!\nPlease refer to installation.md for more info";
                         auto size = ImGui::CalcTextSize(text);
 
-                        for (int i = 6; i > 0; i-=2)
+                        for (int i = 3; i > 0; i-=1)
                             ImGui::GetWindowDrawList()->AddRectFilled({ curr_info_rect.x + 10 - i, line_y - i },
                             { curr_info_rect.x + 10 + i + size.x, line_y + size.y + i },
                             ImColor(alpha(sensor_bg, 0.1f)));
@@ -2446,7 +2419,7 @@ namespace rs2
                         if (at.name != "") text = to_string() << at.name << ":";
                         auto size = ImGui::CalcTextSize(text.c_str());
 
-                        for (int i = 6; i > 0; i-=2)
+                        for (int i = 3; i > 0; i-=1)
                             ImGui::GetWindowDrawList()->AddRectFilled({ curr_info_rect.x + 10 - i, line_y - i },
                             { curr_info_rect.x + 10 + i + size.x, line_y + size.y + i },
                             ImColor(alpha(sensor_bg, 0.1f)));
@@ -2465,16 +2438,26 @@ namespace rs2
                         text = at.value;
                         size = ImGui::CalcTextSize(text.c_str());
 
-                        for (int i = 6; i > 0; i-=2)
+                        for (int i = 3; i > 0; i-=1)
                             ImGui::GetWindowDrawList()->AddRectFilled({ curr_info_rect.x + 20 + max_text_width - i, line_y - i },
-                            { curr_info_rect.x + 20 + max_text_width + i + size.x, line_y + size.y + i },
+                            { curr_info_rect.x + 30 + max_text_width + i + size.x, line_y + size.y + i },
                             ImColor(alpha(sensor_bg, 0.1f)));
 
                         ImGui::PopStyleColor();
 
                         ImGui::SetCursorScreenPos({ curr_info_rect.x + 20 + max_text_width, line_y });
 
-                        ImGui::Text(text.c_str());
+                        std::string id = to_string() << "##" << at.name << "-" << profile.unique_id();
+
+                        ImGui::PushStyleColor(ImGuiCol_FrameBg, transparent);
+                        ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, light_blue);
+
+                        ImGui::InputText(id.c_str(),
+                            (char*)text.c_str(),
+                            text.size() + 1,
+                            ImGuiInputTextFlags_AutoSelectAll | ImGuiInputTextFlags_ReadOnly);
+
+                        ImGui::PopStyleColor(2);
                     }
 
                     line_y += ImGui::GetTextLineHeight() + 3;
@@ -3008,35 +2991,22 @@ namespace rs2
 
             if (sub.is<depth_sensor>())
             {
+                // Make sure we don't spam calibration remainers too often:
                 time_t rawtime;
-                time ( &rawtime );
-                time ( &rawtime );
-  timeinfo = localtime ( &rawtime );
-  timeinfo->tm_year = year - 1900;
-  timeinfo->tm_mon = month - 1;
-  timeinfo->tm_mday = day;
-
-  /* call mktime: timeinfo->tm_wday will be set */
-  mktime ( timeinfo );
-
-                int last = config_file::instance().get_or_default(
-                    configurations::viewer::sdk_version, 0);
-
-                if (version > saved_version)
+                time(&rawtime);
+                std::string id = to_string() << configurations::viewer::last_calib_notice << "." << name.second;
+                long long last_time = config_file::instance().get_or_default(id.c_str(), (long long)0);
+                //if (rawtime - last_time > 120) // TODO: Change to a week (604,800)
                 {
-                    auto n = std::make_shared<version_upgrade_model>(version);
-                    not_model.add_notification(n);
-
-                    config_file::instance().set(configurations::viewer::sdk_version, version);
+                    config_file::instance().set(id.c_str(), (long long)rawtime);
+                    std::string msg = to_string()
+                        << name.first << " (S/N " << name.second << ")";
+                    auto manager = std::make_shared<on_chip_calib_manager>(viewer, model, *this, dev);
+                    auto n = std::make_shared<autocalib_notification_model>(
+                        msg, manager, false);
+                    viewer.not_model.add_notification(n);
+                    related_notifications.push_back(n);
                 }
-
-                std::string msg = to_string()
-                    << name.first << " (S/N " << name.second << ")";
-                auto manager = std::make_shared<on_chip_calib_manager>(viewer, model, *this, dev);
-                auto n = std::make_shared<autocalib_notification_model>(
-                    msg, manager, false);
-                viewer.not_model.add_notification(n);
-                related_notifications.push_back(n);
             }
         }
 
@@ -4277,7 +4247,7 @@ namespace rs2
                         std::thread t([dp, &viewer]() {
                             try
                             {
-                                uint8_t speed = 0;
+                                /*uint8_t speed = 0;
 
                                 std::vector<uint8_t> cmd =
                                 {
@@ -4320,9 +4290,17 @@ namespace rs2
                                     }
                                 } while (count++ < 200 && !done);
 
-                                if (!done) throw std::runtime_error("Timeout!");
+                                if (!done)
+                                {
+                                    throw std::runtime_error("Timeout!");
+                                }
 
-                                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                                if (result.status != RS2_DSC_STATUS_SUCCESS)
+                                {
+                                    throw std::runtime_error(to_string() << "Status = " << result.status);
+                                }
+
+                                std::this_thread::sleep_for(std::chrono::milliseconds(100));*/
 
                                 //cmd =
                                 //{
