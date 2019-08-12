@@ -29,6 +29,8 @@ namespace rs2
 
         void set_speed(int speed) { _speed = speed; }
 
+        void keep();
+
     private:
         void process_flow(std::function<void()> cleanup) override;
 

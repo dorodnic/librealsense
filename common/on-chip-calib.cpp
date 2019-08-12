@@ -125,63 +125,80 @@ namespace rs2
 
         uint8_t speed = 4 - _speed;
 
-        std::vector<uint8_t> cmd =
-        {
-            0x14, 0x00, 0xab, 0xcd,
-            0x80, 0x00, 0x00, 0x00,
-            0x08, 0x00, 0x00, 0x00,
-            speed, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00
-        };
-
-        debug_protocol dp = _dev;
-
-        auto res = dp.send_and_receive_raw_data(cmd);
-
         DirectSearchCalibrationResult result;
-        memset(&result, 0, sizeof(DirectSearchCalibrationResult));
 
-        int count = 0;
-        bool done = false;
-        do
+        bool repeat = true;
+        while (repeat)
         {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-            cmd =
+            std::vector<uint8_t> cmd =
             {
                 0x14, 0x00, 0xab, 0xcd,
                 0x80, 0x00, 0x00, 0x00,
-                0x03, 0x00, 0x00, 0x00,
-                0x00, 0x00, 0x00, 0x00,
+                0x08, 0x00, 0x00, 0x00,
+                speed, 0x00, 0x00, 0x00,
                 0x00, 0x00, 0x00, 0x00,
                 0x00, 0x00, 0x00, 0x00
             };
 
-            res = dp.send_and_receive_raw_data(cmd);
-            int32_t code = *((int32_t*)res.data());
+            debug_protocol dp = _dev;
 
-            if (res.size() >= sizeof(DirectSearchCalibrationResult))
+            auto res = dp.send_and_receive_raw_data(cmd);
+
+            memset(&result, 0, sizeof(DirectSearchCalibrationResult));
+
+            int count = 0;
+            bool done = false;
+            do
             {
-                result = *reinterpret_cast<DirectSearchCalibrationResult*>(res.data());
-                done = result.status != RS2_DSC_STATUS_RESULT_NOT_READY;
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+                cmd =
+                {
+                    0x14, 0x00, 0xab, 0xcd,
+                    0x80, 0x00, 0x00, 0x00,
+                    0x03, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x00
+                };
+
+                res = dp.send_and_receive_raw_data(cmd);
+                int32_t code = *((int32_t*)res.data());
+
+                if (res.size() >= sizeof(DirectSearchCalibrationResult))
+                {
+                    result = *reinterpret_cast<DirectSearchCalibrationResult*>(res.data());
+                    done = result.status != RS2_DSC_STATUS_RESULT_NOT_READY;
+                }
+
+                _progress = count * (2 * _speed);
+
+            } while (count++ < 200 && !done);
+
+            if (!done)
+            {
+                throw std::runtime_error("Timeout!");
             }
 
-            _progress = count * (2 * _speed);
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-        } while (count++ < 200 && !done);
-
-        if (!done)
-        {
-            throw std::runtime_error("Timeout!");
+            if (result.status != RS2_DSC_STATUS_EDGE_TOO_CLOSE)
+            {
+                repeat = false;
+            }
+            else
+            {
+                log("Edge to close... Slowing down");
+                speed++;
+                if (speed > 4) repeat = false;
+            }
         }
 
         if (result.status != RS2_DSC_STATUS_SUCCESS)
         {
             throw std::runtime_error(to_string() << "Status = " << result.status);
         }
-
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
         _health = abs(result.healthCheck);
 
@@ -224,6 +241,21 @@ namespace rs2
         _progress = 100;
 
         _done = true;
+    }
+
+    void on_chip_calib_manager::keep()
+    {
+        std::vector<uint8_t> cmd =
+        {
+            0x14, 0x00, 0xab, 0xcd,
+            0x80, 0x00, 0x00, 0x00,
+            0x03, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00,
+            0x04, 0x00, 0x00, 0x00
+        };
+        debug_protocol dp = _dev;
+        dp.send_and_receive_raw_data(cmd);
     }
 
     void autocalib_notification_model::draw_content(ux_window& win, int x, int y, float t, std::string& error_message)
@@ -475,6 +507,7 @@ namespace rs2
                     ImGui::SetCursorScreenPos({ float(x + 5), float(y + height - 25) });
                     if (ImGui::Button(button_name.c_str(), { float(bar_width), 20.f }))
                     {
+                        get_manager().keep();
                         update_state = RS2_CALIB_STATE_COMPLETE;
                         pinned = false;
                         last_progress_time = last_interacted = system_clock::now();
