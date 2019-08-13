@@ -12,6 +12,8 @@
 #include <model-views.h>
 #include <viewer.h>
 
+#include "../tools/depth-quality/depth-metrics.h"
+
 namespace rs2
 {
 #pragma pack(push, 1)
@@ -185,9 +187,37 @@ namespace rs2
         }
     }
 
+    rs2::depth_frame on_chip_calib_manager::fetch_depth_frame()
+    {
+        auto profiles = _sub->get_selected_profiles();
+        bool frame_arrived = false;
+        rs2::depth_frame res = rs2::frame{};
+        while (!frame_arrived)
+        {
+            for (auto&& stream : _viewer.streams)
+            {
+                if (std::find(profiles.begin(), profiles.end(),
+                    stream.second.original_profile) != profiles.end())
+                {
+                    auto now = std::chrono::high_resolution_clock::now();
+                    if (now - stream.second.last_frame < std::chrono::milliseconds(100))
+                    {
+                        if (auto f = stream.second.texture->get_last_frame(false).as<rs2::depth_frame>())
+                        {
+                            frame_arrived = true;
+                            res = f;
+                        }
+                    }
+                }
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        return res;
+    }
+
     void on_chip_calib_manager::start_viewer(int w, int h, int fps)
     {
-        _sub->ui = *_ui;
+        if (_ui) _sub->ui = *_ui;
 
         _sub->ui.selected_format_id.clear();
         _sub->ui.selected_format_id[RS2_STREAM_DEPTH] = 0;
@@ -233,6 +263,94 @@ namespace rs2
         }
     }
 
+    std::pair<float, float> on_chip_calib_manager::get_depth_metrics()
+    {
+        using namespace depth_quality;
+
+        auto f = fetch_depth_frame();
+        auto sensor = _sub->s->as<rs2::depth_stereo_sensor>();
+        auto intr = f.get_profile().as<rs2::video_stream_profile>().get_intrinsics();
+        rs2::region_of_interest roi { f.get_width() * 0.4f, f.get_height()  * 0.4f, 
+                                      f.get_width() * 0.6f, f.get_height() * 0.6f };
+        std::vector<single_metric_data> v;
+
+        std::vector<float> fill_rates;
+        std::vector<float> rmses;
+
+        auto on_frame = [sensor, &fill_rates, &rmses](
+            const std::vector<rs2::float3>& points,
+            const plane p,
+            const rs2::region_of_interest roi,
+            const float baseline_mm,
+            const float focal_length_pixels,
+            const int ground_thruth_mm,
+            const bool plane_fit,
+            const float plane_fit_to_ground_truth_mm,
+            const float distance_mm,
+            bool record,
+            std::vector<single_metric_data>& samples)
+            {
+                float TO_METERS = sensor.get_depth_scale();
+                static const float TO_MM = 1000.f;
+                static const float TO_PERCENT = 100.f;
+
+                // Calculate fill rate relative to the ROI
+                auto fill_rate = points.size() / float((roi.max_x - roi.min_x)*(roi.max_y - roi.min_y)) * TO_PERCENT;
+                fill_rates.push_back(fill_rate);
+
+                if (!plane_fit) return;
+
+                std::vector<rs2::float3> points_set = points;
+                std::vector<float> distances;
+
+                // Reserve memory for the data
+                distances.reserve(points.size());
+
+                // Convert Z values into Depth values by aligning the Fitted plane with the Ground Truth (GT) plane
+                // Calculate distance and disparity of Z values to the fitted plane.
+                // Use the rotated plane fit to calculate GT errors
+                for (auto point : points_set)
+                {
+                    // Find distance from point to the reconstructed plane
+                    auto dist2plane = p.a*point.x + p.b*point.y + p.c*point.z + p.d;
+                    // Project the point to plane in 3D and find distance to the intersection point
+                    rs2::float3 plane_intersect = { float(point.x - dist2plane*p.a),
+                                                    float(point.y - dist2plane*p.b),
+                                                    float(point.z - dist2plane*p.c) };
+
+                    // Store distance, disparity and gt- error
+                    distances.push_back(dist2plane * TO_MM);
+                }
+
+                // Remove outliers [below 1% and above 99%)
+                std::sort(points_set.begin(), points_set.end(), [](const rs2::float3& a, const rs2::float3& b) { return a.z < b.z; });
+                size_t outliers = points_set.size() / 50;
+                points_set.erase(points_set.begin(), points_set.begin() + outliers); // crop min 0.5% of the dataset
+                points_set.resize(points_set.size() - outliers); // crop max 0.5% of the dataset
+
+                // Calculate Plane Fit RMS  (Spatial Noise) mm
+                double plane_fit_err_sqr_sum = std::inner_product(distances.begin(), distances.end(), distances.begin(), 0.);
+                auto rms_error_val = static_cast<float>(std::sqrt(plane_fit_err_sqr_sum / distances.size()));
+                auto rms_error_val_per = TO_PERCENT * (rms_error_val / distance_mm);
+                rmses.push_back(rms_error_val_per);
+            };
+
+        for (int i = 0; i < 31; i++)
+        {
+            f = fetch_depth_frame();
+            depth_quality::analyze_depth_image(f, sensor.get_depth_scale(), sensor.get_stereo_baseline(), 
+                &intr, roi, 0, true, v, false, on_frame);
+        }
+
+        std::sort(fill_rates.begin(), fill_rates.end());
+        std::sort(rmses.begin(), rmses.end());
+
+        auto median_fill_rate = fill_rates[fill_rates.size() / 2];
+        auto median_rms = rmses[rmses.size() / 2];
+
+        return { median_fill_rate, median_rms };
+    }
+
     void on_chip_calib_manager::process_flow(std::function<void()> cleanup)
     {
         log(to_string() << "Starting calibration at speed " << _speed);
@@ -253,8 +371,17 @@ namespace rs2
         _old_calib.resize(sizeof(table_header) + hd->table_size, 0);
         memcpy(_old_calib.data(), hd, _old_calib.size());
 
+        auto ptr = (STCoeff*)(_old_calib.data() + sizeof(table_header));
+
         _was_streaming = _sub->streaming;
-        if (_was_streaming) stop_viewer();
+        if (!_was_streaming) 
+        {
+            start_viewer(0,0,0);
+        }
+
+        auto metrics_before = get_depth_metrics();
+        
+        stop_viewer();
 
         _ui = std::make_shared<subdevice_ui_selection>(_sub->ui);
         _synchronized = _viewer.synchronization_enable.load();
@@ -358,10 +485,10 @@ namespace rs2
             DscResultBuffer* result = reinterpret_cast<DscResultBuffer*>(res.data() + 4);
             table_header* header = reinterpret_cast<table_header*>(res.data() + 4 + sizeof(DscResultBuffer));
 
-            _new_calib.resize(sizeof(table_header) + hd->table_size, 0);
-            memcpy(_new_calib.data(), hd, _new_calib.size());
+            _new_calib.resize(sizeof(table_header) + header->table_size, 0);
+            memcpy(_new_calib.data(), header, _new_calib.size());
 
-            STCoeff* table = reinterpret_cast<STCoeff*>(res.data() + 4 + sizeof(DscResultBuffer) + sizeof(table_header));
+            STCoeff* table = reinterpret_cast<STCoeff*>(_new_calib.data() + sizeof(table_header));
         }
 
         _health = abs(result.healthCheck);
@@ -371,6 +498,8 @@ namespace rs2
         stop_viewer();
 
         start_viewer(0, 0, 0); // Start with default settings
+
+        auto metrics_after = get_depth_metrics();
 
         _progress = 100;
 
@@ -410,8 +539,10 @@ namespace rs2
 
     void on_chip_calib_manager::apply_calib(bool use_new)
     {
+        //use_new = false;
+
         table_header* hd = (table_header*)(use_new ? _new_calib.data() : _old_calib.data());
-        uint8_t* table = (uint8_t*)(use_new ? _new_calib.data() : _old_calib.data()) + sizeof(table_header);
+        STCoeff* table = (STCoeff*)((use_new ? _new_calib.data() : _old_calib.data()) + sizeof(table_header));
 
         uint16_t size = (uint16_t)(0x14 + hd->table_size);
 
@@ -422,7 +553,7 @@ namespace rs2
         auto up = (uint16_t*)apply_calib.data();
         up[0] = size;
 
-        apply_calib.insert(apply_calib.end(), table, table + hd->table_size);
+        apply_calib.insert(apply_calib.end(), (uint8_t*)table, ((uint8_t*)table) + hd->table_size);
 
         debug_protocol dp = _dev;
         auto res = dp.send_and_receive_raw_data(apply_calib);
@@ -488,9 +619,20 @@ namespace rs2
                 else if (health > 0.2f) ImGui::Text("Camera calibration can be improved");
                 else if (health) ImGui::Text("Camera calibration can be significantly improved!");
 
-                ImGui::SetCursorScreenPos({ float(x + 9), float(y + 35) });
+                ImGui::SetCursorScreenPos({ float(x + 15), float(y + 55) });
 
-                auto use_old_calib = !use_new_calib;
+                if (ImGui::RadioButton("Original", !use_new_calib))
+                {
+                    use_new_calib = false;
+                    get_manager().apply_calib(false);
+                }
+
+                ImGui::SetCursorScreenPos({ float(x + 15), float(y + 75) });
+                if (ImGui::RadioButton("New", use_new_calib))
+                {
+                    use_new_calib = true;
+                    get_manager().apply_calib(true);
+                }
 
                 auto sat = 1.f + sin(duration_cast<milliseconds>(system_clock::now() - created_time).count() / 700.f) * 0.1f;
 

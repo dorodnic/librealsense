@@ -36,6 +36,10 @@ namespace rs2
 
         void apply_calib(bool old);
 
+        rs2::depth_frame fetch_depth_frame();
+
+        std::pair<float, float> get_depth_metrics();
+
     private:
         void process_flow(std::function<void()> cleanup) override;
 
@@ -46,7 +50,7 @@ namespace rs2
         bool _was_streaming = false;
         bool _synchronized = false;
         bool _post_processing = false;
-        std::shared_ptr<subdevice_ui_selection> _ui;
+        std::shared_ptr<subdevice_ui_selection> _ui { nullptr };
         bool _in_3d_view = false;
 
         std::default_random_engine generator;
