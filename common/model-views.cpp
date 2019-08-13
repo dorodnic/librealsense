@@ -2989,7 +2989,7 @@ namespace rs2
             auto model = std::make_shared<subdevice_model>(dev, std::make_shared<sensor>(sub), error_message, viewer);
             subdevices.push_back(model);
 
-            if (sub.is<depth_sensor>())
+            if (model->supports_on_chip_calib())
             {
                 // Make sure we don't spam calibration remainers too often:
                 time_t rawtime;
@@ -4010,10 +4010,10 @@ namespace rs2
             auto n = std::make_shared<fw_update_notification_model>(
                 "Manual Update requested", manager, true);
             viewer.not_model.add_notification(n);
+            n->forced = true;
 
             for (auto&& n : related_notifications)
-                if (dynamic_cast<fw_update_notification_model*>(n.get()))
-                    n->dismissed = true;
+                n->dismissed = true;
 
             manager->start(n);
         }
@@ -4025,6 +4025,12 @@ namespace rs2
         {
             error_message = e.what();
         }
+    }
+
+
+    bool subdevice_model::supports_on_chip_calib()
+    {
+        return this->s->is<rs2::depth_sensor>(); // TODO: And firmware >= X
     }
 
     float device_model::draw_device_panel(float panel_width,
@@ -4237,103 +4243,6 @@ namespace rs2
                 }
             }
 
-            if (ImGui::Selectable("On Chip Calibration"))
-            {
-                try
-                {
-                    debug_protocol dp = dev;
-                    if (dp)
-                    {
-                        std::thread t([dp, &viewer]() {
-                            try
-                            {
-                                /*uint8_t speed = 0;
-
-                                std::vector<uint8_t> cmd =
-                                {
-                                    0x14, 0x00, 0xab, 0xcd,
-                                    0x80, 0x00, 0x00, 0x00,
-                                    0x08, 0x00, 0x00, 0x00,
-                                    0x00, 0x00, 0x00, 0x00,
-                                    0x00, 0x00, 0x00, 0x00,
-                                    0x00, 0x00, 0x00, 0x00
-                                };
-
-                                auto res = dp.send_and_receive_raw_data(cmd);
-
-                                DirectSearchCalibrationResult result;
-                                memset(&result, 0, sizeof(DirectSearchCalibrationResult));
-
-                                int count = 0;
-                                bool done = false;
-                                do
-                                {
-                                    std::this_thread::sleep_for(std::chrono::milliseconds(24));
-
-                                    cmd =
-                                    {
-                                        0x14, 0x00, 0xab, 0xcd,
-                                        0x80, 0x00, 0x00, 0x00,
-                                        0x03, 0x00, 0x00, 0x00,
-                                        0x00, 0x00, 0x00, 0x00,
-                                        0x00, 0x00, 0x00, 0x00,
-                                        0x00, 0x00, 0x00, 0x00
-                                    };
-
-                                    res = dp.send_and_receive_raw_data(cmd);
-                                    int32_t code = *((int32_t*)res.data());
-
-                                    if (res.size() >= sizeof(DirectSearchCalibrationResult))
-                                    {
-                                        result = *reinterpret_cast<DirectSearchCalibrationResult*>(res.data());
-                                        done = result.status != RS2_DSC_STATUS_RESULT_NOT_READY;
-                                    }
-                                } while (count++ < 200 && !done);
-
-                                if (!done)
-                                {
-                                    throw std::runtime_error("Timeout!");
-                                }
-
-                                if (result.status != RS2_DSC_STATUS_SUCCESS)
-                                {
-                                    throw std::runtime_error(to_string() << "Status = " << result.status);
-                                }
-
-                                std::this_thread::sleep_for(std::chrono::milliseconds(100));*/
-
-                                //cmd =
-                                //{
-                                //    0x14, 0x00, 0xab, 0xcd,
-                                //    0x80, 0x00, 0x00, 0x00,
-                                //    0x03, 0x00, 0x00, 0x00,
-                                //    0x00, 0x00, 0x00, 0x00,
-                                //    0x00, 0x00, 0x00, 0x00,
-                                //    0x04, 0x00, 0x00, 0x00
-                                //};
-                                //dp.send_and_receive_raw_data(cmd);
-                            }
-                            catch (const std::exception& e)
-                            {
-                                viewer.not_model.add_notification({ to_string() <<
-                                    e.what(),
-                                    RS2_LOG_SEVERITY_ERROR,
-                                    RS2_NOTIFICATION_CATEGORY_UNKNOWN_ERROR });
-                            }
-                        });
-                        t.detach();
-                    }
-                }
-                catch (const error& e)
-                {
-                    error_message = error_to_string(e);
-                }
-                catch (const std::exception& e)
-                {
-                    error_message = e.what();
-                }
-            }
-
             if (allow_remove)
             {
                 something_to_show = true;
@@ -4364,6 +4273,42 @@ namespace rs2
                     catch (const std::exception& e)
                     {
                         error_message = e.what();
+                    }
+                }
+
+                for (auto&& sub : subdevices)
+                {
+                    if (sub->supports_on_chip_calib())
+                    {
+                        if (ImGui::Selectable("On-Chip Calibration"))
+                        {
+                            try
+                            {
+                                auto manager = std::make_shared<on_chip_calib_manager>(viewer, sub, *this, dev);
+                                auto n = std::make_shared<autocalib_notification_model>(
+                                    "", manager, false);
+
+                                viewer.not_model.add_notification(n);
+                                n->forced = true;
+                                n->update_state = autocalib_notification_model::RS2_CALIB_STATE_CALIB_IN_PROCESS;
+
+                                for (auto&& n : related_notifications)
+                                    if (dynamic_cast<autocalib_notification_model*>(n.get()))
+                                        n->dismissed = true;
+
+                                manager->start(n);
+                            }
+                            catch (const error& e)
+                            {
+                                error_message = error_to_string(e);
+                            }
+                            catch (const std::exception& e)
+                            {
+                                error_message = e.what();
+                            }
+                        }
+                        if (ImGui::IsItemHovered())
+                            ImGui::SetTooltip("Start on-chip calibration process");
                     }
                 }
 

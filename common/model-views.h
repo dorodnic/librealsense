@@ -580,6 +580,7 @@ namespace rs2
         ~subdevice_model();
 
         bool is_there_common_fps() ;
+        bool supports_on_chip_calib();
         bool draw_stream_selection();
         bool is_selected_combination_supported();
         std::vector<stream_profile> get_selected_profiles();

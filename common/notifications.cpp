@@ -510,7 +510,7 @@ namespace rs2
                 auto height = 60;
                 for (auto& noti : pending_notifications)
                 {
-                    if (pinned_drawn && noti->pinned) continue;
+                    if (pinned_drawn && noti->pinned && noti->forced) continue;
 
                     follow_up.push_back(noti->draw(win, w, height, selected, error_message));
 

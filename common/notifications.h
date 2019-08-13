@@ -73,6 +73,7 @@ namespace rs2
         bool expanded = false;
         bool visible = true;
         bool pinned = false;
+        bool forced = false;
         bool enable_dismiss = true;
         bool enable_expand = true;
         bool enable_click = false;

@@ -12,6 +12,7 @@ namespace rs2
 {
     class viewer_model;
     class subdevice_model;
+    struct subdevice_ui_selection;
 
     class on_chip_calib_manager : public process_manager
     {
@@ -31,6 +32,10 @@ namespace rs2
 
         void keep();
 
+        void restore_workspace();
+
+        void apply_calib(bool old);
+
     private:
         void process_flow(std::function<void()> cleanup) override;
 
@@ -38,16 +43,36 @@ namespace rs2
         int _speed = 4;
         device _dev;
 
+        bool _was_streaming = false;
+        bool _synchronized = false;
+        bool _post_processing = false;
+        std::shared_ptr<subdevice_ui_selection> _ui;
+        bool _in_3d_view = false;
+
         std::default_random_engine generator;
         std::uniform_real_distribution<float> distribution{ 0.01f, 0.99f };
 
         viewer_model& _viewer;
         std::shared_ptr<subdevice_model> _sub;
+
+        std::vector<uint8_t> _old_calib, _new_calib;
+
+        void stop_viewer();
+        void start_viewer(int w, int h, int fps);
     };
 
 
     struct autocalib_notification_model : public process_notification_model
     {
+        enum auto_calib_ui_state
+        {
+            RS2_CALIB_STATE_INITIAL_PROMPT,
+            RS2_CALIB_STATE_FAILED,
+            RS2_CALIB_STATE_COMPLETE,
+            RS2_CALIB_STATE_CALIB_IN_PROCESS,
+            RS2_CALIB_STATE_CALIB_COMPLETE,
+        };
+
         autocalib_notification_model(std::string name,
             std::shared_ptr<on_chip_calib_manager> manager, bool expaned);
 
@@ -60,10 +85,6 @@ namespace rs2
         void draw_expanded(ux_window& win, std::string& error_message) override;
         int calc_height() override;
 
-        float health_check_result = 0.f;
-
-        float old_score = 0.5f;
-        float new_score = 0.5f;
-        double score_update_time = 0.f;
+        bool use_new_calib = true;
     };
 }
