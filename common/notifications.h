@@ -133,7 +133,7 @@ namespace rs2
         std::vector<std::shared_ptr<notification_model>> pending_notifications;
         int index = 1;
         const int MAX_SIZE = 6;
-        std::mutex m;
+        std::recursive_mutex m;
         bool new_log = false;
 
         std::vector<std::string> log;

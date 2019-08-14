@@ -410,7 +410,7 @@ namespace rs2
         {
             using namespace std;
             using namespace chrono;
-            lock_guard<mutex> lock(m); // need to protect the pending_notifications queue because the insertion of notifications
+            lock_guard<recursive_mutex> lock(m); // need to protect the pending_notifications queue because the insertion of notifications
                                        // done from the notifications callback and proccesing and removing of old notifications done from the main thread
 
             for (auto&& nm : pending_notifications)
@@ -464,7 +464,7 @@ namespace rs2
         {
             using namespace std;
             using namespace chrono;
-            lock_guard<mutex> lock(m); // need to protect the pending_notifications queue because the insertion of notifications
+            lock_guard<recursive_mutex> lock(m); // need to protect the pending_notifications queue because the insertion of notifications
                                        // done from the notifications callback and proccesing and removing of old notifications done from the main thread
 
             model->index = index++;
@@ -495,7 +495,7 @@ namespace rs2
 
         {
             bool pinned_drawn = false;
-            std::lock_guard<std::mutex> lock(m);
+            std::lock_guard<std::recursive_mutex> lock(m);
             if (pending_notifications.size() > 0)
             {
                 // loop over all notifications, remove "old" ones
@@ -611,7 +611,7 @@ namespace rs2
 
     void notifications_model::foreach_log(std::function<void(const std::string& line)> action)
     {
-        std::lock_guard<std::mutex> lock(m);
+        std::lock_guard<std::recursive_mutex> lock(m);
         for (auto&& l : log)
         {
             action(l);
@@ -629,7 +629,7 @@ namespace rs2
 
     void notifications_model::add_log(std::string line)
     {
-        std::lock_guard<std::mutex> lock(m);
+        std::lock_guard<std::recursive_mutex> lock(m);
         if (!line.size()) return;
         if (line[line.size() - 1] != '\n') line += "\n";
         log.push_back(line);
@@ -638,7 +638,7 @@ namespace rs2
 
     void notifications_model::dismiss(int idx)
     {
-        std::lock_guard<std::mutex> lock(m);
+        std::lock_guard<std::recursive_mutex> lock(m);
         for (auto& noti : pending_notifications)
         {
             if (noti->index == idx) noti->dismissed = true;

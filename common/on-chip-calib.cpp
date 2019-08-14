@@ -554,17 +554,20 @@ namespace rs2
 
     void on_chip_calib_manager::keep()
     {
-        std::vector<uint8_t> cmd =
-        {
-            0x14, 0x00, 0xab, 0xcd,
-            0x80, 0x00, 0x00, 0x00,
-            0x03, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00,
-            0x04, 0x00, 0x00, 0x00
+        uint16_t size = (uint16_t)(0x14 + _new_calib.size());
+
+        std::vector<uint8_t> save_calib{
+            0x14, 0, 0xAB, 0xCD, 0x16, 0, 0, 0, 0x19, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
         };
+
+        auto up = (uint16_t*)save_calib.data();
+        up[0] = size;
+
+        save_calib.insert(save_calib.end(), _new_calib.data(), _new_calib.data() + _new_calib.size());
+
         debug_protocol dp = _dev;
-        dp.send_and_receive_raw_data(cmd);
+        auto res = dp.send_and_receive_raw_data(save_calib);
+
     }
 
     void on_chip_calib_manager::apply_calib(bool use_new)
@@ -641,11 +644,12 @@ namespace rs2
 
                 auto recommend_keep = health > 0.1f;
 
-                if (!recommend_keep) ImGui::Text("Camera calibration is OK");
-                else if (health > 0.2f) ImGui::Text("We found better calibration for the device!");
-                else ImGui::Text("We found much better calibration!");
-                
+                ImGui::SetCursorScreenPos({ float(x + 15), float(y + 33) });
 
+                if (!recommend_keep) ImGui::Text("Camera original calibration is OK");
+                else if (health > 0.2f) ImGui::Text("We found much better calibration!"); 
+                else ImGui::Text("We found better calibration for the device!");
+                
                 auto old_fr = get_manager().get_metric(false).first;
                 auto new_fr = get_manager().get_metric(true).first;
 
@@ -670,73 +674,110 @@ namespace rs2
 
                 if (fr_improvement > 1.f)
                 {
-                    std::string txt = to_string() << textual_icons::check << "  Fill-Rate: " << std::setprecision(1) << std::fixed << new_fr <<
-                        "%% ( +" << std::setprecision(0) << fr_improvement << "%% )\n";
-
-                    if (rms_improvement > 1.f)
-                    {
-                        
-                    }
+                    std::string txt = to_string() << "  Fill-Rate: " << std::setprecision(1) << std::fixed << new_fr << "%%";
 
                     if (!use_new_calib)
                     {
-                        txt = to_string() << textual_icons::check << "  Fill-Rate: " << std::setprecision(1) << std::fixed << old_fr << "%%\n";
-
-                        
+                        txt = to_string() << "  Fill-Rate: " << std::setprecision(1) << std::fixed << old_fr << "%%\n";
                     }
 
-                    ImGui::SetCursorScreenPos({ float(x + 9), float(y + 90) });
+                    ImGui::SetCursorScreenPos({ float(x + 12), float(y + 90) });
+                    ImGui::PushFont(win.get_large_font());
+                    ImGui::Text(textual_icons::check);
+                    ImGui::PopFont();
+
+                    ImGui::SetCursorScreenPos({ float(x + 35), float(y + 92) });
                     ImGui::Text(txt.c_str());
+
+                    if (use_new_calib)
+                    {
+                        ImGui::SameLine();
+
+                        ImGui::PushStyleColor(ImGuiCol_Text, white);
+                        txt = to_string() << " ( +" << std::fixed << std::setprecision(0) << fr_improvement << "%% )";
+                        ImGui::Text(txt.c_str());
+                        ImGui::PopStyleColor();
+                    }
 
                     if (rms_improvement > 1.f)
                     {
                         if (use_new_calib)
                         {
-                            txt = to_string() << textual_icons::check << "  Noise Estimate: " << std::setprecision(2) << std::fixed << new_rms << new_units;
-                            txt += to_string() << " ( -" << std::setprecision(0) << std::fixed << rms_improvement << "%% )";
+                            txt = to_string() << "  Noise Estimate: " << std::setprecision(2) << std::fixed << new_rms << new_units;
                         }
                         else
                         {
-                            txt = to_string() << textual_icons::check << "  Noise Estimate: " << std::setprecision(2) << std::fixed << old_rms << old_units;
+                            txt = to_string() << "  Noise Estimate: " << std::setprecision(2) << std::fixed << old_rms << old_units;
                         }
 
-                        ImGui::SetCursorScreenPos({ float(x + 9), float(y + 90 + ImGui::GetTextLineHeight() + 5) });
+                        ImGui::SetCursorScreenPos({ float(x + 12), float(y + 90 + ImGui::GetTextLineHeight() + 6) });
+                        ImGui::PushFont(win.get_large_font());
+                        ImGui::Text(textual_icons::check);
+                        ImGui::PopFont();
+
+                        ImGui::SetCursorScreenPos({ float(x + 35), float(y + 92 + ImGui::GetTextLineHeight() + 6) });
                         ImGui::Text(txt.c_str());
+
+                        if (use_new_calib)
+                        {
+                            ImGui::SameLine();
+
+                            ImGui::PushStyleColor(ImGuiCol_Text, white);
+                            txt = to_string() << " ( -" << std::setprecision(0) << std::fixed << rms_improvement << "%% )";
+                            ImGui::Text(txt.c_str());
+                            ImGui::PopStyleColor();
+                        }
                     }
                 }
-
-                ImGui::SetCursorScreenPos({ float(x + 10), float(y + 55) });
-
-                if (ImGui::RadioButton("Original", !use_new_calib))
+                else
                 {
-                    use_new_calib = false;
-                    get_manager().apply_calib(false);
+                    ImGui::SetCursorScreenPos({ float(x + 12), float(y + 100) });
+                    ImGui::Text("Please compare new vs old calibration\nand decide if to keep or discard the result...");
                 }
 
-                ImGui::SetCursorScreenPos({ float(x + 150), float(y + 55) });
+                ImGui::SetCursorScreenPos({ float(x + 9), float(y + 60) });
+
                 if (ImGui::RadioButton("New", use_new_calib))
                 {
                     use_new_calib = true;
                     get_manager().apply_calib(true);
                 }
 
+                ImGui::SetCursorScreenPos({ float(x + 150), float(y + 60) });
+                if (ImGui::RadioButton("Original", !use_new_calib))
+                {
+                    use_new_calib = false;
+                    get_manager().apply_calib(false);
+                }
+
                 auto sat = 1.f + sin(duration_cast<milliseconds>(system_clock::now() - created_time).count() / 700.f) * 0.1f;
 
-                ImGui::PushStyleColor(ImGuiCol_Button, saturate(sensor_header_light_blue, sat));
-                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, saturate(sensor_header_light_blue, 1.5f));
+                if (recommend_keep)
+                {
+                    ImGui::PushStyleColor(ImGuiCol_Button, saturate(sensor_header_light_blue, sat));
+                    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, saturate(sensor_header_light_blue, 1.5f));
+                }
 
-                std::string button_name = to_string() << "Apply" << "##apply" << index;
+                std::string button_name = to_string() << "Apply New" << "##apply" << index;
+                if (!use_new_calib) button_name = to_string() << "Keep Original" << "##original" << index;
 
                 ImGui::SetCursorScreenPos({ float(x + 5), float(y + height - 25) });
                 if (ImGui::Button(button_name.c_str(), { float(bar_width), 20.f }))
                 {
-                    get_manager().keep();
-                    update_state = RS2_CALIB_STATE_COMPLETE;
-                    pinned = false;
-                    last_progress_time = last_interacted = system_clock::now();
+                    if (use_new_calib)
+                    {
+                        get_manager().keep();
+                        update_state = RS2_CALIB_STATE_COMPLETE;
+                        pinned = false;
+                        enable_dismiss = false;
+                        last_progress_time = last_interacted = system_clock::now() + milliseconds(500);
+                    }
+                    else dismissed = true;
+
+                    get_manager().restore_workspace();
                 }
 
-                ImGui::PopStyleColor(2);
+                if (recommend_keep) ImGui::PopStyleColor(2);
 
                 if (ImGui::IsItemHovered())
                 {
@@ -901,7 +942,7 @@ namespace rs2
     {
         if (update_state == RS2_CALIB_STATE_COMPLETE) return 65;
         else if (update_state == RS2_CALIB_STATE_INITIAL_PROMPT) return 120;
-        else if (update_state == RS2_CALIB_STATE_CALIB_COMPLETE) return 160;
+        else if (update_state == RS2_CALIB_STATE_CALIB_COMPLETE) return 170;
         else return 100;
     }
 
