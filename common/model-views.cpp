@@ -3287,6 +3287,7 @@ namespace rs2
 
     void post_processing_filters::start()
     {
+        stop();
         if (render_thread_active.exchange(true) == false)
         {
             viewer.syncer->start();

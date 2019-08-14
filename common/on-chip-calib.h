@@ -36,11 +36,13 @@ namespace rs2
 
         void apply_calib(bool old);
 
+        std::pair<float, float> get_metric(bool use_new);
+
+    private:
         rs2::depth_frame fetch_depth_frame();
 
         std::pair<float, float> get_depth_metrics();
 
-    private:
         void process_flow(std::function<void()> cleanup) override;
 
         float _health = 0.f;
@@ -60,6 +62,7 @@ namespace rs2
         std::shared_ptr<subdevice_model> _sub;
 
         std::vector<uint8_t> _old_calib, _new_calib;
+        std::vector<std::pair<float, float>> _metrics;
 
         void stop_viewer();
         void start_viewer(int w, int h, int fps);
