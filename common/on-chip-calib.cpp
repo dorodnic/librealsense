@@ -166,25 +166,29 @@ namespace rs2
 
     void on_chip_calib_manager::stop_viewer()
     {
-        auto profiles = _sub->get_selected_profiles();
-        _sub->stop(_viewer);
-
-        bool frame_arrived = false;
-        while (frame_arrived && _viewer.streams.size())
+        try
         {
-            for (auto&& stream : _viewer.streams)
+            auto profiles = _sub->get_selected_profiles();
+            _sub->stop(_viewer);
+
+            bool frame_arrived = false;
+            while (frame_arrived && _viewer.streams.size())
             {
-                if (std::find(profiles.begin(), profiles.end(),
-                    stream.second.original_profile) != profiles.end())
+                for (auto&& stream : _viewer.streams)
                 {
-                    auto now = std::chrono::high_resolution_clock::now();
-                    if (now - stream.second.last_frame > std::chrono::milliseconds(200))
-                        frame_arrived = false;
+                    if (std::find(profiles.begin(), profiles.end(),
+                        stream.second.original_profile) != profiles.end())
+                    {
+                        auto now = std::chrono::high_resolution_clock::now();
+                        if (now - stream.second.last_frame > std::chrono::milliseconds(200))
+                            frame_arrived = false;
+                    }
+                    else frame_arrived = false;
                 }
-                else frame_arrived = false;
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
             }
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
+        catch (...) {}
     }
 
     rs2::depth_frame on_chip_calib_manager::fetch_depth_frame()
@@ -217,71 +221,75 @@ namespace rs2
 
     void on_chip_calib_manager::start_viewer(int w, int h, int fps)
     {
-        if (_ui) _sub->ui = *_ui;
-
-        _sub->ui.selected_format_id.clear();
-        _sub->ui.selected_format_id[RS2_STREAM_DEPTH] = 0;
-
-        for (int i = 0; i < _sub->shared_fps_values.size(); i++)
+        try
         {
-            if (_sub->shared_fps_values[i] == fps)
-                _sub->ui.selected_shared_fps_id = i;
-        }
+            if (_ui) _sub->ui = *_ui;
 
-        for (int i = 0; i < _sub->res_values.size(); i++)
-        {
-            auto kvp = _sub->res_values[i];
-            if (kvp.first == w && kvp.second == h)
-                _sub->ui.selected_res_id = i;
-        }
+            _sub->ui.selected_format_id.clear();
+            _sub->ui.selected_format_id[RS2_STREAM_DEPTH] = 0;
 
-        // If not supported, try WxHx30
-        if (!_sub->is_selected_combination_supported())
-        {
             for (int i = 0; i < _sub->shared_fps_values.size(); i++)
             {
-                if (_sub->shared_fps_values[i] == 30)
+                if (_sub->shared_fps_values[i] == fps)
                     _sub->ui.selected_shared_fps_id = i;
             }
 
-            // If still not supported, try VGA30
+            for (int i = 0; i < _sub->res_values.size(); i++)
+            {
+                auto kvp = _sub->res_values[i];
+                if (kvp.first == w && kvp.second == h)
+                    _sub->ui.selected_res_id = i;
+            }
+
+            // If not supported, try WxHx30
             if (!_sub->is_selected_combination_supported())
             {
-                for (int i = 0; i < _sub->res_values.size(); i++)
+                for (int i = 0; i < _sub->shared_fps_values.size(); i++)
                 {
-                    auto kvp = _sub->res_values[i];
-                    if (kvp.first == 640 && kvp.second == 480)
-                        _sub->ui.selected_res_id = i;
+                    if (_sub->shared_fps_values[i] == 30)
+                        _sub->ui.selected_shared_fps_id = i;
+                }
+
+                // If still not supported, try VGA30
+                if (!_sub->is_selected_combination_supported())
+                {
+                    for (int i = 0; i < _sub->res_values.size(); i++)
+                    {
+                        auto kvp = _sub->res_values[i];
+                        if (kvp.first == 640 && kvp.second == 480)
+                            _sub->ui.selected_res_id = i;
+                    }
                 }
             }
-        }
 
-        auto profiles = _sub->get_selected_profiles();
+            auto profiles = _sub->get_selected_profiles();
 
-        if (!_model.dev_syncer)
-            _model.dev_syncer = _viewer.syncer->create_syncer();
+            if (!_model.dev_syncer)
+                _model.dev_syncer = _viewer.syncer->create_syncer();
 
-        _sub->play(profiles, _viewer, _model.dev_syncer);
-        for (auto&& profile : profiles)
-        {
-            _viewer.begin_stream(_sub, profile);
-        }
-
-        bool frame_arrived = false;
-        while (!frame_arrived)
-        {
-            for (auto&& stream : _viewer.streams)
+            _sub->play(profiles, _viewer, _model.dev_syncer);
+            for (auto&& profile : profiles)
             {
-                if (std::find(profiles.begin(), profiles.end(),
-                    stream.second.original_profile) != profiles.end())
-                {
-                    auto now = std::chrono::high_resolution_clock::now();
-                    if (now - stream.second.last_frame < std::chrono::milliseconds(100))
-                        frame_arrived = true;
-                }
+                _viewer.begin_stream(_sub, profile);
             }
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+            bool frame_arrived = false;
+            while (!frame_arrived)
+            {
+                for (auto&& stream : _viewer.streams)
+                {
+                    if (std::find(profiles.begin(), profiles.end(),
+                        stream.second.original_profile) != profiles.end())
+                    {
+                        auto now = std::chrono::high_resolution_clock::now();
+                        if (now - stream.second.last_frame < std::chrono::milliseconds(100))
+                            frame_arrived = true;
+                    }
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
         }
+        catch (...) {}
     }
 
     std::pair<float, float> on_chip_calib_manager::get_metric(bool use_new)
@@ -400,6 +408,11 @@ namespace rs2
 
     void on_chip_calib_manager::process_flow(std::function<void()> cleanup)
     {
+        time_t rawtime;
+        time(&rawtime);
+        std::string id = to_string() << configurations::viewer::last_calib_notice << "." << _sub->s->get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
+        config_file::instance().set(id.c_str(), (long long)rawtime);
+
         log(to_string() << "Starting calibration at speed " << _speed);
 
         _in_3d_view = _viewer.is_3d_view;
@@ -421,6 +434,9 @@ namespace rs2
         auto ptr = (STCoeff*)(_old_calib.data() + sizeof(table_header));
 
         _was_streaming = _sub->streaming;
+
+        _restored = false;
+
         if (!_was_streaming) 
         {
             start_viewer(0,0,0);
@@ -505,7 +521,7 @@ namespace rs2
             }
             else
             {
-                log("Edge to close... Slowing down");
+                log("Edge too close... Slowing down");
                 speed++;
                 if (speed > 4) repeat = false;
             }
@@ -559,22 +575,27 @@ namespace rs2
 
     void on_chip_calib_manager::restore_workspace()
     {
-        if (_restored) return;
+        try
+        {
+            if (_restored) return;
 
-        _viewer.is_3d_view = _in_3d_view;
+            _viewer.is_3d_view = _in_3d_view;
 
-        _viewer.synchronization_enable = _synchronized;
+            _viewer.synchronization_enable = _synchronized;
 
-        stop_viewer();
+            stop_viewer();
 
-        _sub->ui = *_ui;
-        _ui.reset();
+            if (_ui.get())
+            {
+                _sub->ui = *_ui;
+                _ui.reset();
+            }
 
-        _sub->post_processing_enabled = _post_processing;
+            _sub->post_processing_enabled = _post_processing;
 
-        _restored = true;
-
-        //if (_was_streaming) start_viewer(0, 0, 0);
+            _restored = true;
+        }
+        catch (...) {}
     }
 
     void on_chip_calib_manager::keep()
@@ -697,7 +718,7 @@ namespace rs2
                     new_units = "cm";
                 }
 
-                if (fr_improvement > 1.f)
+                if (fr_improvement > 1.f || rms_improvement > 1.f)
                 {
                     std::string txt = to_string() << "  Fill-Rate: " << std::setprecision(1) << std::fixed << new_fr << "%%";
 
@@ -797,7 +818,7 @@ namespace rs2
                         enable_dismiss = false;
                         last_progress_time = last_interacted = system_clock::now() + milliseconds(500);
                     }
-                    else dismiss();
+                    else dismiss(false);
 
                     get_manager().restore_workspace();
                 }
@@ -870,7 +891,7 @@ namespace rs2
                         update_manager->check_error(error_message);
                         update_state = RS2_CALIB_STATE_FAILED;
                         pinned = false;
-                        dismiss();
+                        dismiss(false);
                     }
 
                     draw_progress_bar(win, bar_width);
@@ -890,13 +911,14 @@ namespace rs2
         }
     }
 
-    void autocalib_notification_model::dismiss()
+    void autocalib_notification_model::dismiss(bool snooze)
     {
-        if (!use_new_calib) get_manager().apply_calib(false);
+        if (!use_new_calib && get_manager().done()) 
+            get_manager().apply_calib(false);
 
         get_manager().restore_workspace();
 
-        notification_model::dismiss();
+        notification_model::dismiss(snooze);
     }
 
     void autocalib_notification_model::draw_expanded(ux_window& win, std::string& error_message)
@@ -946,7 +968,7 @@ namespace rs2
                     {
                         update_state = RS2_CALIB_STATE_FAILED;
                         pinned = false;
-                        dismiss();
+                        dismiss(false);
                     }
                     expanded = false;
                     ImGui::CloseCurrentPopup();

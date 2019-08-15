@@ -50,7 +50,7 @@ namespace rs2
         virtual void draw_content(ux_window& win, int x, int y, float t, std::string& error_message);
         virtual void draw_expanded(ux_window& win, std::string& error_message) {}
 
-        virtual void dismiss() { dismissed = true; }
+        virtual void dismiss(bool snooze) { dismissed = true; snoozed = snooze; }
 
         std::string get_title();
 
@@ -76,6 +76,7 @@ namespace rs2
         bool visible = true;
         bool pinned = false;
         bool forced = false;
+        bool snoozed = false;
         bool enable_dismiss = true;
         bool enable_expand = true;
         bool enable_click = false;
@@ -119,20 +120,23 @@ namespace rs2
 
     struct notifications_model
     {
-        int add_notification(const notification_data& n);
-        int add_notification(const notification_data& n,
+        std::shared_ptr<notification_model> add_notification(const notification_data& n);
+        std::shared_ptr<notification_model> add_notification(const notification_data& n,
                               std::function<void()> custom_action, 
                               bool use_custom_action = true);
-        int add_notification(std::shared_ptr<notification_model> model);
+        void add_notification(std::shared_ptr<notification_model> model);
         void draw(ux_window& win, int w, int h, std::string& error_message);
-
-        void dismiss(int idx);
 
         void foreach_log(std::function<void(const std::string& line)> action);
         void add_log(std::string line);
+
+        void draw_snoozed_button();
+
+        notifications_model() : last_snoozed(std::chrono::system_clock::now()) {}
         
     private:
         std::vector<std::shared_ptr<notification_model>> pending_notifications;
+        std::vector<std::shared_ptr<notification_model>> snoozed_notifications;
         int index = 1;
         const int MAX_SIZE = 6;
         std::recursive_mutex m;
@@ -140,6 +144,7 @@ namespace rs2
 
         std::vector<std::string> log;
         std::shared_ptr<notification_model> selected;
+        std::chrono::system_clock::time_point last_snoozed;
     };
 
     inline ImVec4 saturate(const ImVec4& a, float f)

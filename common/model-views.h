@@ -236,6 +236,7 @@ namespace rs2
         static const textual_icon throphy                  { u8"\uF091" };
         static const textual_icon metadata                 { u8"\uF0AE" };
         static const textual_icon check                    { u8"\uF00C" };
+        static const textual_icon mail                     { u8"\uF01C" };
     }
 
     class subdevice_model;

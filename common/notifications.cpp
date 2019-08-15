@@ -21,6 +21,8 @@
 
 #include "os.h"
 
+#include "viewer.h"
+
 using namespace std;
 using namespace chrono;
 
@@ -225,7 +227,7 @@ namespace rs2
     {
         auto title = get_title();
         auto lines = static_cast<int>(std::count(title.begin(), title.end(), '\n') + 1);
-        return (lines + 1) * 30 + 5;
+        return (lines + 1) * ImGui::GetTextLineHeight() + 5;
     }
 
     void process_notification_model::draw_pre_effect(int x, int y)
@@ -334,7 +336,7 @@ namespace rs2
                 if (ImGui::Button(button_name.c_str(), { (float)width, (float)height }))
                 {
                     follow_up = custom_action;
-                    dismiss();
+                    dismiss(false);
                 }
                 if (ImGui::IsItemHovered())
                     win.link_hovered();
@@ -382,7 +384,7 @@ namespace rs2
                 string id = to_string() << "Dismiss" << "##" << index;
                 if (ImGui::Button(id.c_str(), { 100, 20 }))
                 {
-                    dismiss();
+                    dismiss(true);
                 }
             }
             
@@ -398,15 +400,15 @@ namespace rs2
         return follow_up;
     }
 
-    int notifications_model::add_notification(const notification_data& n)
+    std::shared_ptr<notification_model> notifications_model::add_notification(const notification_data& n)
     {
         return add_notification(n, []{}, false);
     }
 
-    int notifications_model::add_notification(const notification_data& n,
+    std::shared_ptr<notification_model> notifications_model::add_notification(const notification_data& n,
         std::function<void()> custom_action, bool use_custom_action)
     {
-        int result = -1;
+        std::shared_ptr<notification_model> result = nullptr;
         {
             using namespace std;
             using namespace chrono;
@@ -419,13 +421,13 @@ namespace rs2
                 {
                     nm->last_interacted = std::chrono::system_clock::now();
                     nm->count++;
-                    return nm->index;
+                    return nm;
                 }
             }
 
             auto m = std::make_shared<notification_model>(n);
             m->index = index++;
-            result = m->index;
+            result = m;
             m->timestamp = duration<double, milli>(system_clock::now().time_since_epoch()).count();
 
             if (n.get_category() == RS2_NOTIFICATION_CATEGORY_COUNT)
@@ -457,10 +459,8 @@ namespace rs2
         return result;
     }
 
-    int notifications_model::add_notification(std::shared_ptr<notification_model> model)
+    void notifications_model::add_notification(std::shared_ptr<notification_model> model)
     {
-        int result = 0;
-
         {
             using namespace std;
             using namespace chrono;
@@ -483,8 +483,48 @@ namespace rs2
         }
 
         add_log(model->get_title());
+    }
 
-        return model->index;
+    void notifications_model::draw_snoozed_button()
+    {
+        auto has_snoozed = snoozed_notifications.size();
+        ImGui::PushStyleColor(ImGuiCol_Text, !has_snoozed ? sensor_bg : light_grey);
+        ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, !has_snoozed ? sensor_bg : light_blue);
+
+        const auto width = 50.f;
+
+        using namespace std;
+        using namespace chrono;
+
+        if (!has_snoozed) 
+        {
+            ImGui::ButtonEx(textual_icons::mail, { width, width }, ImGuiButtonFlags_Disabled);
+        }
+        else
+        {
+            auto k = duration_cast<milliseconds>(system_clock::now() - last_snoozed).count() / 500.f;
+            if (k <= 1.f)
+            {
+                auto size = 50.f;
+
+                ImGui::PopStyleColor();
+                ImGui::PushStyleColor(ImGuiCol_Text, saturate(white, smoothstep(static_cast<float>(k), 0.f, 1.f)));
+            }
+
+            if (ImGui::Button(textual_icons::mail, { width, width }))
+            {
+                for (auto&& n : snoozed_notifications)
+                {
+                    n->forced = true;
+                    n->snoozed = false;
+                    n->last_y -= 500;
+                    pending_notifications.push_back(n);
+                }
+                snoozed_notifications.clear();
+            }
+        }
+
+        ImGui::PopStyleColor(2);
     }
 
     void notifications_model::draw(ux_window& win, int w, int h, std::string& error_message)
@@ -498,11 +538,26 @@ namespace rs2
             std::lock_guard<std::recursive_mutex> lock(m);
             if (pending_notifications.size() > 0)
             {
+                snoozed_notifications.erase(std::remove_if(std::begin(snoozed_notifications),
+                    std::end(snoozed_notifications),
+                    [&](std::shared_ptr<notification_model>& n)
+                {
+                    return n->dismissed;
+                }), end(snoozed_notifications));
+
                 // loop over all notifications, remove "old" ones
                 pending_notifications.erase(std::remove_if(std::begin(pending_notifications),
                     std::end(pending_notifications),
                     [&](std::shared_ptr<notification_model>& n)
                 {
+                    if (n->snoozed && n->pinned)
+                    {
+                        n->dismissed = false;
+                        n->to_close = false;
+                        snoozed_notifications.push_back(n);
+                        last_snoozed = std::chrono::system_clock::now();
+                        return true;
+                    }
                     return ((n->get_age_in_ms() > n->get_max_lifetime_ms() && 
                             !n->pinned && !n->expanded) || n->to_close);
                 }), end(pending_notifications));
@@ -637,15 +692,6 @@ namespace rs2
         if (line[line.size() - 1] != '\n') line += "\n";
         log.push_back(line);
         new_log = true;
-    }
-
-    void notifications_model::dismiss(int idx)
-    {
-        std::lock_guard<std::recursive_mutex> lock(m);
-        for (auto& noti : pending_notifications)
-        {
-            if (noti->index == idx) noti->dismiss();
-        }
     }
 
     version_upgrade_model::version_upgrade_model(int version) 

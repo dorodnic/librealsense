@@ -38,7 +38,7 @@ namespace rs2
     void process_manager::start(std::shared_ptr<notification_model> n)
     {
         auto cleanup = [n]() {
-            n->dismiss();
+            n->dismiss(false);
         };
 
         log(to_string() << "Started " << _process_name << " process");

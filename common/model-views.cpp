@@ -2932,7 +2932,7 @@ namespace rs2
 
     device_model::~device_model()
     {
-        for (auto&& n : related_notifications) n->dismiss();
+        for (auto&& n : related_notifications) n->dismiss(false);
     }
 
     device_model::device_model(device& dev, std::string& error_message, viewer_model& viewer)
@@ -2996,17 +2996,20 @@ namespace rs2
                 time(&rawtime);
                 std::string id = to_string() << configurations::viewer::last_calib_notice << "." << name.second;
                 long long last_time = config_file::instance().get_or_default(id.c_str(), (long long)0);
-                //if (rawtime - last_time > 120) // TODO: Change to a week (604,800)
+                
+                std::string msg = to_string()
+                    << name.first << " (S/N " << name.second << ")";
+                auto manager = std::make_shared<on_chip_calib_manager>(viewer, model, *this, dev);
+                auto n = std::make_shared<autocalib_notification_model>(
+                    msg, manager, false);
+
+                if (rawtime - last_time < 604800)
                 {
-                    config_file::instance().set(id.c_str(), (long long)rawtime);
-                    std::string msg = to_string()
-                        << name.first << " (S/N " << name.second << ")";
-                    auto manager = std::make_shared<on_chip_calib_manager>(viewer, model, *this, dev);
-                    auto n = std::make_shared<autocalib_notification_model>(
-                        msg, manager, false);
-                    viewer.not_model.add_notification(n);
-                    related_notifications.push_back(n);
+                    n->snoozed = true;
                 }
+                
+                viewer.not_model.add_notification(n);
+                related_notifications.push_back(n);
             }
         }
 
@@ -3970,7 +3973,7 @@ namespace rs2
 
             for (auto&& n : related_notifications)
                 if (dynamic_cast<fw_update_notification_model*>(n.get()))
-                    n->dismiss();
+                    n->dismiss(false);
 
             manager->start(n);
         }
@@ -4016,7 +4019,7 @@ namespace rs2
             n->forced = true;
 
             for (auto&& n : related_notifications)
-                n->dismiss();
+                n->dismiss(false);
 
             manager->start(n);
         }
@@ -4297,7 +4300,7 @@ namespace rs2
 
                                 for (auto&& n : related_notifications)
                                     if (dynamic_cast<autocalib_notification_model*>(n.get()))
-                                        n->dismiss();
+                                        n->dismiss(false);
 
                                 manager->start(n);
                             }
