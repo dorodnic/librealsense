@@ -275,8 +275,8 @@ namespace rs2
         auto f = fetch_depth_frame();
         auto sensor = _sub->s->as<rs2::depth_stereo_sensor>();
         auto intr = f.get_profile().as<rs2::video_stream_profile>().get_intrinsics();
-        rs2::region_of_interest roi { f.get_width() * 0.45f, f.get_height()  * 0.45f, 
-                                      f.get_width() * 0.55f, f.get_height() * 0.55f };
+        rs2::region_of_interest roi { (int)(f.get_width() * 0.45f), (int)(f.get_height()  * 0.45f), 
+                                      (int)(f.get_width() * 0.55f), (int)(f.get_height() * 0.55f) };
         std::vector<single_metric_data> v;
 
         std::vector<float> fill_rates;
@@ -549,7 +549,7 @@ namespace rs2
 
         _sub->post_processing_enabled = _post_processing;
 
-        if (_was_streaming) start_viewer(0, 0, 0);
+        //if (_was_streaming) start_viewer(0, 0, 0);
     }
 
     void on_chip_calib_manager::keep()

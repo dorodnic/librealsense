@@ -926,7 +926,7 @@ namespace rs2
 
         /* Post processing filter rendering */
         std::atomic<bool> render_thread_active; // True when render post processing filter rendering thread is active, False otherwise
-        std::thread render_thread;              // Post processing filter rendering Thread running render_loop()
+        std::shared_ptr<std::thread> render_thread;              // Post processing filter rendering Thread running render_loop()
         void render_loop();                     // Post processing filter rendering function
 
         int last_frame_number = 0;

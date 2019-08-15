@@ -3291,7 +3291,7 @@ namespace rs2
         if (render_thread_active.exchange(true) == false)
         {
             viewer.syncer->start();
-            render_thread = std::thread([&](){post_processing_filters::render_loop();});
+            render_thread = std::make_shared<std::thread>([&](){post_processing_filters::render_loop();});
         }
     }
 
@@ -3300,7 +3300,8 @@ namespace rs2
         if (render_thread_active.exchange(false) == true)
         {
             viewer.syncer->stop();
-            render_thread.join();
+            render_thread->join();
+            render_thread.reset();
         }
     }
     void post_processing_filters::render_loop()
@@ -3964,6 +3965,7 @@ namespace rs2
 
             auto n = std::make_shared<fw_update_notification_model>(
                 "Manual Update requested", manager, true);
+            n->forced = true;
             viewer.not_model.add_notification(n);
 
             for (auto&& n : related_notifications)
