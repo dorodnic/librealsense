@@ -334,7 +334,7 @@ namespace rs2
                 if (ImGui::Button(button_name.c_str(), { (float)width, (float)height }))
                 {
                     follow_up = custom_action;
-                    dismissed = true;
+                    dismiss();
                 }
                 if (ImGui::IsItemHovered())
                     win.link_hovered();
@@ -382,7 +382,7 @@ namespace rs2
                 string id = to_string() << "Dismiss" << "##" << index;
                 if (ImGui::Button(id.c_str(), { 100, 20 }))
                 {
-                    dismissed = true;
+                    dismiss();
                 }
             }
             
@@ -644,7 +644,7 @@ namespace rs2
         std::lock_guard<std::recursive_mutex> lock(m);
         for (auto& noti : pending_notifications)
         {
-            if (noti->index == idx) noti->dismissed = true;
+            if (noti->index == idx) noti->dismiss();
         }
     }
 

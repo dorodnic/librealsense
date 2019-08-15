@@ -388,7 +388,7 @@ namespace rs2
                         update_manager->check_error(error_message);
                         update_state = RS2_FWU_STATE_FAILED;
                         pinned = false;
-                        dismissed = true;
+                        dismiss();
                     }
 
                     draw_progress_bar(win, bar_width);
@@ -469,7 +469,7 @@ namespace rs2
                     {
                         update_state = RS2_FWU_STATE_FAILED;
                         pinned = false;
-                        dismissed = true;
+                        dismiss();
                     }
                     expanded = false;
                     ImGui::CloseCurrentPopup();

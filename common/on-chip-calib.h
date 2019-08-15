@@ -64,6 +64,8 @@ namespace rs2
         std::vector<uint8_t> _old_calib, _new_calib;
         std::vector<std::pair<float, float>> _metrics;
 
+        bool _restored = false;
+
         void stop_viewer();
         void start_viewer(int w, int h, int fps);
     };
@@ -91,6 +93,7 @@ namespace rs2
         void draw_content(ux_window& win, int x, int y, float t, std::string& error_message) override;
         void draw_expanded(ux_window& win, std::string& error_message) override;
         int calc_height() override;
+        void dismiss() override;
 
         bool use_new_calib = true;
     };

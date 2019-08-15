@@ -235,6 +235,27 @@ namespace rs2
                 _sub->ui.selected_res_id = i;
         }
 
+        // If not supported, try WxHx30
+        if (!_sub->is_selected_combination_supported())
+        {
+            for (int i = 0; i < _sub->shared_fps_values.size(); i++)
+            {
+                if (_sub->shared_fps_values[i] == 30)
+                    _sub->ui.selected_shared_fps_id = i;
+            }
+
+            // If still not supported, try VGA30
+            if (!_sub->is_selected_combination_supported())
+            {
+                for (int i = 0; i < _sub->res_values.size(); i++)
+                {
+                    auto kvp = _sub->res_values[i];
+                    if (kvp.first == 640 && kvp.second == 480)
+                        _sub->ui.selected_res_id = i;
+                }
+            }
+        }
+
         auto profiles = _sub->get_selected_profiles();
 
         if (!_model.dev_syncer)
@@ -538,6 +559,8 @@ namespace rs2
 
     void on_chip_calib_manager::restore_workspace()
     {
+        if (_restored) return;
+
         _viewer.is_3d_view = _in_3d_view;
 
         _viewer.synchronization_enable = _synchronized;
@@ -548,6 +571,8 @@ namespace rs2
         _ui.reset();
 
         _sub->post_processing_enabled = _post_processing;
+
+        _restored = true;
 
         //if (_was_streaming) start_viewer(0, 0, 0);
     }
@@ -580,7 +605,7 @@ namespace rs2
         uint16_t size = (uint16_t)(0x14 + hd->table_size);
 
         std::vector<uint8_t> apply_calib{
-            0x14, 0, 0xAB, 0xCD, 0x51, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+            0x14, 0, 0xAB, 0xCD, 0x51, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x34, 0x12, 0xcd, 0xab
         };
 
         auto up = (uint16_t*)apply_calib.data();
@@ -772,7 +797,7 @@ namespace rs2
                         enable_dismiss = false;
                         last_progress_time = last_interacted = system_clock::now() + milliseconds(500);
                     }
-                    else dismissed = true;
+                    else dismiss();
 
                     get_manager().restore_workspace();
                 }
@@ -845,7 +870,7 @@ namespace rs2
                         update_manager->check_error(error_message);
                         update_state = RS2_CALIB_STATE_FAILED;
                         pinned = false;
-                        dismissed = true;
+                        dismiss();
                     }
 
                     draw_progress_bar(win, bar_width);
@@ -863,6 +888,15 @@ namespace rs2
                 }
             }
         }
+    }
+
+    void autocalib_notification_model::dismiss()
+    {
+        if (!use_new_calib) get_manager().apply_calib(false);
+
+        get_manager().restore_workspace();
+
+        notification_model::dismiss();
     }
 
     void autocalib_notification_model::draw_expanded(ux_window& win, std::string& error_message)
@@ -912,7 +946,7 @@ namespace rs2
                     {
                         update_state = RS2_CALIB_STATE_FAILED;
                         pinned = false;
-                        dismissed = true;
+                        dismiss();
                     }
                     expanded = false;
                     ImGui::CloseCurrentPopup();

@@ -50,6 +50,8 @@ namespace rs2
         virtual void draw_content(ux_window& win, int x, int y, float t, std::string& error_message);
         virtual void draw_expanded(ux_window& win, std::string& error_message) {}
 
+        virtual void dismiss() { dismissed = true; }
+
         std::string get_title();
 
         std::function<void()> custom_action;

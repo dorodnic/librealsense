@@ -2932,7 +2932,7 @@ namespace rs2
 
     device_model::~device_model()
     {
-        for (auto&& n : related_notifications) n->dismissed = true;
+        for (auto&& n : related_notifications) n->dismiss();
     }
 
     device_model::device_model(device& dev, std::string& error_message, viewer_model& viewer)
@@ -3970,7 +3970,7 @@ namespace rs2
 
             for (auto&& n : related_notifications)
                 if (dynamic_cast<fw_update_notification_model*>(n.get()))
-                    n->dismissed = true;
+                    n->dismiss();
 
             manager->start(n);
         }
@@ -4016,7 +4016,7 @@ namespace rs2
             n->forced = true;
 
             for (auto&& n : related_notifications)
-                n->dismissed = true;
+                n->dismiss();
 
             manager->start(n);
         }
@@ -4297,7 +4297,7 @@ namespace rs2
 
                                 for (auto&& n : related_notifications)
                                     if (dynamic_cast<autocalib_notification_model*>(n.get()))
-                                        n->dismissed = true;
+                                        n->dismiss();
 
                                 manager->start(n);
                             }
