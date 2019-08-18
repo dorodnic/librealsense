@@ -96,5 +96,6 @@ namespace rs2
         void dismiss(bool snooze) override;
 
         bool use_new_calib = true;
+        std::string _error_message = "";
     };
 }

@@ -483,7 +483,7 @@ namespace rs2
             bool done = false;
             do
             {
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
                 cmd =
                 {
@@ -510,7 +510,8 @@ namespace rs2
 
             if (!done)
             {
-                throw std::runtime_error("Timeout!");
+                throw std::runtime_error("Operation timed-out!\n"
+                "Calibration state did not converged in time");
             }
 
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -529,7 +530,27 @@ namespace rs2
 
         if (result.status != RS2_DSC_STATUS_SUCCESS)
         {
-            throw std::runtime_error(to_string() << "Status = " << result.status);
+            if (result.status == RS2_DSC_STATUS_EDGE_TOO_CLOSE)
+            {
+                throw std::runtime_error("Calibration didn't converge! (EDGE_TO_CLOSE)\n"
+                    "Please retry in different lighting conditions");
+            }
+            else if (result.status == RS2_DSC_STATUS_FILL_FACTOR_TOO_LOW)
+            {
+                throw std::runtime_error("Not enough depth pixels! (FILL_FACTOR_LOW)\n"
+                    "Please retry in different lighting conditions");
+            }
+            else if (result.status == RS2_DSC_STATUS_NOT_CONVERGE)
+            {
+                throw std::runtime_error("Calibration didn't converge! (NOT_CONVERGE)\n"
+                    "Please retry in different lighting conditions");
+            }
+            else if (result.status == RS2_DSC_STATUS_NO_DEPTH_AVERAGE)
+            {
+                throw std::runtime_error("Calibration didn't converge! (NO_AVERAGE)\n"
+                    "Please retry in different lighting conditions");
+            }
+            else throw std::runtime_error(to_string() << "Calibration didn't converge! (RESULT=" << result.status << ")");
         }
 
         std::vector<uint8_t> cmd =
@@ -656,10 +677,11 @@ namespace rs2
         {
             if (update_state == RS2_CALIB_STATE_INITIAL_PROMPT)
                 ImGui::Text("Calibration Health-Check");
-
-            if (update_state == RS2_CALIB_STATE_CALIB_IN_PROCESS ||
+            else if (update_state == RS2_CALIB_STATE_CALIB_IN_PROCESS ||
                 update_state == RS2_CALIB_STATE_CALIB_COMPLETE)
                 ImGui::Text("On-Chip Calibration");
+            if (update_state == RS2_CALIB_STATE_FAILED)
+                ImGui::Text("Calibration Failed");
 
             ImGui::SetCursorScreenPos({ float(x + 9), float(y + 27) });
 
@@ -683,6 +705,34 @@ namespace rs2
             {
                 enable_dismiss = false;
                 ImGui::Text("Camera is being calibrated...\nKeep the camera stationary pointing at a wall");
+            }
+            else if (update_state == RS2_CALIB_STATE_FAILED)
+            {
+                ImGui::Text(_error_message.c_str());
+
+                auto sat = 1.f + sin(duration_cast<milliseconds>(system_clock::now() - created_time).count() / 700.f) * 0.1f;
+
+                ImGui::PushStyleColor(ImGuiCol_Button, saturate(redish, sat));
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, saturate(redish, 1.5f));
+
+                std::string button_name = to_string() << "Retry" << "##retry" << index;
+
+                ImGui::SetCursorScreenPos({ float(x + 5), float(y + height - 25) });
+                if (ImGui::Button(button_name.c_str(), { float(bar_width), 20.f }))
+                {
+                    get_manager().restore_workspace();
+                    get_manager().reset();
+                    get_manager().start(shared_from_this());
+                    update_state = RS2_CALIB_STATE_CALIB_IN_PROCESS;
+                    enable_dismiss = false;
+                }
+
+                ImGui::PopStyleColor(2);
+
+                if (ImGui::IsItemHovered())
+                {
+                    ImGui::SetTooltip("%s", "Retry on-chip calibration process");
+                }
             }
             else if (update_state == RS2_CALIB_STATE_CALIB_COMPLETE)
             {
@@ -888,10 +938,11 @@ namespace rs2
                 {
                     if (update_manager->failed())
                     {
-                        update_manager->check_error(error_message);
+                        update_manager->check_error(_error_message);
                         update_state = RS2_CALIB_STATE_FAILED;
-                        pinned = false;
-                        dismiss(false);
+                        enable_dismiss = true;
+                        //pinned = false;
+                        //dismiss(false);
                     }
 
                     draw_progress_bar(win, bar_width);
@@ -917,6 +968,9 @@ namespace rs2
             get_manager().apply_calib(false);
 
         get_manager().restore_workspace();
+
+        update_state = RS2_CALIB_STATE_INITIAL_PROMPT;
+        get_manager().reset();
 
         notification_model::dismiss(snooze);
     }
@@ -967,8 +1021,8 @@ namespace rs2
                     if (update_manager->failed())
                     {
                         update_state = RS2_CALIB_STATE_FAILED;
-                        pinned = false;
-                        dismiss(false);
+                        //pinned = false;
+                        //dismiss(false);
                     }
                     expanded = false;
                     ImGui::CloseCurrentPopup();
@@ -1013,6 +1067,11 @@ namespace rs2
         if (update_state == RS2_CALIB_STATE_COMPLETE)
         {
             c = alpha(saturate(light_blue, 0.7f), 1 - t);
+            ImGui::PushStyleColor(ImGuiCol_WindowBg, c);
+        }
+        else if (update_state == RS2_CALIB_STATE_FAILED)
+        {
+            c = alpha(dark_red, 1 - t);
             ImGui::PushStyleColor(ImGuiCol_WindowBg, c);
         }
         else

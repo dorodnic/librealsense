@@ -25,6 +25,7 @@ namespace rs2
         _started = false;
         _done = false;
         _failed = false;
+        _last_error = "";
     }
 
     void process_manager::fail(std::string error)
@@ -38,7 +39,7 @@ namespace rs2
     void process_manager::start(std::shared_ptr<notification_model> n)
     {
         auto cleanup = [n]() {
-            n->dismiss(false);
+            //n->dismiss(false);
         };
 
         log(to_string() << "Started " << _process_name << " process");
