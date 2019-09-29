@@ -97,7 +97,11 @@ namespace librealsense
                 if (f->is_fixed())
                     published_frames.deallocate(f);
                 else
+                {
+                    if (frame && frame->get_stream()) LOG_DEBUG("DeleteFrameStart," << std::dec << librealsense::get_string(frame->get_stream()->get_stream_type()) << "," << frame->get_frame_number());
                     delete f;
+                    if (frame && frame->get_stream()) LOG_DEBUG("DeleteFrameEnd," << std::dec << librealsense::get_string(frame->get_stream()->get_stream_type()) << "," << frame->get_frame_number());
+                }
             }
         }
 
@@ -126,7 +130,9 @@ namespace librealsense
             }
             else
             {
+                if (frame && frame->get_stream()) LOG_DEBUG("MallocFrameStart," << std::dec << librealsense::get_string(frame->get_stream()->get_stream_type()) << "," << frame->get_frame_number());
                 new_frame = new T();
+                if (frame && frame->get_stream()) LOG_DEBUG("MallocFrameEnd," << std::dec << librealsense::get_string(frame->get_stream()->get_stream_type()) << "," << frame->get_frame_number());
             }
 
             ++published_frames_count;

@@ -28,7 +28,7 @@
 
 
 const uint16_t MAX_RETRIES                = 100;
-const uint8_t  DEFAULT_V4L2_FRAME_BUFFERS = 4;
+const uint8_t  DEFAULT_V4L2_FRAME_BUFFERS = 8;
 const uint16_t DELAY_FOR_RETRIES          = 50;
 
 const uint8_t MAX_META_DATA_SIZE          = 0xff; // UVC Metadata total length

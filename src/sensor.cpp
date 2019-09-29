@@ -510,7 +510,10 @@ namespace librealsense
                         auto width = res.width;
                         auto height = res.height;
 
+                        LOG_DEBUG("FrameAllocStarted");
                         frame_holder frame = _source.alloc_frame(stream_to_frame_types(output.stream_desc.type), width * height * bpp / 8, additional_data, requires_processing);
+                        LOG_DEBUG("FrameAllocEnded");
+
                         if (frame.frame)
                         {
                             auto video = (video_frame*)frame.frame;
@@ -533,7 +536,9 @@ namespace librealsense
                     // Unpack the frame
                     if (requires_processing && (dest.size() > 0))
                     {
+                        LOG_DEBUG("FrameUnpackStarted");
                         unpacker.unpack(dest.data(), reinterpret_cast<const byte *>(f.pixels), mode.profile.width, mode.profile.height, f.frame_size);
+                        LOG_DEBUG("FrameUnpackEnded");
                     }
 
                     // If any frame callbacks were specified, dispatch them now
