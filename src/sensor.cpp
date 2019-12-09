@@ -609,6 +609,8 @@ namespace librealsense
             throw wrong_api_call_sequence_exception("close() failed. UVC device is streaming!");
         else if (!_is_opened)
             throw wrong_api_call_sequence_exception("close() failed. UVC device was not opened!");
+            
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
         for (auto& profile : _internal_config)
         {
@@ -626,6 +628,8 @@ namespace librealsense
         _power.reset();
         _is_opened = false;
         set_active_streams({});
+        
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     }
 
     void uvc_sensor::register_xu(platform::extension_unit xu)
