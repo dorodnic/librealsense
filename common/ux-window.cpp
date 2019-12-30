@@ -503,7 +503,7 @@ namespace rs2
         }
 
         // If we are just getting started, render the Splash Screen instead of normal UI
-        while (res && (!_app_ready || _splash_timer.elapsed_ms() < 2000.f))
+        while (true)//(res && (!_app_ready || _splash_timer.elapsed_ms() < 2000.f))
         {
             res = !glfwWindowShouldClose(_win);
             glfwPollEvents();
