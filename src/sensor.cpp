@@ -57,6 +57,7 @@ namespace librealsense
 
     stream_profiles sensor_base::get_active_streams() const
     {
+        std::lock_guard<std::mutex> lock(_active_profile_mutex);
         return _active_profiles;
     }
 
@@ -172,6 +173,7 @@ namespace librealsense
     }
     void sensor_base::set_active_streams(const stream_profiles& requests)
     {
+        std::lock_guard<std::mutex> lock(_active_profile_mutex);
         _active_profiles = requests;
     }
 
@@ -1181,6 +1183,11 @@ namespace librealsense
                             if (is_duplicated_profile(cloned_profile, result_profiles))
                                 continue;
 
+                            // Only injective cloning in many to one mapping.
+                            // One to many is not affected.
+                            if (sources.size() > 1 && target.format != source.format)
+                                continue;
+
                             result_profiles.push_back(cloned_profile);
                         }
                     }
@@ -1225,28 +1232,21 @@ namespace librealsense
         return {best_match_processing_block_factory, best_match_requests};
     }
 
-    void synthetic_sensor::add_source_profile_missing_data(std::shared_ptr<stream_profile_interface>& source_profile)
+    void synthetic_sensor::add_source_profile_missing_data(std::shared_ptr<stream_profile_interface>& target)
     {
         // Add the missing data to the desired source profile.
         // This is needed because we duplicate the source profile into multiple target profiles in the init_stream_profiles() method.
-        
-        auto&& target_profiles = _source_to_target_profiles_map[source_profile];
-
-        // find the closest target profile to the source profile, if there is none, just take the first.
-        auto best_match = std::find_if(target_profiles.begin(), target_profiles.end(),
-            [source_profile](const std::shared_ptr<stream_profile_interface>& sp)
-        {
-            return source_profile->get_format() == sp->get_format();
-        });
 
         // Update the source profile's fields with the correlated target profile.
         // This profile will be propagated to the generated frame received from the backend sensor.
-        auto&& correlated_target_profile = best_match != target_profiles.end() ? *best_match : target_profiles.front();
-        source_profile->set_stream_index(correlated_target_profile->get_stream_index());
-        source_profile->set_unique_id(correlated_target_profile->get_unique_id());
-        source_profile->set_stream_type(correlated_target_profile->get_stream_type());
+
+        auto source_profile_ = _target_to_source_profiles_map[to_profile(target.get())];
+        auto source_profile = source_profile_[0];
+        source_profile->set_stream_index(target->get_stream_index());
+        source_profile->set_unique_id(target->get_unique_id());
+        source_profile->set_stream_type(target->get_stream_type());
         auto&& vsp = As<video_stream_profile, stream_profile_interface>(source_profile);
-        const auto&& cvsp = As<video_stream_profile, stream_profile_interface>(correlated_target_profile);
+        const auto&& cvsp = As<video_stream_profile, stream_profile_interface>(target);
         if (vsp)
         {
             vsp->set_intrinsics([cvsp]() {
@@ -1256,6 +1256,7 @@ namespace librealsense
                 else
                     return rs2_intrinsics{};
             });
+
             vsp->set_dims(cvsp->get_width(), cvsp->get_height());
         }
     }
@@ -1334,6 +1335,9 @@ namespace librealsense
     {
         std::lock_guard<std::mutex> lock(_synthetic_configure_lock);
 
+        for (auto source : requests)
+            add_source_profile_missing_data(source);
+
         const auto&& resolved_req = resolve_requests(requests);
 
         _raw_sensor->set_source_owner(this);
@@ -1368,6 +1372,7 @@ namespace librealsense
         }
         _profiles_to_processing_block.erase(begin(_profiles_to_processing_block), end(_profiles_to_processing_block));
         _cached_requests.erase(_cached_requests.begin(), _cached_requests.end());
+        set_active_streams({});
     }
 
     template<class T>
@@ -1504,6 +1509,11 @@ namespace librealsense
     {
         sensor_base::register_notifications_callback(callback);
         _raw_sensor->register_notifications_callback(callback);
+    }
+
+    int synthetic_sensor::register_before_streaming_changes_callback(std::function<void(bool)> callback)
+    {
+        return _raw_sensor->register_before_streaming_changes_callback(callback);
     }
 
     void synthetic_sensor::register_metadata(rs2_frame_metadata_value metadata, std::shared_ptr<md_attribute_parser_base> metadata_parser) const

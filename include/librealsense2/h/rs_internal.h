@@ -111,6 +111,17 @@ typedef struct rs2_software_pose_frame
     const rs2_stream_profile* profile;
 } rs2_software_pose_frame;
 
+typedef struct rs2_software_notification
+{
+    rs2_notification_category category;
+    int type;
+    rs2_log_severity severity;
+    const char* description;
+    const char* serialized_data;
+} rs2_software_notification;
+
+struct rs2_software_device_destruction_callback;
+
 /**
  * Create librealsense context that will try to record all operations over librealsense into a file
  * \param[in] api_version realsense API version as provided by RS2_API_VERSION macro
@@ -185,6 +196,15 @@ void rs2_software_sensor_on_motion_frame(rs2_sensor* sensor, rs2_software_motion
 */
 void rs2_software_sensor_on_pose_frame(rs2_sensor* sensor, rs2_software_pose_frame frame, rs2_error** error);
 
+
+/**
+* Inject notification to software sonsor
+* \param[in] sensor the software sensor
+* \param[in] notif all the notification components
+* \param[out] error  if non-null, receives any error that occurs during this call, otherwise, errors are ignored
+*/
+void rs2_software_sensor_on_notification(rs2_sensor* sensor, rs2_software_notification notif, rs2_error** error);
+
 /**
 * Set frame metadata for the upcoming frames
 * \param[in] sensor the software sensor
@@ -195,12 +215,46 @@ void rs2_software_sensor_on_pose_frame(rs2_sensor* sensor, rs2_software_pose_fra
 void rs2_software_sensor_set_metadata(rs2_sensor* sensor, rs2_frame_metadata_value value, rs2_metadata_type type, rs2_error** error);
 
 /**
+* set callback to be notified when a specific software device is destroyed
+* \param[in] dev             software device
+* \param[in] on_notification function pointer to register as callback
+* \param[out] error          if non-null, receives any error that occurs during this call, otherwise, errors are ignored
+*/
+void rs2_software_device_set_destruction_callback(const rs2_device* dev, rs2_software_device_destruction_callback_ptr on_notification, void* user, rs2_error** error);
+
+/**
+* set callback to be notified when a specific software device is destroyed
+* \param[in] dev      software device
+* \param[in] callback callback object created from c++ application. ownership over the callback object is moved into the relevant device lock
+* \param[out] error   if non-null, receives any error that occurs during this call, otherwise, errors are ignored
+*/
+void rs2_software_device_set_destruction_callback_cpp(const rs2_device* dev, rs2_software_device_destruction_callback* callback, rs2_error** error);
+
+/**
  * Set the wanted matcher type that will be used by the syncer
  * \param[in] dev the software device
  * \param[in] matcher matcher type
  * \param[out] error  if non-null, receives any error that occurs during this call, otherwise, errors are ignored
  */
 void rs2_software_device_create_matcher(rs2_device* dev, rs2_matchers matcher, rs2_error** error);
+
+/**
+ * Register a camera info value for the software device
+ * \param[in] dev the software device
+ * \param[in] info identifier for the camera info to add.
+ * \param[in] val string value for this new camera info.
+ * \param[out] error  if non-null, receives any error that occurs during this call, otherwise, errors are ignored
+ */
+void rs2_software_device_register_info(rs2_device* dev, rs2_camera_info info, const char *val, rs2_error** error);
+
+/**
+ * Update an existing camera info value for the software device
+ * \param[in] dev the software device
+ * \param[in] info identifier for the camera info to add.
+ * \param[in] val string value for this new camera info.
+ * \param[out] error  if non-null, receives any error that occurs during this call, otherwise, errors are ignored
+ */
+void rs2_software_device_update_info(rs2_device* dev, rs2_camera_info info, const char * val, rs2_error** error);
 
 /**
  * Add video stream to sensor
@@ -211,20 +265,47 @@ void rs2_software_device_create_matcher(rs2_device* dev, rs2_matchers matcher, r
 rs2_stream_profile* rs2_software_sensor_add_video_stream(rs2_sensor* sensor, rs2_video_stream video_stream, rs2_error** error);
 
 /**
+ * Add video stream to sensor
+ * \param[in] sensor the software sensor
+ * \param[in] video_stream all the stream components
+ * \param[in] is_default whether or not the stream should be a default stream for the device
+ * \param[out] error  if non-null, receives any error that occurs during this call, otherwise, errors are ignored
+ */
+rs2_stream_profile* rs2_software_sensor_add_video_stream_ex(rs2_sensor* sensor, rs2_video_stream video_stream, int is_default, rs2_error** error);
+
+/**
 * Add motion stream to sensor
 * \param[in] sensor the software sensor
-* \param[in] video_stream all the stream components
+* \param[in] motion_stream all the stream components
 * \param[out] error  if non-null, receives any error that occurs during this call, otherwise, errors are ignored
 */
 rs2_stream_profile* rs2_software_sensor_add_motion_stream(rs2_sensor* sensor, rs2_motion_stream motion_stream, rs2_error** error);
 
 /**
+* Add motion stream to sensor
+* \param[in] sensor the software sensor
+* \param[in] motion_stream all the stream components
+* \param[in] is_default whether or not the stream should be a default stream for the device
+* \param[out] error  if non-null, receives any error that occurs during this call, otherwise, errors are ignored
+*/
+rs2_stream_profile* rs2_software_sensor_add_motion_stream_ex(rs2_sensor* sensor, rs2_motion_stream motion_stream, int is_default, rs2_error** error);
+
+/**
 * Add pose stream to sensor
 * \param[in] sensor the software sensor
-* \param[in] video_stream all the stream components
+* \param[in] pose_stream all the stream components
 * \param[out] error  if non-null, receives any error that occurs during this call, otherwise, errors are ignored
 */
 rs2_stream_profile* rs2_software_sensor_add_pose_stream(rs2_sensor* sensor, rs2_pose_stream pose_stream, rs2_error** error);
+
+/**
+* Add pose stream to sensor
+* \param[in] sensor the software sensor
+* \param[in] pose_stream all the stream components
+* \param[in] is_default whether or not the stream should be a default stream for the device
+* \param[out] error  if non-null, receives any error that occurs during this call, otherwise, errors are ignored
+*/
+rs2_stream_profile* rs2_software_sensor_add_pose_stream_ex(rs2_sensor* sensor, rs2_pose_stream pose_stream, int is_default, rs2_error** error);
 
 /**
  * Add read only option to sensor
@@ -243,6 +324,19 @@ void rs2_software_sensor_add_read_only_option(rs2_sensor* sensor, rs2_option opt
  * \param[out] error  if non-null, receives any error that occurs during this call, otherwise, errors are ignored
  */
 void rs2_software_sensor_update_read_only_option(rs2_sensor* sensor, rs2_option option, float val, rs2_error** error);
+
+/**
+ * Add an option to sensor
+ * \param[in] sensor        the software sensor
+ * \param[in] option        the wanted option
+ * \param[in] min           the minimum value which will be accepted for this option
+ * \param[in] max           the maximum value which will be accepted for this option
+ * \param[in] step          the granularity of options which accept discrete values, or zero if the option accepts continuous values
+ * \param[in] def           the initial value of the option
+ * \param[in] is_writable   should the option be read-only or not
+ * \param[out] error  if non-null, receives any error that occurs during this call, otherwise, errors are ignored
+ */
+void rs2_software_sensor_add_option(rs2_sensor* sensor, rs2_option option, float min, float max, float step, float def, int is_writable, rs2_error** error);
 #ifdef __cplusplus
 }
 #endif
