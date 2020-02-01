@@ -21,6 +21,8 @@
 
 #include <iostream>
 
+#include <librealsense2/hpp/rs_internal.hpp>
+
 namespace rs2
 {
     void prepare_config_file()
@@ -386,13 +388,37 @@ namespace rs2
 
     void ux_window::imgui_config_push()
     {
+        software_device sd;
+        sd.set_destruction_callback([](){});
+        sd.register_info(RS2_CAMERA_INFO_NAME, "Intel RealSense L515");
+        auto sensor = sd.add_sensor("Dummy");
+        rs2_video_stream stream;
+        stream.type = RS2_STREAM_DEPTH;
+        stream.uid = 0;
+        stream.width = 1;
+        stream.height = 1;
+        stream.fps = 1;
+        stream.fmt = RS2_FORMAT_Z16;
+        stream.index = 0;
+        auto sp = sensor.add_video_stream(stream);
+        rs2_software_video_frame f;
+        f.profile = sp.get();
+        f.frame_number = 0;
+        f.deleter = [](void*){};
+        sensor.open(sp);
+        frame_queue q;
+        sensor.start(q);
+        sensor.on_video_frame(f);
+
+        rs2::gl::camera_renderer cr;
+
         glPushMatrix();
         glViewport(0, 0, _fb_width, _fb_height);
         glClearColor(0.036f, 0.044f, 0.051f, 1.f);
         glClear(GL_COLOR_BUFFER_BIT);
 
         glLoadIdentity();
-        glOrtho(0, _width, _height, 0, -1, +1);
+        glOrtho(0, _width, _height - 200, 0, -1, +1);
 
         // Fade-in the logo
         auto opacity = smoothstep(float(_splash_timer.elapsed_ms()), 100.f, 2500.f);
@@ -413,6 +439,99 @@ namespace rs2
         {
             _splash_tex.show({ 0.f,0.f,float(_width),float(_height) }, opacity);
         }
+
+
+        //glViewport(0, 0, _fb_width, _fb_height);
+
+        //glClearColor(0, 0, 0, 1);
+        //glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        matrix4 perspective_mat = create_perspective_projection_matrix(_width, _height, 
+        61 * opacity + (59) * (1 - opacity), 0.001f, 100.f);
+
+        // glMatrixMode(GL_PROJECTION);
+        // glPushMatrix();
+        // glLoadMatrixf((float*)perspective_mat.mat);
+
+        matrix4 rx = identity_matrix();
+        auto theta = (-10.f / 180.f) * M_PI;
+        rx.mat[1][1] = cos(theta);
+        rx.mat[1][2] = sin(theta);
+        rx.mat[2][1] = -sin(theta);
+        rx.mat[2][2] = cos(theta);
+
+        matrix4 ry = identity_matrix();
+        theta = opacity * (-15.f / 180.f) * M_PI;
+        ry.mat[0][0] = cos(theta);
+        ry.mat[0][2] = sin(theta);
+        ry.mat[2][0] = -sin(theta);
+        ry.mat[2][2] = cos(theta);
+
+        matrix4 view = identity_matrix();
+        //view.mat[2][2] = -1.f;
+        view.mat[0][0] = -1.f;
+        view.mat[1][1] = -1.f;
+        view.mat[3][2] = -0.65f;
+        view.mat[3][1] = -0.06f;
+        view.mat[3][0] = -0.05f;
+
+        // glMatrixMode(GL_MODELVIEW);
+        // glPushMatrix();
+        // glLoadMatrixf(view);
+
+        glDisable(GL_DEPTH_TEST);
+        glEnable(GL_BLEND);
+
+        glBlendFunc(GL_ONE, GL_ONE);
+
+        cr.set_matrix(RS2_GL_MATRIX_CAMERA, ry * rx * view);
+        cr.set_matrix(RS2_GL_MATRIX_PROJECTION, perspective_mat);
+        q.wait_for_frame().apply_filter(cr);
+
+        sd.register_info(RS2_CAMERA_INFO_NAME, "Intel RealSense D435");
+        view.mat[3][0] = 0.02f;
+        view.mat[0][0] = 1.2f; view.mat[1][1] = -1.2f;
+        theta = opacity * (-5.f / 180.f) * M_PI;
+        ry.mat[0][0] = cos(theta);
+        ry.mat[0][2] = sin(theta);
+        ry.mat[2][0] = -sin(theta);
+        ry.mat[2][2] = cos(theta);
+        cr.set_matrix(RS2_GL_MATRIX_CAMERA, ry * rx * view);
+        sensor.on_video_frame(f);
+        q.wait_for_frame().apply_filter(cr);
+
+        sd.register_info(RS2_CAMERA_INFO_NAME, "Intel RealSense T265");
+        view.mat[3][0] = 0.15f;
+        view.mat[3][2] = -0.75f;
+        view.mat[0][0] = 0.8f; view.mat[1][1] = -0.8f;
+        theta = opacity * (-25.f / 180.f) * M_PI;
+        ry.mat[0][0] = cos(theta);
+        ry.mat[0][2] = sin(theta);
+        ry.mat[2][0] = -sin(theta);
+        ry.mat[2][2] = cos(theta);
+        cr.set_matrix(RS2_GL_MATRIX_CAMERA, ry * rx * view);
+        sensor.on_video_frame(f);
+        q.wait_for_frame().apply_filter(cr);
+
+        sd.register_info(RS2_CAMERA_INFO_NAME, "Intel RealSense SR305");
+        view.mat[3][0] = -0.15f;
+        view.mat[3][2] = -0.75f;
+        view.mat[0][0] = 0.8f; view.mat[1][1] = -0.8f;
+        theta = opacity * (25.f / 180.f) * M_PI;
+        ry.mat[0][0] = cos(theta);
+        ry.mat[0][2] = sin(theta);
+        ry.mat[2][0] = -sin(theta);
+        ry.mat[2][2] = cos(theta);
+        cr.set_matrix(RS2_GL_MATRIX_CAMERA, ry * rx * view);
+        sensor.on_video_frame(f);
+        q.wait_for_frame().apply_filter(cr);
+
+        sensor.stop();
+        sensor.close();
+
+        glDisable(GL_BLEND);
+
+
 
         std::string hourglass = u8"\uf250";
         static periodic_timer every_200ms(std::chrono::milliseconds(200));
@@ -443,13 +562,13 @@ namespace rs2
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, { 5, 5 });
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 1);
         ImGui::PushStyleColor(ImGuiCol_WindowBg, transparent);
-        ImGui::SetNextWindowPos({ (float)_width / 2 - 150, (float)_height / 2 + 70 });
+        ImGui::SetNextWindowPos({ (float)_width / 2 - 150, (float)_height / 2 + 70 - 200 });
 
         ImGui::SetNextWindowSize({ (float)_width, (float)_height });
         ImGui::Begin("Splash Screen Banner", nullptr, flags);
         ImGui::PushFont(_font_18);
 
-        ImGui::Text("%s   Loading %s...", hourglass.c_str(), _title_str.c_str());
+        //ImGui::Text("%s   Loading %s...", hourglass.c_str(), _title_str.c_str());
     }
 
     // Check that the graphic subsystem is valid and start a new frame
@@ -518,28 +637,27 @@ namespace rs2
 
             imgui_config_push();
 
-            {
-                std::lock_guard<std::mutex> lock(_on_load_message_mtx);
-                if (_on_load_message.empty())
-                {
-                    ImGui::Text("%s", _dev_stat_message.c_str());
-                }
-                else if (!_on_load_message.empty())
-                {
-                    ImGui::Text("%s", _dev_stat_message.c_str());
-                    for (auto& msg : _on_load_message)
-                    {
-                        auto is_last_msg = (msg == _on_load_message.back());
-                        if (is_last_msg)
-                            ImGui::Text("%s", msg.c_str());
-                        else if (!is_last_msg)
-                            ImGui::Text("%s", msg.c_str());
-                    }
-                }
-            }
+            // {
+            //     std::lock_guard<std::mutex> lock(_on_load_message_mtx);
+            //     if (_on_load_message.empty())
+            //     {
+            //         ImGui::Text("%s", _dev_stat_message.c_str());
+            //     }
+            //     else if (!_on_load_message.empty())
+            //     {
+            //         ImGui::Text("%s", _dev_stat_message.c_str());
+            //         for (auto& msg : _on_load_message)
+            //         {
+            //             auto is_last_msg = (msg == _on_load_message.back());
+            //             if (is_last_msg)
+            //                 ImGui::Text("%s", msg.c_str());
+            //             else if (!is_last_msg)
+            //                 ImGui::Text("%s", msg.c_str());
+            //         }
+            //     }
+            // }
 
             imgui_config_pop();
-
 
             // Yield the CPU
             std::this_thread::sleep_for(std::chrono::milliseconds(10));

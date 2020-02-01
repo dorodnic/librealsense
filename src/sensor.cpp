@@ -554,11 +554,11 @@ namespace librealsense
 
     void info_container::register_info(rs2_camera_info info, const std::string& val)
     {
-        if (info_container::supports_info(info) && (info_container::get_info(info) != val)) // Append existing infos
-        {
-            _camera_info[info] += "\n" + std::move(val);
-        }
-        else
+        // if (info_container::supports_info(info) && (info_container::get_info(info) != val)) // Append existing infos
+        // {
+        //     _camera_info[info] += "\n" + std::move(val);
+        // }
+        // else
         {
             _camera_info[info] = std::move(val);
         }
