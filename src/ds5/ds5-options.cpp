@@ -473,4 +473,24 @@ namespace librealsense
         static std::vector<uint8_t> alt_emitter_name(ds::alternating_emitter_pattern.begin()+2,ds::alternating_emitter_pattern.begin()+22);
         return (alt_emitter_name == res);
     }
+
+    float alternating_exposure_gain::read(dual_exposure_field f) const
+    {
+        return _value.*f;
+    }
+    void alternating_exposure_gain::write(dual_exposure_field f, float value)
+    {
+        _value.*f = value;
+        std::vector<uint8_t> pattern {
+            0x19, 0x00, 0x53, 0x75, 0x62, 0x50, 0x72, 0x65, 0x73, 0x65, 0x74, 0x4e, 
+            0x61, 0x6d, 0x65, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 
+            0x00, 0x05, 0x00, 0x01, 0x01, 0x00, 0x01, 0x00, 0x2a, 0x0b, 0x00, 0x00, 
+            0x05, 0x00, 0x01, 0x01, 0x00, 0x01, 0x00, 0x8f, 0x7d, 0x00, 0x00 };
+        *((uint16_t*)(pattern.data()+32)) = _value.exposure1;
+        *((uint16_t*)(pattern.data()+43)) = _value.exposure2;
+
+        command cmd(ds::SETSUBPRESET, static_cast<int>(pattern.size()));
+        cmd.data = pattern;
+        auto res = _hwm.send(cmd);
+    }
 }

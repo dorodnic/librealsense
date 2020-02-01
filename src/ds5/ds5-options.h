@@ -272,4 +272,50 @@ namespace librealsense
         hw_monitor& _hwm;
         sensor_base* _sensor;
     };
+
+    struct dual_exposure
+    {
+        float exposure1;
+        float gain1;
+        float exposure2;
+        float gain2;
+    };
+    using dual_exposure_field = float dual_exposure::*;
+
+    class alternating_exposure_gain
+    {
+    public:
+        alternating_exposure_gain(hw_monitor& hwm, 
+            sensor_base* depth_ep, dual_exposure val) 
+            : _value(val), _hwm(hwm), _sensor(depth_ep) {}
+
+        float read(dual_exposure_field f) const;
+        void write(dual_exposure_field f, float value);
+
+    private:
+        dual_exposure _value;
+        hw_monitor& _hwm;
+        sensor_base* _sensor;
+    };
+
+    class alternating_exposure_gain_option : public option
+    {
+    public:
+        alternating_exposure_gain_option(std::shared_ptr<alternating_exposure_gain> aeg, 
+            dual_exposure_field f, option_range range) : _aeg(aeg), _f(f), _range(range) {}
+        
+        virtual ~alternating_exposure_gain_option() = default;
+        virtual void set(float value) override { _aeg->write(_f, value); _record_action(*this); }
+        virtual float query() const override { return _aeg->read(_f); }
+        virtual option_range get_range() const override { return _range; }
+        virtual bool is_enabled() const override { return true; }
+        virtual const char* get_description() const override { return "Test"; }
+        virtual void enable_recording(std::function<void(const option &)> record_action) override { _record_action = record_action; }
+
+    private:
+        std::function<void(const option &)> _record_action = [](const option&) {};
+        std::shared_ptr<alternating_exposure_gain> _aeg;
+        dual_exposure_field _f;
+        option_range _range;
+    };
 }

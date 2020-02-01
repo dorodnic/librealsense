@@ -22,6 +22,7 @@
 #include "ds5-color.h"
 #include "ds5-nonmonochrome.h"
 
+#include "proc/xdr.h"
 #include "proc/decimation-filter.h"
 #include "proc/threshold.h"
 #include "proc/disparity-transform.h"
@@ -724,6 +725,25 @@ namespace librealsense
                     enable_auto_exposure));
         }
 
+        auto exposure_range = depth_sensor.get_option(RS2_OPTION_EXPOSURE).get_range();
+        auto gain_range = depth_sensor.get_option(RS2_OPTION_GAIN).get_range();
+
+        dual_exposure de { exposure_range.min, gain_range.min, exposure_range.def, gain_range.def };
+
+        auto aeg = std::make_shared<alternating_exposure_gain>(*_hw_monitor, &raw_depth_sensor, de);
+        depth_sensor.register_option(RS2_OPTION_EXPOSURE1,
+                std::make_shared<alternating_exposure_gain_option>(
+                    aeg, &dual_exposure::exposure1, exposure_range));
+        depth_sensor.register_option(RS2_OPTION_GAIN1,
+                std::make_shared<alternating_exposure_gain_option>(
+                    aeg, &dual_exposure::gain1, gain_range));
+        depth_sensor.register_option(RS2_OPTION_EXPOSURE2,
+                std::make_shared<alternating_exposure_gain_option>(
+                    aeg, &dual_exposure::exposure2, exposure_range));
+        depth_sensor.register_option(RS2_OPTION_GAIN2,
+                std::make_shared<alternating_exposure_gain_option>(
+                    aeg, &dual_exposure::gain2, gain_range));
+
         if (_fw_version >= firmware_version("5.5.8.0"))
         {
             depth_sensor.register_option(RS2_OPTION_OUTPUT_TRIGGER_ENABLED,
@@ -987,6 +1007,7 @@ namespace librealsense
     processing_blocks get_ds5_depth_recommended_proccesing_blocks()
     {
         auto res = get_depth_recommended_proccesing_blocks();
+        res.push_back(std::make_shared<xdr>());
         res.push_back(std::make_shared<threshold>());
         res.push_back(std::make_shared<disparity_transform>(true));
         res.push_back(std::make_shared<spatial_filter>());
