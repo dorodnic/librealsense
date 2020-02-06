@@ -22,6 +22,8 @@ namespace librealsense
         bool should_process(const rs2::frame& frame) override { return true; }
 
     private:
-        rs2::frame _ir_last, _ir_prev, _depth_last, _depth_prev;
+        std::map<int, rs2::frameset> _frames;
+        rs2::asynchronous_syncer _s;
+        rs2::frame_queue _queue;
     };
 }
