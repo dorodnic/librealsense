@@ -88,10 +88,10 @@ namespace librealsense
                 memset(new_data, 0, width * height * sizeof(uint16_t));
                 for (int i = 0; i < width * height; i++)
                 {
-                    if (i1[i] > 0x0f && i1[i] < 0xf0)
+                    if (i1[i] > 0x20 && i1[i] < 0xe0 && d1[i])
                         new_data[i] = d1[i];
                     else
-                        new_data[i] = d0[i];
+                        new_data[i] = d0[i] ? d0[i] : d1[i];
                 }
 
                 return new_f;
