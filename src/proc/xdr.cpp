@@ -54,6 +54,22 @@ namespace librealsense
         {
             return a.get_timestamp() > b.get_timestamp();
         });
+        //fss.resize(2);
+        if (fss.size() > 1) fss.resize(2);
+
+        using namespace std::chrono;
+        static system_clock::time_point last_time = system_clock::now();
+        if (system_clock::now() - last_time > milliseconds(1000))
+        {
+            last_time = system_clock::now();
+
+            for (auto&& f : fss)
+            {
+                LOG(WARNING) << f.get_frame_metadata(RS2_FRAME_METADATA_ACTUAL_EXPOSURE) << " - " << std::fixed << f.get_timestamp();
+
+            }
+            LOG(WARNING) << "";
+        }
 
         if (fss.size() > 1)
         {
@@ -90,8 +106,12 @@ namespace librealsense
                 {
                     if (i1[i] > 0x20 && i1[i] < 0xe0 && d1[i])
                         new_data[i] = d1[i];
+                    else if (!d0[i])
+                        new_data[i] = d1[i];
+                    else if (!d1[i])
+                        new_data[i] = d0[i];
                     else
-                        new_data[i] = d0[i] ? d0[i] : d1[i];
+                        new_data[i] = std::min(d0[i], d1[i]);
                 }
 
                 return new_f;
