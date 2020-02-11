@@ -104,14 +104,17 @@ namespace librealsense
                 memset(new_data, 0, width * height * sizeof(uint16_t));
                 for (int i = 0; i < width * height; i++)
                 {
-                    if (i1[i] > 0x20 && i1[i] < 0xe0 && d1[i])
+                    if (i1[i] > 0x08 && i1[i] < 0xf8 && d1[i])
                         new_data[i] = d1[i];
-                    else if (!d0[i])
-                        new_data[i] = d1[i];
-                    else if (!d1[i])
+                    else if (i0[i] > 0x08 && i0[i] < 0xf8 && d0[i])
                         new_data[i] = d0[i];
-                    else
+                    else if (d1[i] && d0[i]) 
                         new_data[i] = std::min(d0[i], d1[i]);
+                    else if (d1[i])
+                        new_data[i] = d1[i];
+                    else if (d0[i])
+                        new_data[i] = d0[i];
+                    if (new_data[i] == 0xffff) new_data[i] = 0;
                 }
 
                 return new_f;
