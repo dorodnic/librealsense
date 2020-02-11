@@ -17,6 +17,7 @@
 #include "ds5-private.h"
 #include "ds5-options.h"
 #include "ds5-timestamp.h"
+#include "algo.h"
 #include "stream.h"
 #include "environment.h"
 #include "ds5-color.h"
@@ -39,6 +40,7 @@
 #include "../common/fw/firmware-version.h"
 #include "fw-update/fw-update-unsigned.h"
 #include "../third-party/json.hpp"
+#include "proc/auto-exposure-processor.h"
 
 namespace librealsense
 {
@@ -557,7 +559,7 @@ namespace librealsense
         auto depth_ep = std::make_shared<ds5_depth_sensor>(this, raw_depth_ep);
         depth_ep->register_option(RS2_OPTION_GLOBAL_TIME_ENABLED, enable_global_time_option);
 
-        depth_ep->register_processing_block(processing_block_factory::create_id_pbf(RS2_FORMAT_Y8, RS2_STREAM_INFRARED, 1));
+        //depth_ep->register_processing_block(processing_block_factory::create_id_pbf(RS2_FORMAT_Y8, RS2_STREAM_INFRARED, 1));
         depth_ep->register_processing_block(processing_block_factory::create_id_pbf(RS2_FORMAT_Z16, RS2_STREAM_DEPTH));
 
         depth_ep->register_processing_block({ {RS2_FORMAT_W10} }, { {RS2_FORMAT_RAW10, RS2_STREAM_INFRARED, 1} }, []() { return std::make_shared<w10_converter>(RS2_FORMAT_RAW10); });
@@ -743,6 +745,44 @@ namespace librealsense
         depth_sensor.register_option(RS2_OPTION_GAIN2,
                 std::make_shared<alternating_exposure_gain_option>(
                     aeg, &dual_exposure::gain2, gain_range));
+
+        auto ae_state = std::make_shared<auto_exposure_state>();
+        auto auto_exposure = std::make_shared<auto_exposure_mechanism>(
+            depth_sensor.get_option(RS2_OPTION_GAIN), 
+            depth_sensor.get_option(RS2_OPTION_EXPOSURE), *ae_state);
+
+        auto auto_exposure_option = std::make_shared<enable_auto_exposure_option>(&depth_sensor,
+                                                                                  auto_exposure,
+                                                                                  ae_state,
+                                                                                  option_range{0, 1, 1, 1});
+
+        depth_sensor.register_option(RS2_OPTION_ENABLE_RELOCALIZATION,auto_exposure_option);
+
+        depth_sensor.register_option(RS2_OPTION_AUTO_EXPOSURE_MODE,
+                                std::make_shared<auto_exposure_mode_option>(auto_exposure,
+                                                                            ae_state,
+                                                                            option_range{0, 2, 1, 0},
+                                                                            std::map<float, std::string>{{0.f, "Static"},
+                                                                                                         {1.f, "Anti-Flicker"},
+                                                                                                         {2.f, "Hybrid"}}));
+        depth_sensor.register_option(RS2_OPTION_AUTO_EXPOSURE_CONVERGE_STEP,
+                                std::make_shared<auto_exposure_step_option>(auto_exposure,
+                                                                            ae_state,
+                                                                            option_range{ 0.1f, 1.0f, 0.1f, ae_step_default_value }));
+        depth_sensor.register_option(RS2_OPTION_POWER_LINE_FREQUENCY,
+                                std::make_shared<auto_exposure_antiflicker_rate_option>(auto_exposure,
+                                                                                        ae_state,
+                                                                                        option_range{50, 60, 10, 60},
+                                                                                        std::map<float, std::string>{{50.f, "50Hz"},
+                                                                                                                     {60.f, "60Hz"}}));
+
+        depth_sensor.register_processing_block(
+            { {RS2_FORMAT_Y8} },
+            { {RS2_FORMAT_Y8, RS2_STREAM_INFRARED} },
+            [auto_exposure_option]() {
+                return std::make_shared<auto_exposure_processor>(RS2_STREAM_INFRARED, *auto_exposure_option);
+            }
+        );
 
         if (_fw_version >= firmware_version("5.5.8.0"))
         {

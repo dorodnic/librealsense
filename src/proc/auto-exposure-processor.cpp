@@ -13,7 +13,7 @@ librealsense::auto_exposure_processor::auto_exposure_processor(const char * name
 
 bool librealsense::auto_exposure_processor::should_process(const rs2::frame & frame)
 {
-    return _enable_ae_option.to_add_frames() && _stream == RS2_STREAM_FISHEYE;
+    return _enable_ae_option.to_add_frames() && _stream == RS2_STREAM_INFRARED;
 }
 
 rs2::frame librealsense::auto_exposure_processor::process_frame(const rs2::frame_source & source, const rs2::frame & f)

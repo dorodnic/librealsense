@@ -2,6 +2,7 @@
 // Copyright(c) 2017 Intel Corporation. All Rights Reserved.
 
 #include <librealsense2/rs.hpp> // Include RealSense Cross Platform API
+#include "../../common/tiny-profiler.h"
 #include "example.hpp"          // Include short list of convenience functions for rendering
 
 // Capture Example demonstrates how to
@@ -19,21 +20,23 @@ int main(int argc, char * argv[]) try
 
     // Declare RealSense pipeline, encapsulating the actual device and sensors
     rs2::pipeline pipe;
+    rs2::config cfg;
+    cfg.disable_all_streams();
+    cfg.enable_stream(RS2_STREAM_DEPTH, RS2_FORMAT_Z16, 360);
 
     // Start streaming with default recommended configuration
     // The default video configuration contains Depth and Color streams
     // If a device is capable to stream IMU data, both Gyro and Accelerometer are enabled by default
-    pipe.start();
+    pipe.start(cfg);
 
-    while (app) // Application still alive?
+    while (true) // Application still alive?
     {
-        rs2::frameset data = pipe.wait_for_frames().    // Wait for next set of frames from the camera
-                             apply_filter(printer).     // Print each enabled stream frame rate
-                             apply_filter(color_map);   // Find and colorize the depth data
+        scoped_timer t("Hjfdjgf");
+        rs2::frameset data = pipe.wait_for_frames();
 
         // The show method, when applied on frameset, break it to frames and upload each frame into a gl textures
         // Each texture is displayed on different viewport according to it's stream unique id
-        app.show(data);
+        //app.show(data);
     }
 
     return EXIT_SUCCESS;
