@@ -44,7 +44,7 @@ namespace librealsense
         void set_auto_exposure_step(float value);
 
         static const unsigned      sample_rate = 1;
-        static const unsigned      skip_frames = 2;
+        static const unsigned      skip_frames = 0;
 
     private:
         bool                is_auto_exposure;

@@ -88,7 +88,7 @@ auto_exposure_mechanism::auto_exposure_mechanism(option& gain_option, option& ex
                                     // is in units of MicroSeconds, from FW version 5.6.3.0
 
                 auto exposure_value = static_cast<float>(values[0]);
-                auto gain_value = static_cast<float>(2. + (values[1] - 15.) / 8.);
+                auto gain_value = static_cast<float>(2. + (values[1] - 16.) / 8.);
 
                 bool sts = _auto_exposure_algo.analyze_image(frame);
                 if (sts)
@@ -107,7 +107,7 @@ auto_exposure_mechanism::auto_exposure_mechanism(option& gain_option, option& ex
 
                     if (modify_gain)
                     {
-                        auto value =  (gain_value - 2.f) * 8.f + 15.f;
+                        auto value =  (gain_value - 2.f) * 8.f + 16.f;
                         _gain_option.set(value);
                     }
                 }
@@ -149,8 +149,9 @@ void auto_exposure_mechanism::update_auto_exposure_roi(const region_of_interest&
 
 void auto_exposure_mechanism::add_frame(frame_holder frame)
 {
+    _frames_counter++;
 
-    if (!_keep_alive || (_skip_frames && (_frames_counter++) != _skip_frames))
+    if (!_keep_alive || (_skip_frames && (_frames_counter != _skip_frames)))
     {
         return;
     }

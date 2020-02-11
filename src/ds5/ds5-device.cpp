@@ -666,17 +666,17 @@ namespace librealsense
 
         if (advanced_mode && (_usb_mode >= usb3_type))
         {
-            depth_sensor.register_processing_block(
-                { {RS2_FORMAT_Y8I} },
-                { {RS2_FORMAT_Y8, RS2_STREAM_INFRARED, 1} , {RS2_FORMAT_Y8, RS2_STREAM_INFRARED, 2} },
-                []() { return std::make_shared<y8i_to_y8y8>(); }
-            ); // L+R
+            //depth_sensor.register_processing_block(
+            //    { {RS2_FORMAT_Y8I} },
+            //    { {RS2_FORMAT_Y8, RS2_STREAM_INFRARED, 1} , {RS2_FORMAT_Y8, RS2_STREAM_INFRARED, 2} },
+            //    []() { return std::make_shared<y8i_to_y8y8>(); }
+            //); // L+R
 
-            depth_sensor.register_processing_block(
-                {RS2_FORMAT_Y12I},
-                {{RS2_FORMAT_Y16, RS2_STREAM_INFRARED, 1}, {RS2_FORMAT_Y16, RS2_STREAM_INFRARED, 2}},
-                []() {return std::make_shared<y12i_to_y16y16>(); }
-            );
+            //depth_sensor.register_processing_block(
+            //    {RS2_FORMAT_Y12I},
+            //    {{RS2_FORMAT_Y16, RS2_STREAM_INFRARED, 1}, {RS2_FORMAT_Y16, RS2_STREAM_INFRARED, 2}},
+            //    []() {return std::make_shared<y12i_to_y16y16>(); }
+            //);
         }
 
         auto pid_hex_str = hexify(pid);
@@ -778,7 +778,7 @@ namespace librealsense
 
         depth_sensor.register_processing_block(
             { {RS2_FORMAT_Y8} },
-            { {RS2_FORMAT_Y8, RS2_STREAM_INFRARED} },
+            { {RS2_FORMAT_Y8, RS2_STREAM_INFRARED, 1 } },
             [auto_exposure_option]() {
                 return std::make_shared<auto_exposure_processor>(RS2_STREAM_INFRARED, *auto_exposure_option);
             }
