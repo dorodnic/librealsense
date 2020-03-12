@@ -13,15 +13,21 @@ namespace librealsense
     class auto_exposure_processor : public generic_processing_block
     {
     public:
-        auto_exposure_processor(rs2_stream stream, enable_auto_exposure_option& enable_ae_option);
+        auto_exposure_processor(rs2_stream stream, 
+            enable_auto_exposure_option& enable_ae_option_low,
+            enable_auto_exposure_option& enable_ae_option_high);
 
     protected:
-        auto_exposure_processor(const char* name, rs2_stream stream, enable_auto_exposure_option& enable_ae_option);
+        auto_exposure_processor(const char* name, rs2_stream stream, 
+            enable_auto_exposure_option& enable_ae_option_low,
+            enable_auto_exposure_option& enable_ae_option_high);
 
         bool should_process(const rs2::frame& frame) override;
         rs2::frame process_frame(const rs2::frame_source& source, const rs2::frame& f) override;
 
-        enable_auto_exposure_option&    _enable_ae_option;
+        enable_auto_exposure_option&    _enable_ae_option_low;
+        enable_auto_exposure_option&    _enable_ae_option_high;
         rs2_stream                      _stream;
+        std::map<int, rs2::frame>       _frames;
     };
 }

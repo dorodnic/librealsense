@@ -53,7 +53,7 @@ auto_exposure_mechanism::auto_exposure_mechanism(option& gain_option, option& ex
       _gain_option(gain_option), _exposure_option(exposure_option)
 {
     _exposure_thread = std::make_shared<std::thread>(
-                [this]()
+                [this, auto_exposure_state]()
     {
         while (_keep_alive)
         {
@@ -79,10 +79,19 @@ auto_exposure_mechanism::auto_exposure_mechanism(option& gain_option, option& ex
 
                 double values[2] = {};
 
+                bool support_exposure_md = frame->supports_frame_metadata(RS2_FRAME_METADATA_ACTUAL_EXPOSURE);
+                bool support_gain_md = frame->supports_frame_metadata(RS2_FRAME_METADATA_GAIN_LEVEL);
+                if (!support_exposure_md || !support_gain_md) 
+                    LOG_WARNING("No metadata!!!");
+
+                std::string name = auto_exposure_state.get_filter_mode() == auto_exposure_state::filter_mode::low ? "Low" : "High";
+
                 values[0] = frame->supports_frame_metadata(RS2_FRAME_METADATA_ACTUAL_EXPOSURE) ?
                             static_cast<double>(frame->get_frame_metadata(RS2_FRAME_METADATA_ACTUAL_EXPOSURE)) : _exposure_option.query();
                 values[1] = frame->supports_frame_metadata(RS2_FRAME_METADATA_GAIN_LEVEL) ?
                             static_cast<double>(frame->get_frame_metadata(RS2_FRAME_METADATA_GAIN_LEVEL)) : _gain_option.query();
+
+                LOG_WARNING(name << ": " << values[0] << " / " << values[1]);
 
                 values[0] /= 1000.; // Fisheye exposure value by extension control-
                                     // is in units of MicroSeconds, from FW version 5.6.3.0
@@ -102,12 +111,14 @@ auto_exposure_mechanism::auto_exposure_mechanism(option& gain_option, option& ex
                         if (value < 1)
                             value = 1;
 
+                        LOG_INFO(name << ": set exposure " << value);
                         _exposure_option.set(value);
                     }
 
                     if (modify_gain)
                     {
                         auto value =  (gain_value - 2.f) * 8.f + 16.f;
+                        LOG_INFO(name << ": set gain " << value);
                         _gain_option.set(value);
                     }
                 }
@@ -149,10 +160,9 @@ void auto_exposure_mechanism::update_auto_exposure_roi(const region_of_interest&
 
 void auto_exposure_mechanism::add_frame(frame_holder frame)
 {
-    _frames_counter++;
-
-    if (!_keep_alive || (_skip_frames && (_frames_counter != _skip_frames)))
+    if (!_keep_alive || (_skip_frames && (_frames_counter < _skip_frames)))
     {
+        _frames_counter++;
         return;
     }
 
@@ -174,7 +184,7 @@ auto_exposure_algorithm::auto_exposure_algorithm(const auto_exposure_state& auto
 void auto_exposure_algorithm::modify_exposure(float& exposure_value, bool& exp_modified, float& gain_value, bool& gain_modified)
 {
     float total_exposure = exposure * gain;
-    LOG_DEBUG("TotalExposure " << total_exposure << ", target_exposure " << target_exposure);
+    LOG_INFO("TotalExposure " << total_exposure << ", target_exposure " << target_exposure);
     if (fabs(target_exposure - total_exposure) > eps)
     {
         rounding_mode_type RoundingMode;
@@ -205,13 +215,13 @@ void auto_exposure_algorithm::modify_exposure(float& exposure_value, bool& exp_m
             exp_modified = true;
             exposure_value = exposure;
             exposure_value = exposure_to_value(exposure_value, RoundingMode);
-            LOG_DEBUG("output exposure by algo = " << exposure_value);
+            LOG_INFO("output exposure by algo = " << exposure_value);
         }
         if (gain_value != gain)
         {
             gain_modified = true;
             gain_value = gain;
-            LOG_DEBUG("GainModified: gain = " << gain);
+            LOG_INFO("GainModified: gain = " << gain);
             gain_value = gain_to_value(gain_value, RoundingMode);
             LOG_DEBUG(" rounded to: " << gain);
         }
@@ -238,7 +248,7 @@ bool auto_exposure_algorithm::analyze_image(const frame_interface* image)
         number_of_pixels = width * height;
     }
 
-    std::vector<int> H(256);
+    std::vector<float> H(256);
     auto total_weight = number_of_pixels;
 
     auto cols = frame->get_width();
@@ -254,28 +264,29 @@ bool auto_exposure_algorithm::analyze_image(const frame_interface* image)
     s2 = (score.over_exposure_count - score.under_exposure_count) / (float)total_weight;
 
     float s = -0.3f * (s1 + 5.0f * s2);
-    LOG_DEBUG(" AnalyzeImage Score: " << s);
+    LOG_INFO(" AnalyzeImage Score: " << s);
 
     if (s > 0)
     {
+        LOG_INFO(" AnalyzeImage: IncreaseExposure");
         direction = +1;
         increase_exposure_target(s, target_exposure);
     }
     else
     {
-        LOG_DEBUG(" AnalyzeImage: DecreaseExposure");
+        LOG_INFO(" AnalyzeImage: DecreaseExposure");
         direction = -1;
         decrease_exposure_target(s, target_exposure);
     }
 
     if (fabs(1.0f - (exposure * gain) / target_exposure) < hysteresis)
     {
-        LOG_DEBUG(" AnalyzeImage: Don't Modify (Hysteresis): " << target_exposure << " " << exposure * gain);
+        LOG_INFO(" AnalyzeImage: Don't Modify (Hysteresis): " << target_exposure << " " << exposure * gain);
         return false;
     }
 
     prev_direction = direction;
-    LOG_DEBUG(" AnalyzeImage: Modify");
+    LOG_INFO(" AnalyzeImage: Modify");
     return true;
 }
 
@@ -295,17 +306,54 @@ void auto_exposure_algorithm::update_roi(const region_of_interest& ae_roi)
     is_roi_initialized = true;
 }
 
-void auto_exposure_algorithm::im_hist(const uint8_t* data, const region_of_interest& image_roi, const int rowStep, int h[])
+void auto_exposure_algorithm::im_hist(const uint8_t* data, const region_of_interest& image_roi, const int rowStep, float h[])
 {
     std::lock_guard<std::recursive_mutex> lock(state_mutex);
+
+    float roi_size = (image_roi.max_y - image_roi.min_y) * (image_roi.max_x - image_roi.min_x);
+    int skipped = 0;
 
     for (int i = 0; i < 256; ++i)
         h[i] = 0;
 
-    const uint8_t* rowData = data + (image_roi.min_y * rowStep);
-    for (int i = image_roi.min_y; i < image_roi.max_y; ++i, rowData += rowStep)
-        for (int j = image_roi.min_x; j < image_roi.max_x; j+=state.sample_rate)
-            ++h[rowData[j]];
+    uint8_t* rowData = (uint8_t*) data + (image_roi.min_y * rowStep);
+    if (state.get_filter_mode() == auto_exposure_state::filter_mode::off)
+        for (int i = image_roi.min_y; i < image_roi.max_y; ++i, rowData += rowStep)
+            for (int j = image_roi.min_x; j < image_roi.max_x; j+=state.sample_rate)
+                ++h[rowData[j]];
+
+    if (state.get_filter_mode() == auto_exposure_state::filter_mode::high)
+        for (int i = image_roi.min_y; i < image_roi.max_y; ++i, rowData += rowStep)
+            for (int j = image_roi.min_x; j < image_roi.max_x; j+=state.sample_rate)
+                // h[rowData[j]] += 1.f;
+                if (rowData[j] < 0xf0 || skipped / roi_size > 0.5f)
+                {
+                    if (rowData[i] < 0x50) ++h[rowData[j]];
+                    ++h[rowData[j]];
+                }
+                else
+                {
+                    rowData[j] = 0x0;
+                    skipped++;
+                    h[rowData[j]] += 0.5f;
+                }
+
+    if (state.get_filter_mode() == auto_exposure_state::filter_mode::low)
+        for (int i = image_roi.min_y; i < image_roi.max_y; ++i, rowData += rowStep)
+            for (int j = image_roi.min_x; j < image_roi.max_x; j+=state.sample_rate)
+                //h[rowData[j]] += 1.f;
+                if (rowData[j] > 0x50 || skipped / roi_size > 0.5f)
+                {
+                    if (rowData[i] > 0xf0) ++h[rowData[j]];
+                    ++h[rowData[j]];
+                }
+                else
+                {
+                    rowData[j] = 0xff;
+                    h[rowData[j]] += 0.5f;
+                    skipped++;
+                }
+                
 }
 
 void auto_exposure_algorithm::increase_exposure_target(float mult, float& target_exposure)
@@ -465,10 +513,19 @@ float auto_exposure_algorithm::gain_to_value(float gain, rounding_mode_type roun
 }
 
 template <typename T> inline T sqr(const T& x) { return (x*x); }
-void auto_exposure_algorithm::histogram_score(std::vector<int>& h, const int total_weight, histogram_metric& score)
+void auto_exposure_algorithm::histogram_score(std::vector<float>& h, const int total_weight, histogram_metric& score)
 {
     score.under_exposure_count = 0;
     score.over_exposure_count = 0;
+
+    // if (state.get_filter_mode() == auto_exposure_state::low)
+    // {
+    //     under_exposure_limit = 0;
+    // }
+    // if (state.get_filter_mode() == auto_exposure_state::high)
+    // {
+    //     over_exposure_limit = 255;
+    // }
 
     for (size_t i = 0; i <= under_exposure_limit; ++i)
     {

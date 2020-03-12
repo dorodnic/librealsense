@@ -480,14 +480,62 @@ namespace librealsense
     }
     void alternating_exposure_gain::write(dual_exposure_field f, float value)
     {
+        LOG(INFO) << "Trying to adjust to " << value;
+
         _value.*f = value;
+
+        _value.exposure1 = std::min(65000.f, std::max(1.f, _value.exposure1));
+        _value.exposure2 = std::min(65000.f, std::max(1.f, _value.exposure2));
+
+        _value.gain1 = std::min(65000.f, std::max(1.f, _value.gain1));
+        _value.gain2 = std::min(65000.f, std::max(1.f, _value.gain2));
+
+        auto exposure1 = _value.exposure1;
+        auto exposure2 = _value.exposure2;
+        auto gain1 = _value.gain1;
+        auto gain2 = _value.gain2;
+
+        if (exposure1 > exposure2)
+        {
+            std::swap(exposure1, exposure2);
+            std::swap(gain1, gain2);
+        }
+        if (exposure1 == exposure2)
+        {
+            exposure2 = exposure1 + 100;
+        }
+
+        if (_last == _value) return;
+        _last = _value;
+
+        _value.exposure1 = exposure1;
+        _value.exposure2 = exposure2;
+        _value.gain1 = gain1;
+        _value.gain2 = gain2;
+        
         std::vector<uint8_t> pattern {
-            0x19, 0x00, 0x53, 0x75, 0x62, 0x50, 0x72, 0x65, 0x73, 0x65, 0x74, 0x4e, 
-            0x61, 0x6d, 0x65, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 
-            0x00, 0x05, 0x00, 0x01, 0x01, 0x00, 0x01, 0x00, 0x2a, 0x0b, 0x00, 0x00, 
-            0x05, 0x00, 0x01, 0x01, 0x00, 0x01, 0x00, 0x8f, 0x7d, 0x00, 0x00 };
-        *((uint16_t*)(pattern.data()+32)) = _value.exposure1;
-        *((uint16_t*)(pattern.data()+43)) = _value.exposure2;
+            0x19, 0x00, 0x53, 0x75, 0x62, 0x50, 0x72, 0x65, 
+            0x73, 0x65, 0x74, 0x4e, 0x61, 0x6d, 0x65, 0x00, 
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 
+            0x00, 0x05, 0x00, 0x01, 0x02, 0x00, 0x01, 0x00, 
+            0xcd, 0xab, 0x00, 0x00, 0x02, 0x00, 0xdc, 0xfe, 
+            0x00, 0x00, 0x05, 0x00, 0x01, 0x02, 0x00, 0x01, 
+            0x00, 0xbf, 0xae, 0x00, 0x00, 0x02, 0x00, 0xec,
+            0xfa, 0x00, 0x00 };
+        *((uint16_t*)(pattern.data()+32)) = exposure1;
+        *((uint16_t*)(pattern.data()+49)) = exposure2;
+        *((uint16_t*)(pattern.data()+38)) = gain1;
+        *((uint16_t*)(pattern.data()+55)) = gain2;
+
+        // std::vector<uint8_t> pattern {
+        //     0x19, 0x00, 0x53, 0x75, 0x62, 0x50, 0x72, 0x65, 0x73, 0x65, 0x74, 0x4e, 
+        //     0x61, 0x6d, 0x65, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 
+        //     0x00, 0x05, 0x00, 0x01, 0x01, 0x00, 0x01, 0x00, 0x2a, 0x0b, 0x00, 0x00, 
+        //     0x05, 0x00, 0x01, 0x01, 0x00, 0x01, 0x00, 0x8f, 0x7d, 0x00, 0x00 };
+        // *((uint16_t*)(pattern.data()+32)) = _value.exposure1;
+        // *((uint16_t*)(pattern.data()+43)) = (_value.exposure1 == _value.exposure2) ? _value.exposure1 + 100 : _value.exposure2;
+
+        LOG(INFO) << "Adjusting to " << exposure1 << " and " << exposure2;
 
         command cmd(ds::SETSUBPRESET, static_cast<int>(pattern.size()));
         cmd.data = pattern;

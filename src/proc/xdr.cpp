@@ -33,19 +33,19 @@ namespace librealsense
         else
             frames.push_back(f);
 
-        for (auto&& q : frames) _s.invoke(q);
+        // for (auto&& q : frames) _s.invoke(q);
 
-        rs2::frame fr;
-        while (_queue.poll_for_frame(&fr))
-        {
-            if (auto fs = fr.as<rs2::frameset>())
-            {
-                if (fs.size() == 2)
-                {
-                    _frames[fs.get_frame_metadata(RS2_FRAME_METADATA_ACTUAL_EXPOSURE)] = fs;
-                }
-            }
-        }
+        // rs2::frame fr;
+        // while (_queue.poll_for_frame(&fr))
+        // {
+        //     if (auto fs = fr.as<rs2::frameset>())
+        //     {
+        //         if (fs.size() == 2)
+        //         {
+        //             _frames[fs.get_frame_metadata(RS2_FRAME_METADATA_ACTUAL_EXPOSURE)] = fs;
+        //         }
+        //     }
+        // }
 
         std::vector<rs2::frameset> fss;
         for (auto&& kvp : _frames) fss.push_back(kvp.second);
@@ -76,6 +76,10 @@ namespace librealsense
             auto latest = fss[0];
             auto last = fss[1];
 
+            _frames.clear();
+            _frames[latest.get_frame_metadata(RS2_FRAME_METADATA_ACTUAL_EXPOSURE)] = latest;
+            _frames[last.get_frame_metadata(RS2_FRAME_METADATA_ACTUAL_EXPOSURE)] = last;
+
             auto latest_depth = latest.get_depth_frame();
             auto last_depth = last.get_depth_frame();
             auto latest_ir = latest.get_infrared_frame();
@@ -104,9 +108,9 @@ namespace librealsense
                 memset(new_data, 0, width * height * sizeof(uint16_t));
                 for (int i = 0; i < width * height; i++)
                 {
-                    if (i1[i] > 0x08 && i1[i] < 0xf8 && d1[i])
+                    if (i1[i] > 0x10 && i1[i] < 0xf0 && d1[i])
                         new_data[i] = d1[i];
-                    else if (i0[i] > 0x08 && i0[i] < 0xf8 && d0[i])
+                    else if (i0[i] > 0x10 && i0[i] < 0xf0 && d0[i])
                         new_data[i] = d0[i];
                     else if (d1[i] && d0[i]) 
                         new_data[i] = std::min(d0[i], d1[i]);

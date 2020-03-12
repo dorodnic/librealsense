@@ -301,13 +301,13 @@ namespace librealsense
                                     exposure_option,
                                     auto_exposure_option));
 
-        ep->register_processing_block(
-            { {RS2_FORMAT_RAW8}},
-            { {RS2_FORMAT_RAW8, RS2_STREAM_FISHEYE} },
-            [auto_exposure_option]() {
-                return std::make_shared<auto_exposure_processor>(RS2_STREAM_FISHEYE, *auto_exposure_option);
-            }
-        );
+        // ep->register_processing_block(
+        //     { {RS2_FORMAT_RAW8}},
+        //     { {RS2_FORMAT_RAW8, RS2_STREAM_FISHEYE} },
+        //     [auto_exposure_option]() {
+        //         return std::make_shared<auto_exposure_processor>(RS2_STREAM_FISHEYE, *auto_exposure_option);
+        //     }
+        //);
         return auto_exposure;
     }
 

@@ -281,6 +281,10 @@ namespace librealsense
         float gain2;
     };
     using dual_exposure_field = float dual_exposure::*;
+    inline bool operator==(const dual_exposure& a, const dual_exposure& b)
+    {
+        return a.exposure1 == b.exposure1 && a.exposure2 == b.exposure2 && a.gain1 == b.gain1 && a.gain2 == b.gain2;
+    }
 
     class alternating_exposure_gain
     {
@@ -294,6 +298,7 @@ namespace librealsense
 
     private:
         dual_exposure _value;
+        dual_exposure _last;
         hw_monitor& _hwm;
         sensor_base* _sensor;
     };
