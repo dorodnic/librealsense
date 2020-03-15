@@ -10,6 +10,7 @@
 #include <thread>
 
 std::string sensors_str[] = {"depth", "color"};
+std::string sensors_names[] = {"Streo Module", "RGB Camera"};
 
 //WA for stop
 void ip_device::recover_rtsp_client(int sensor_index)
@@ -89,7 +90,7 @@ bool ip_device::init_device_data()
     {
 
         url = std::string("rtsp://" + ip_address + ":8554/" + sensors_str[sensor_id]);
-        sensor_name = sensors_str[sensor_id] + std::string(" (Remote)");
+        sensor_name = sensors_names[sensor_id];
 
         remote_sensors[sensor_id] = new ip_sensor();
 
