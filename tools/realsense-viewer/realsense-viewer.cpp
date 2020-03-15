@@ -546,7 +546,6 @@ int main(int argc, const char** argv) try
                             catch (std::runtime_error e)
                             {
                                 error_message = e.what();
-                                config_file::instance().set(configurations::viewer::last_ip, std::string{});
                             }
                             ip_address = "";
                             close_ip_popup = true;
