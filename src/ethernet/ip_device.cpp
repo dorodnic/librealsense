@@ -25,15 +25,16 @@ ip_device::~ip_device()
 {
     is_device_alive = false;
 
-    for (int remote_sensor_index = 0; remote_sensor_index < NUM_OF_SENSORS; remote_sensor_index++)
-    {
-        stop_sensor_streams(remote_sensor_index);
-    }
-
     if (sw_device_status_check.joinable())
     {
         sw_device_status_check.join();
     }
+
+    for (int remote_sensor_index = 0; remote_sensor_index < NUM_OF_SENSORS; remote_sensor_index++)
+    {
+        update_sensor_state(remote_sensor_index, {});
+    }
+
     std::cout << "destroy ip_device\n";
 }
 
@@ -55,7 +56,6 @@ ip_device::ip_device(std::string ip_address, rs2::software_device sw_device)
     this->sw_dev = sw_device;
     this->is_device_alive = true;
 
-    //init device data
     init_device_data();
 }
 
@@ -88,7 +88,6 @@ bool ip_device::init_device_data()
     std::string url, sensor_name = "";
     for (int sensor_id = 0; sensor_id < NUM_OF_SENSORS; sensor_id++)
     {
-
         url = std::string("rtsp://" + ip_address + ":8554/" + sensors_str[sensor_id]);
         sensor_name = sensors_names[sensor_id];
 
