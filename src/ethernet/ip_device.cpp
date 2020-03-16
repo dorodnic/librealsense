@@ -306,7 +306,7 @@ void ip_device::inject_frames_loop(std::shared_ptr<rs_rtp_stream> rtp_stream)
 
         rtp_stream.get()->frame_data_buff.frame_number = 0;
         int uid = rtp_stream.get()->m_rs_stream.uid;
-        rs2_strea  m type = rtp_stream.get()->m_rs_stream.type;
+        rs2_stream type = rtp_stream.get()->m_rs_stream.type;
         int sensor_id = stream_type_to_sensor_id(type);
 
         while (rtp_stream.get()->is_enabled == true)
