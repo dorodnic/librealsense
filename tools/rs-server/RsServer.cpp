@@ -18,7 +18,7 @@ struct server
   UsageEnvironment *env;
   rs2::device selected_device;
   RsRTSPServer *rtspServer;
-  RsDevice device;
+  std::shared_ptr<RsDevice> rsDevice;
   std::vector<RsSensor> sensors;
   TaskScheduler *scheduler;
 
@@ -30,27 +30,25 @@ struct server
     scheduler = BasicTaskScheduler::createNew();
     env = BasicUsageEnvironment::createNew(*scheduler);
 
-    rtspServer = RsRTSPServer::createNew(*env, 8554);
+    rsDevice = std::make_shared<RsDevice>();
+    
+    rtspServer = RsRTSPServer::createNew(*env,rsDevice, 8554);
     if (rtspServer == NULL)
     {
       *env << "Failed to create RTSP server: " << env->getResultMsg() << "\n";
       exit(1);
     }
 
-    sensors = device.getSensors();
+    std::vector<rs2::video_stream_profile> supported_stream_profiles;
+    
+    sensors = rsDevice.get()->getSensors();
     int sensorIndex = 0; //TODO::to remove
     for (auto sensor : sensors)
     {
       RsServerMediaSession *sms;
-      if (sensorIndex == 0) //TODO: to move to generic exposure when host is ready
+      if (sensorIndex == 0 || sensorIndex == 1) //TODO: to move to generic exposure when host is ready
       {
-        sms = RsServerMediaSession::createNew(*env, sensor, "depth" /*sensor.getSensorName().data()*/, "",
-                                              "Session streamed by \"realsense streamer\"",
-                                              True);
-      }
-      else if (sensorIndex == 1)
-      {
-        sms = RsServerMediaSession::createNew(*env, sensor, "color" /*sensor.getSensorName().data()*/, "",
+        sms = RsServerMediaSession::createNew(*env, sensor, sensor.getSensorName().data(), "",
                                               "Session streamed by \"realsense streamer\"",
                                               True);
       }
@@ -70,7 +68,9 @@ struct server
           {
             if ((stream.width() == 1280 && stream.height() == 720) ||(stream.width() == 640 && stream.height() == 480)||(stream.width() == 480 && stream.height() == 270) ||(stream.width() == 424 && stream.height() == 240))
             {
-            sms->addSubsession(RsServerMediaSubsession::createNew(*env,  stream));
+            sms->addSubsession(RsServerMediaSubsession::createNew(*env, stream, rsDevice));
+            // streams for extrinsics map creation
+            supported_stream_profiles.push_back(stream);
             continue;
             }
           }
@@ -78,7 +78,8 @@ struct server
           {
             if ((stream.width() == 640 && stream.height() == 480)||(stream.width() == 480 && stream.height() == 270)||(stream.width() == 424 && stream.height() == 240) )
             {
-            sms->addSubsession(RsServerMediaSubsession::createNew(*env,  stream));
+            sms->addSubsession(RsServerMediaSubsession::createNew(*env, stream, rsDevice));
+            supported_stream_profiles.push_back(stream);
             continue;
             }
           }
@@ -86,7 +87,8 @@ struct server
           {
             if ((stream.width() == 480 && stream.height() == 270)||(stream.width() == 424 && stream.height() == 240))
             {
-            sms->addSubsession(RsServerMediaSubsession::createNew(*env,  stream));
+            sms->addSubsession(RsServerMediaSubsession::createNew(*env, stream, rsDevice));
+            supported_stream_profiles.push_back(stream);
             continue;
             }
           }
@@ -94,6 +96,18 @@ struct server
         *env<<"Ignoring stream: format: "<<stream.format()<<" width: "<<stream.width()<<" height: "<<stream.height()<<" fps: "<<stream.fps()<<"\n";
       }
 
+      //TODO: improve efficiency by go once per physical sensor
+      for (auto stream_profile_from : supported_stream_profiles)
+      {
+        for (auto stream_profile_to : supported_stream_profiles)
+        {
+          int from_sensor_key = RsDevice::getPhysicalSensorUniqueKey(stream_profile_from.stream_type(),stream_profile_from.stream_index());
+          int to_sensor_key = RsDevice::getPhysicalSensorUniqueKey(stream_profile_to.stream_type(),stream_profile_to.stream_index());
+          
+          rsDevice.get()->minimal_extrinsics_map[std::make_pair(from_sensor_key,to_sensor_key)] = stream_profile_from.get_extrinsics_to(stream_profile_to);
+        }
+      }
+      
       rtspServer->addServerMediaSession(sms);
       char *url = rtspServer->rtspURL(sms);
       *env << "Play this stream using the URL \"" << url << "\"\n";

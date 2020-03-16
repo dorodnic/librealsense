@@ -5,6 +5,11 @@
 #include <thread>
 #include "RsDevice.hh"
 
+int RsDevice::getPhysicalSensorUniqueKey(rs2_stream stream_type, int sensors_index)
+{ 
+  return stream_type * 10 + sensors_index;
+}
+
 RsDevice::RsDevice()
 {
     //get LRS device

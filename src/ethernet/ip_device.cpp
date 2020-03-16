@@ -11,8 +11,9 @@
 #include <chrono>
 #include <thread>
 
-std::string sensors_str[] = {"depth", "color"};
-std::string sensors_names[] = {"Streo Module", "RGB Camera"};
+extern std::map<std::pair<int,int>,rs2_extrinsics> minimal_extrinsics_map;
+
+std::string sensors_str[] = {"Stereo Module", "RGB Camera"};
 
 //WA for stop
 void ip_device::recover_rtsp_client(int sensor_index)
@@ -27,16 +28,15 @@ ip_device::~ip_device()
 {
     is_device_alive = false;
 
+    for (int remote_sensor_index = 0; remote_sensor_index < NUM_OF_SENSORS; remote_sensor_index++)
+    {
+        stop_sensor_streams(remote_sensor_index);
+    }
+
     if (sw_device_status_check.joinable())
     {
         sw_device_status_check.join();
     }
-
-    for (int remote_sensor_index = 0; remote_sensor_index < NUM_OF_SENSORS; remote_sensor_index++)
-    {
-        update_sensor_state(remote_sensor_index, {});
-    }
-
     std::cout << "destroy ip_device\n";
 }
 
@@ -57,6 +57,7 @@ ip_device::ip_device(std::string ip_address, rs2::software_device sw_device)
     this->ip_address = ip_address;
     this->is_device_alive = true;
 
+    //init device data
     init_device_data(sw_device);
 }
 
@@ -86,11 +87,13 @@ std::vector<IpDeviceControlData> ip_device::get_controls(int sensor_id)
 
 bool ip_device::init_device_data(rs2::software_device sw_device)
 {
+    std::vector<rs2::stream_profile> device_streams;
     std::string url, sensor_name = "";
     for (int sensor_id = 0; sensor_id < NUM_OF_SENSORS; sensor_id++)
     {
+
         url = std::string("rtsp://" + ip_address + ":8554/" + sensors_str[sensor_id]);
-        sensor_name = sensors_names[sensor_id];
+        sensor_name = sensors_str[sensor_id] + std::string(" (Remote)");
 
         remote_sensors[sensor_id] = new ip_sensor();
 
@@ -101,14 +104,28 @@ bool ip_device::init_device_data(rs2::software_device sw_device)
 
         remote_sensors[sensor_id]->sw_sensor = std::make_shared<rs2::software_sensor>(tmp_sensor);
 
-        //hard_coded
-        if (sensor_id == 1) //todo: remove hard
+        if (sensor_id == 1) //todo: remove hard coded
         {
             std::vector<IpDeviceControlData> controls = get_controls(sensor_id);
             for (auto &control : controls)
             {
+                float val = NAN;
+                printf("sensor is %d, option is %d,value is %d\n",control.sensorId,control.option,control.range.def);
+                
                 remote_sensors[control.sensorId]->sw_sensor->add_option(control.option, {control.range.min, control.range.max, control.range.def, control.range.step});
                 remote_sensors[control.sensorId]->sensors_option[control.option] = control.range.def;
+                try
+                {
+                    get_option_value(control.sensorId,control.option,val);
+                    if(val != control.range.def && val >= control.range.min && val <=control.range.max)
+                    {
+                        remote_sensors[control.sensorId]->sw_sensor->set_option(control.option,val);
+                    }
+                }
+                catch(const std::exception& e)
+                {
+                    std::cerr << e.what() << "\n'";
+                }  
             }
         }
 
@@ -121,14 +138,32 @@ bool ip_device::init_device_data(rs2::software_device sw_device)
             // just for readable code
             rs2_video_stream st = streams[stream_index];
 
-            //todo: remove
-            st.intrinsics = st.intrinsics;
-            //nhershko: check why profile with type 0
+
             long long int stream_key = RsRTSPClient::getStreamProfileUniqueKey(st);
-            streams_collection[stream_key] = std::make_shared<rs_rtp_stream>(st, remote_sensors[sensor_id]->sw_sensor->add_video_stream(st, stream_index == 0));
+            auto stream_profile = remote_sensors[sensor_id]->sw_sensor->add_video_stream(st, stream_index == 0);
+            device_streams.push_back(stream_profile);
+            //stream_profile.register_extrinsics_to()
+            streams_collection[stream_key] = std::make_shared<rs_rtp_stream>(st, stream_profile);
             memory_pool = &rs_rtp_stream::get_memory_pool();
         }
         std::cout << "\t@@@ done adding streams for sensor ID: " << sensor_id << std::endl;
+    }
+
+    for (auto stream_profile_from : device_streams)
+    {
+        for (auto stream_profile_to : device_streams)
+        {
+            int from_key =  RsRTSPClient::getPhysicalSensorUniqueKey(stream_profile_from.stream_type(),stream_profile_from.stream_index());
+            int to_key = RsRTSPClient::getPhysicalSensorUniqueKey(stream_profile_from.stream_type(),stream_profile_from.stream_index());
+            
+            if ( minimal_extrinsics_map.find(std::make_pair(from_key,to_key)) == minimal_extrinsics_map.end() ) 
+            {
+                //throw std::runtime_error("extrinsics data is missing!");
+            } 
+            rs2_extrinsics extrinisics = minimal_extrinsics_map[std::make_pair(from_key,to_key)];
+            
+            stream_profile_from.register_extrinsics_to(stream_profile_to,extrinisics);
+        }
     }
 
     //poll sw device streaming state
@@ -181,7 +216,31 @@ void ip_device::polling_state_loop()
 
 void ip_device::update_option_value(int sensor_index, rs2_option opt, float val)
 {
-    remote_sensors[sensor_index]->rtsp_client->setOption(opt, val);
+    float updated_value = 0;
+    set_option_value(sensor_index, opt, val);   
+    get_option_value(sensor_index, opt, updated_value);
+    if (val != updated_value)
+    {
+        //TODO:: to uncomment after adding exception handling
+        //throw std::runtime_error("[update_option_value] error");
+        printf("[update_option_value] error\n");
+    }                    
+}
+
+void ip_device::set_option_value(int sensor_index, rs2_option opt, float val)
+{
+    if (sensor_index < (sizeof(remote_sensors)/sizeof(remote_sensors[0])) && remote_sensors[sensor_index] != nullptr)
+    {
+        remote_sensors[sensor_index]->rtsp_client->setOption(std::string(sensors_str[sensor_index]),opt, val);
+    }
+}
+
+void ip_device::get_option_value(int sensor_index, rs2_option opt, float& val)
+{
+    if (sensor_index < sizeof(remote_sensors) && remote_sensors[sensor_index] != nullptr)
+    {
+        remote_sensors[sensor_index]->rtsp_client->getOption(std::string(sensors_str[sensor_index]),opt, val);
+    }
 }
 
 rs2_video_stream convert_stream_object(rs2::video_stream_profile sp)
@@ -206,6 +265,7 @@ void ip_device::update_sensor_state(int sensor_index, std::vector<rs2::stream_pr
         remote_sensors[sensor_index]->rtsp_client->close();
         remote_sensors[sensor_index]->rtsp_client = nullptr;
         stop_sensor_streams(sensor_index);
+        recover_rtsp_client(sensor_index);
         return;
     }
     for (size_t i = 0; i < updated_streams.size(); i++)
@@ -219,11 +279,6 @@ void ip_device::update_sensor_state(int sensor_index, std::vector<rs2::stream_pr
             exit(-1);
         }
 
-        //temporary nhershko workaround for start after stop
-        if (remote_sensors[sensor_index]->rtsp_client == nullptr)
-        {
-            recover_rtsp_client(sensor_index);
-        }
 
         rtp_callbacks[requested_stream_key] = new rs_rtp_callback(streams_collection[requested_stream_key]);
         remote_sensors[sensor_index]->rtsp_client->addStream(streams_collection[requested_stream_key].get()->m_rs_stream, rtp_callbacks[requested_stream_key]);
@@ -251,7 +306,7 @@ void ip_device::inject_frames_loop(std::shared_ptr<rs_rtp_stream> rtp_stream)
 
         rtp_stream.get()->frame_data_buff.frame_number = 0;
         int uid = rtp_stream.get()->m_rs_stream.uid;
-        rs2_stream type = rtp_stream.get()->m_rs_stream.type;
+        rs2_strea  m type = rtp_stream.get()->m_rs_stream.type;
         int sensor_id = stream_type_to_sensor_id(type);
 
         while (rtp_stream.get()->is_enabled == true)
@@ -292,9 +347,9 @@ void ip_device::inject_frames_loop(std::shared_ptr<rs_rtp_stream> rtp_stream)
         rtp_stream.get()->reset_queue();
         std::cout << "polling data at stream index " << rtp_stream.get()->m_rs_stream.uid << " is done\n";
     }
-    catch(const std::exception& ex)
+    catch(const std::exception& e)
     {
-        std::cerr << ex.what() << std::endl;
+        std::cerr << e.what() << '\n';
     }
 }
 
