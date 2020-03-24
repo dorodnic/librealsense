@@ -3,7 +3,9 @@
 
 
 #include <librealsense2/rs.hpp>
+#ifdef NETWORK_DEVICE
 #include <librealsense2-net/rs_net.hpp>
+#endif
 #include "viewer.h"
 #include "os.h"
 #include "ux-window.h"
@@ -31,15 +33,28 @@
 #define FW_SR3XX_FW_IMAGE_VERSION ""
 #endif // INTERNAL_FW
 
+#include <easylogging++.h>
+#ifdef BUILD_SHARED_LIBS
+// With static linkage, ELPP is initialized by librealsense, so doing it here will
+// create errors. When we're using the shared .so/.dll, the two are separate and we have
+// to initialize ours if we want to use the APIs!
+INITIALIZE_EASYLOGGINGPP
+#endif
+
 using namespace rs2;
 using namespace rs400;
 
 #define MIN_IP_SIZE 7 //TODO: Ester - update size when host name is supported
 
-void add_remote_device(context& ctx, std::string address) 
+bool add_remote_device(context& ctx, std::string address) 
 {
+#ifdef NETWORK_DEVICE
     rs2::net_device dev(address);
     dev.add_to(ctx);
+    return true; // NEtwork device exists
+#else
+    return false;
+#endif
 }
 
 void add_playback_device(context& ctx, device_models_list& device_models, 
@@ -256,6 +271,7 @@ bool refresh_devices(std::mutex& m,
     return true;
 }
 
+
 int main(int argc, const char** argv) try
 {
     rs2::log_to_console(RS2_LOG_SEVERITY_WARN);
@@ -284,14 +300,41 @@ int main(int argc, const char** argv) try
     {
         try
         {
-            add_remote_device(ctx, argv[1]);
-            is_ip_device_connected = true;
+            is_ip_device_connected = add_remote_device(ctx, argv[1]);;
         }
         catch (std::runtime_error e)
         {
             error_message = e.what();
         }
     }
+
+    // Configure the logger
+    el::Configurations conf;
+    conf.set( el::Level::Global, el::ConfigurationType::Format, "[%level] %msg" );
+    conf.set( el::Level::Info, el::ConfigurationType::Format, "%msg" );
+    conf.set( el::Level::Debug, el::ConfigurationType::Enabled, "false" );
+    el::Loggers::reconfigureLogger( "default", conf );
+    // Create a dispatch sink which will get any messages logged to EasyLogging, which will then
+    // post the messages on the viewer's notification window.
+    class viewer_model_dispatcher : public el::LogDispatchCallback
+    {
+    public:
+        rs2::viewer_model * vm = nullptr;  // only the default ctor is available to us...!
+    protected:
+        void handle( const el::LogDispatchData* data ) noexcept override
+        {
+            vm->not_model.add_log( 
+                data->logMessage()->logger()->logBuilder()->build(
+                    data->logMessage(),
+                    data->dispatchAction() == el::base::DispatchAction::NormalLog
+                ));
+        }
+    };
+    el::Helpers::installLogDispatchCallback< viewer_model_dispatcher >( "viewer_model_dispatcher" );
+    auto dispatcher = el::Helpers::logDispatchCallback< viewer_model_dispatcher >( "viewer_model_dispatcher" );
+    dispatcher->vm = &viewer_model;
+    // Remove the default logger (which will log to standard out/err) or it'll still be active
+    el::Helpers::uninstallLogDispatchCallback< el::base::DefaultLogDispatchCallback >( "DefaultLogDispatchCallback" );
 
     window.on_file_drop = [&](std::string filename)
     {
@@ -536,8 +579,7 @@ int main(int argc, const char** argv) try
                         {
                             try
                             {
-                                add_remote_device(ctx, ip_address);
-                                is_ip_device_connected = true;
+                                is_ip_device_connected = add_remote_device(ctx, ip_address);;
                                 refresh_devices(m, ctx, devices_connection_changes, connected_devs, device_names, *device_models, viewer_model, error_message);
                                 auto dev = connected_devs[connected_devs.size()-1];
                                 device_models->emplace_back(new device_model(dev, error_message, viewer_model));

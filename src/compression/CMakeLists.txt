@@ -14,7 +14,6 @@ file(GLOB COMPRESSION_SOURCES
  "*.h"
  "*.cpp"
  "../ipDeviceCommon/*.h"
- "../ipDeviceCommon/*.cpp"
 )
 
 add_library(${PROJECT_NAME} STATIC ${COMPRESSION_SOURCES})
@@ -22,6 +21,7 @@ add_library(${PROJECT_NAME} STATIC ${COMPRESSION_SOURCES})
 include_directories(${PROJECT_NAME}
     ../../common
     ../ipDeviceCommon
+    ../../third-party/easyloggingpp/src    
 )
 
 set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 11)
@@ -39,9 +39,10 @@ include_directories(${PROJECT_NAME}
 )
 
 if(WIN32)
+    set(ZLIB_LIBRARY optimized ${CMAKE_BINARY_DIR}/zlib/lib/zlibstatic.lib debug ${CMAKE_BINARY_DIR}/zlib/lib/zlibstaticd.lib)
     target_link_libraries(${PROJECT_NAME}
         PRIVATE ${DEPENDENCIES}
-        PUBLIC ${CMAKE_BINARY_DIR}/zlib/lib/zlibstaticd.lib
+        PUBLIC ${ZLIB_LIBRARY}
         PUBLIC ${CMAKE_BINARY_DIR}/libjpeg-turbo/lib/turbojpeg-static.lib
         PUBLIC ${CMAKE_BINARY_DIR}/lz4/lib/lz4.lib
     )
@@ -53,10 +54,6 @@ else()
         ${CMAKE_BINARY_DIR}/lz4/lib/liblz4.a
     )
 endif()    
-
-if(BUILD_IPDEV_STATS)
-    add_definitions(-DSTATISTICS)
-endif()
 
 set_target_properties (${PROJECT_NAME} PROPERTIES FOLDER "Library")
 

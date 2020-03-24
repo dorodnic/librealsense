@@ -10,7 +10,6 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 #set(CMAKE_VERBOSE_MAKEFILE on)
 
 set(DEPENDENCIES ${DEPENDENCIES} realsense2)
-set(DEPENDENCIES ${DEPENDENCIES} realsense2-ethernet)
 
 add_subdirectory(convert)
 add_subdirectory(enumerate-devices)
@@ -20,7 +19,9 @@ add_subdirectory(recorder)
 add_subdirectory(fw-update)
 
 if(NOT WIN32)
-    add_subdirectory(rs-server)
+    if(BUILD_NETWORK_DEVICE)
+        add_subdirectory(rs-server)
+    endif()
 endif()
 
 if(BUILD_GRAPHICAL_EXAMPLES)

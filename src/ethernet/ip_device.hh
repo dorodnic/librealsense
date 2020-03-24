@@ -1,30 +1,18 @@
+// License: Apache 2.0. See LICENSE file in root directory.
+// Copyright(c) 2020 Intel Corporation. All Rights Reserved.
+
 #pragma once
 
-//////////////////////////////////////////////////////////////////////////
-#ifdef _WIN32
-
-#define _WINSOCKAPI_
-
-#include <windows.h>
-#pragma comment(lib, "Ws2_32.lib")
-
-#include <SIGNAL.H>
-
-#endif
-//////////////////////////////////////////////////////////////////////////
-
-#include <librealsense2/rs.hpp>
-#include <librealsense2/hpp/rs_internal.hpp>
-#include "option.h"
-
 #include "RsRtspClient.h"
+#include "ip_sensor.hh"
+#include "rs_rtp_callback.hh"
+
+#include "option.h"
 #include "software-device.h"
+#include <librealsense2/hpp/rs_internal.hpp>
+#include <librealsense2/rs.hpp>
 
 #include <list>
-
-#include "rs_rtp_stream.hh"
-#include "rs_rtp_callback.hh"
-#include "ip_sensor.hh"
 
 #define MAX_ACTIVE_STREAMS 4
 
@@ -36,21 +24,16 @@ class ip_device
 {
 
 public:
-#ifdef _WIN32
-    __declspec(dllexport)
-#endif
-    
     ip_device(std::string ip_address, rs2::software_device sw_device);
-
     ~ip_device();
 
-    ip_sensor *remote_sensors[NUM_OF_SENSORS];
+    ip_sensor* remote_sensors[NUM_OF_SENSORS];
 
 private:
     bool is_device_alive;
 
     //TODO: get smart ptr
-    MemoryPool *memory_pool;
+    MemoryPool* memory_pool;
 
     std::string ip_address;
 
@@ -59,7 +42,7 @@ private:
 
     std::map<long long int, std::thread> inject_frames_thread;
 
-    std::map<long long int, rs_rtp_callback *> rtp_callbacks;
+    std::map<long long int, rs_rtp_callback*> rtp_callbacks;
 
     std::thread sw_device_status_check;
 
