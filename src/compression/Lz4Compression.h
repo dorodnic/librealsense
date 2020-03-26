@@ -4,7 +4,7 @@
 #pragma once
 
 #include "ICompression.h"
-#include <lz4.h>
+#include <../../third-party/realsense-file/lz4/lz4.h>
 
 class Lz4Compression : public ICompression
 {

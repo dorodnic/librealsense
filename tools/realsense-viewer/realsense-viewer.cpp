@@ -338,7 +338,6 @@ int main(int argc, const char** argv) try
 
     window.on_file_drop = [&](std::string filename)
     {
-        
         add_playback_device(ctx, *device_models, error_message, viewer_model, filename);
         if (!error_message.empty())
         {
