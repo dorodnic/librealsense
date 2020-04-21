@@ -174,8 +174,8 @@ int main(int argc, char * argv[]) try
     // Start the camera
     pipeline pipe;
     config cfg;
-    cfg.enable_device_from_file("/home/sergey/Documents/20200421_092527.bag");
-    cfg.enable_stream(RS2_STREAM_DEPTH, 0, 0, RS2_FORMAT_Z16, 60);
+    //cfg.enable_device_from_file("/home/sergey/Documents/20200421_092527.bag");
+    cfg.enable_stream(RS2_STREAM_DEPTH, 848, 480, RS2_FORMAT_Z16, 60);
     cfg.enable_stream(RS2_STREAM_COLOR, 640, 480, RS2_FORMAT_RGB8, 60);
     pipe.start(cfg);
 
@@ -242,6 +242,7 @@ int main(int argc, char * argv[]) try
         auto start = high_resolution_clock::now();
 
         //frameset aligned_set = align_to.process(data);
+        data = align_to.process(data);
         frame depth = data.get_depth_frame();
 
         q.enqueue(data.get_color_frame());
@@ -299,20 +300,20 @@ int main(int argc, char * argv[]) try
             fx = center.x;
             fy = center.y;
 
-            std::cout << "Before: " << fx << ", " << fy << "\n";
+            // std::cout << "Before: " << fx << ", " << fy << "\n";
 
-            float pixel[2];
-            float from[2];
-            from[0] = fx;
-            from[1] = fy;
+            // float pixel[2];
+            // float from[2];
+            // from[0] = fx;
+            // from[1] = fy;
 
-            rs2_project_color_pixel_to_depth_pixel(pixel, 
-                (uint16_t*)depth.get_data(), depth.as<rs2::depth_frame>().get_units(), 
-                0.2f, 3.f, &intr, &color_intr, &extr, &extr1, from);
-            fx = pixel[0];
-            fy = pixel[1];
+            // rs2_project_color_pixel_to_depth_pixel(pixel, 
+            //     (uint16_t*)depth.get_data(), depth.as<rs2::depth_frame>().get_units(), 
+            //     0.2f, 3.f, &intr, &color_intr, &extr, &extr1, from);
+            // fx = pixel[0];
+            // fy = pixel[1];
 
-            std::cout << "After: " << fx << ", " << fy << "\n";
+            // std::cout << "After: " << fx << ", " << fy << "\n";
         }        
 
         auto fv = vs[fy * w + fx];
@@ -446,10 +447,10 @@ int main(int argc, char * argv[]) try
                 Point( bin_w*bg, hist_h - 100 ),
                 Scalar( 0, 0, 255), 2, 8, 0  );
 
-        if (bg - fg > 10)
+        if (bg - fg > 20)
         {
-            dstImage2.setTo(cv::Scalar(255), dstImage2 < (fg - fg_mean * 1.5f));
-            dstImage2.setTo(cv::Scalar(255), dstImage2 > (fg + fg_mean * 1.5f));
+            dstImage2.setTo(cv::Scalar(255), dstImage2 < (fg - fg_mean));
+            dstImage2.setTo(cv::Scalar(255), dstImage2 > (fg + fg_mean));
 
             detection_history.push_back(1);
         }
@@ -540,7 +541,7 @@ int main(int argc, char * argv[]) try
 
         cv::resize(color_mat, color_mat, dstImage2.size(), 0, 0, cv::INTER_LINEAR);
 
-        std::vector<Mat> channels { dstImage2, depth_cpy, color_mat };
+        std::vector<Mat> channels { dstImage2, dstImage2, color_mat };
 
 
         merge(channels, dstImage2);
