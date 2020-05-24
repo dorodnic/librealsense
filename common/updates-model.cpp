@@ -162,7 +162,7 @@ void updates_model::draw(ux_window& window, std::string& error_message)
         ImGui::Checkbox("I understand and would like to proceed anyway without updating", &ignore);
 
         ImGui::SetCursorPos({ w - 125, h - 25 });
-        auto enabled = ignore || (sw_updated && fw_updated);
+        auto enabled = ignore || (sw_updated && (fw_updated || _fw_update_state == fw_update_states::completed));
         if (enabled)
         {
             if (ImGui::Button("OK", { 120, 20 })) 
