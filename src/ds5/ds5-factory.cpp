@@ -1029,7 +1029,7 @@ namespace librealsense
         case RS435_RGB_PID:
             return std::make_shared<rs435_device>(ctx, group, register_device_notifications);
         case RS435I_PID:
-            return std::make_shared<rs435i_device>(ctx, group, register_device_notifications);
+            return std::make_shared<rs435_device>(ctx, group, register_device_notifications);
         case RS465_PID:
             return std::make_shared<rs465_device>(ctx, group, register_device_notifications);
         case RS_USB2_PID:
@@ -1078,7 +1078,7 @@ namespace librealsense
             }
 
 
-#if !defined(__APPLE__) // Not supported by macos
+#if 0
             auto is_pid_of_hid_sensor_device = [](int pid) { return std::find(std::begin(ds::hid_sensors_pid), std::end(ds::hid_sensors_pid), pid) != std::end(ds::hid_sensors_pid); };
             bool is_device_hid_sensor = false;
             for (auto&& uvc : devices)
